@@ -1,0 +1,244 @@
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: 1.0\n"
+"Report-Msgid-Bugs-To: you@example.com\n"
+"Last-Translator: you@example.com\n"
+"Language-Team: English\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "一键日常"
+msgstr "One-click Dailies"
+
+msgid "从要推的图的最左边开始"
+msgstr "Start from the leftmost stage to clear"
+
+msgid "体力本"
+msgstr "Stamina Stage"
+
+msgid "公共区"
+msgstr "Public Area"
+
+msgid "兵棋推演"
+msgstr "War Chess Simulation"
+
+msgid "军备解析"
+msgstr "Armament Analysis"
+
+msgid "冲锋"
+msgstr "SMG & MG"
+
+msgid "决策构象"
+msgstr "Decision Configuration"
+
+msgid "刷钱本"
+msgstr "Gold Farming Stage"
+
+msgid "大月卡"
+msgstr "Premium Monthly Card"
+
+msgid "尘烟"
+msgstr "Dust Smoke"
+
+msgid "手枪"
+msgstr "HG"
+
+msgid "推图"
+msgstr "Clear Stages"
+
+msgid "收菜"
+msgstr "Collect Resources"
+
+msgid "活动情报补给"
+msgstr "Event Intel Supply"
+
+msgid "活动自律"
+msgstr "Event Auto-Battle"
+
+msgid "深度搜索"
+msgstr "Deep Search"
+
+msgid "狙击"
+msgstr "RF & BLD"
+
+msgid "班组"
+msgstr "Squad"
+
+msgid "突击"
+msgstr "AR & SG"
+
+msgid "竞技场"
+msgstr "Arena"
+
+msgid "自动刷体力"
+msgstr "Auto-Farm Stamina"
+
+msgid "购买免费礼包"
+msgstr "Claim Free Pack"
+
+msgid "邮件"
+msgstr "Mail"
+
+msgid "领任务"
+msgstr "Claim Missions"
+
+msgid "Configuration Demo Task"
+msgstr ""
+
+msgid "Demonstrates every configuration widget for English to Chinese translation."
+msgstr ""
+
+msgid "Drop Down Config"
+msgstr ""
+
+msgid "Boolean Config"
+msgstr ""
+
+msgid "Integer Config"
+msgstr ""
+
+msgid "Float Config"
+msgstr ""
+
+msgid "String Config"
+msgstr ""
+
+msgid "Text Edit Config"
+msgstr ""
+
+msgid "Folder Selector Config"
+msgstr ""
+
+msgid "File Selector Config"
+msgstr ""
+
+msgid "List Config"
+msgstr ""
+
+msgid "Drop Down Options Config"
+msgstr ""
+
+msgid "Multi Selection Config"
+msgstr ""
+
+msgid "Sub Boolean Config"
+msgstr ""
+
+msgid "Sub String Config"
+msgstr ""
+
+msgid "Sub Float Config"
+msgstr ""
+
+msgid "Game Hotkey Config"
+msgstr ""
+
+msgid "Button Config"
+msgstr ""
+
+msgid "Button Options Config"
+msgstr ""
+
+msgid "Drop-down configuration with translated option values."
+msgstr ""
+
+msgid "Single-line string configuration with a translated value."
+msgstr ""
+
+msgid "Multi-line string configuration with a translated value."
+msgstr ""
+
+msgid "Folder selector configuration that stores the selected folder path."
+msgstr ""
+
+msgid "File selector configuration with an optional file filter."
+msgstr ""
+
+msgid "Dropdown option list restricted to available translated values."
+msgstr ""
+
+msgid "Open the shared global configuration example."
+msgstr ""
+
+msgid "Button configuration that displays all current values."
+msgstr ""
+
+msgid "Button configuration with multiple action buttons."
+msgstr ""
+
+msgid "Drop Down Value 1"
+msgstr ""
+
+msgid "Drop Down Value 2"
+msgstr ""
+
+msgid "Select Demo Folder"
+msgstr ""
+
+msgid "Select Demo File"
+msgstr ""
+
+msgid "Multi Selection Value 1"
+msgstr ""
+
+msgid "Multi Selection Value 2"
+msgstr ""
+
+msgid "Multi Selection Value 3"
+msgstr ""
+
+msgid "Button Value"
+msgstr ""
+
+msgid "Show Config Values"
+msgstr ""
+
+msgid "Show Notification"
+msgstr ""
+
+msgid "Button notification displayed."
+msgstr ""
+
+msgid "Configuration values displayed."
+msgstr ""
+
+msgid "String Value"
+msgstr ""
+
+msgid "Text Edit Value"
+msgstr ""
+
+msgid "List Value 1"
+msgstr ""
+
+msgid "List Value 2"
+msgstr ""
+
+msgid "Sub String Value"
+msgstr ""
+
+msgid "Available Drop Down Value 1"
+msgstr ""
+
+msgid "Available Drop Down Value 2"
+msgstr ""
+
+msgid "Available Drop Down Value 3"
+msgstr ""
+
+msgid "True"
+msgstr ""
+
+msgid "False"
+msgstr ""
+
+msgid "Select one of the available drop-down values."
+msgstr ""
+
+msgid "Select only available multi-selection values."
+msgstr ""
+
+msgid "Select only available drop-down option values."
+msgstr ""

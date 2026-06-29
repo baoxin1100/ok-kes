@@ -1,0 +1,29 @@
+name: mirrorchyan_release
+
+on:
+  workflow_dispatch:
+    inputs:
+        tag:
+            default: ''
+            required: false
+
+jobs:
+  mirrorchyan:
+    runs-on: macos-latest
+    if: ${{ github.repository_owner == 'ok-oldking' }}
+
+    steps:
+      - uses: MirrorChyan/uploading-action@v1
+        with:
+          filetype: latest-release
+          filename: "ok-py-win32-China-setup.exe"
+          mirrorchyan_rid: ok-py
+          tag: ${{ inputs.tag }}
+
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+
+          owner: ok-oldking
+          repo: ok-py
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          upload_token: ${{ secrets.MirrorChyanUploadToken }}

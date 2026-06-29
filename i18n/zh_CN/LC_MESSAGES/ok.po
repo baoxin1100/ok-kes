@@ -1,0 +1,244 @@
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: 1.0\n"
+"Report-Msgid-Bugs-To: you@example.com\n"
+"Last-Translator: you@example.com\n"
+"Language-Team: English\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "一键日常"
+msgstr ""
+
+msgid "从要推的图的最左边开始"
+msgstr ""
+
+msgid "体力本"
+msgstr ""
+
+msgid "公共区"
+msgstr ""
+
+msgid "兵棋推演"
+msgstr ""
+
+msgid "军备解析"
+msgstr ""
+
+msgid "冲锋"
+msgstr ""
+
+msgid "决策构象"
+msgstr ""
+
+msgid "刷钱本"
+msgstr ""
+
+msgid "大月卡"
+msgstr ""
+
+msgid "尘烟"
+msgstr ""
+
+msgid "手枪"
+msgstr ""
+
+msgid "推图"
+msgstr ""
+
+msgid "收菜"
+msgstr ""
+
+msgid "活动情报补给"
+msgstr ""
+
+msgid "活动自律"
+msgstr ""
+
+msgid "深度搜索"
+msgstr ""
+
+msgid "狙击"
+msgstr ""
+
+msgid "班组"
+msgstr ""
+
+msgid "突击"
+msgstr ""
+
+msgid "竞技场"
+msgstr ""
+
+msgid "自动刷体力"
+msgstr ""
+
+msgid "购买免费礼包"
+msgstr ""
+
+msgid "邮件"
+msgstr ""
+
+msgid "领任务"
+msgstr ""
+
+msgid "Configuration Demo Task"
+msgstr "配置演示任务"
+
+msgid "Demonstrates every configuration widget for English to Chinese translation."
+msgstr "演示英译中任务的全部配置控件。"
+
+msgid "Drop Down Config"
+msgstr "下拉框配置"
+
+msgid "Boolean Config"
+msgstr "bool配置"
+
+msgid "Integer Config"
+msgstr "整数配置"
+
+msgid "Float Config"
+msgstr "浮点数配置"
+
+msgid "String Config"
+msgstr "字符串配置"
+
+msgid "Text Edit Config"
+msgstr "多行文本配置"
+
+msgid "Folder Selector Config"
+msgstr "文件夹选择配置"
+
+msgid "File Selector Config"
+msgstr "文件选择配置"
+
+msgid "List Config"
+msgstr "列表配置"
+
+msgid "Drop Down Options Config"
+msgstr "下拉框选项配置"
+
+msgid "Multi Selection Config"
+msgstr "多选配置"
+
+msgid "Sub Boolean Config"
+msgstr "子bool配置"
+
+msgid "Sub String Config"
+msgstr "子字符串配置"
+
+msgid "Sub Float Config"
+msgstr "子浮点数配置"
+
+msgid "Game Hotkey Config"
+msgstr "游戏快捷键配置"
+
+msgid "Button Config"
+msgstr "按钮配置"
+
+msgid "Button Options Config"
+msgstr "按钮选项配置"
+
+msgid "Drop-down configuration with translated option values."
+msgstr "带有已翻译选项值的下拉框配置。"
+
+msgid "Single-line string configuration with a translated value."
+msgstr "带有已翻译值的单行字符串配置。"
+
+msgid "Multi-line string configuration with a translated value."
+msgstr "带有已翻译值的多行字符串配置。"
+
+msgid "Folder selector configuration that stores the selected folder path."
+msgstr "保存所选文件夹路径的文件夹选择配置。"
+
+msgid "File selector configuration with an optional file filter."
+msgstr "带有可选文件过滤器的文件选择配置。"
+
+msgid "Dropdown option list restricted to available translated values."
+msgstr "仅可从已翻译可用值中选择的下拉框选项列表。"
+
+msgid "Open the shared global configuration example."
+msgstr "打开共享的全局配置示例。"
+
+msgid "Button configuration that displays all current values."
+msgstr "显示全部当前配置值的按钮配置。"
+
+msgid "Button configuration with multiple action buttons."
+msgstr "带有多个操作按钮的按钮配置。"
+
+msgid "Drop Down Value 1"
+msgstr "下拉框值 1"
+
+msgid "Drop Down Value 2"
+msgstr "下拉框值 2"
+
+msgid "Select Demo Folder"
+msgstr "选择演示文件夹"
+
+msgid "Select Demo File"
+msgstr "选择演示文件"
+
+msgid "Multi Selection Value 1"
+msgstr "多选值 1"
+
+msgid "Multi Selection Value 2"
+msgstr "多选值 2"
+
+msgid "Multi Selection Value 3"
+msgstr "多选值 3"
+
+msgid "Button Value"
+msgstr "按钮值"
+
+msgid "Show Config Values"
+msgstr "显示配置值"
+
+msgid "Show Notification"
+msgstr "显示通知"
+
+msgid "Button notification displayed."
+msgstr "已显示按钮通知。"
+
+msgid "Configuration values displayed."
+msgstr "已显示配置值。"
+
+msgid "String Value"
+msgstr "字符串值"
+
+msgid "Text Edit Value"
+msgstr "多行文本值"
+
+msgid "List Value 1"
+msgstr "列表值 1"
+
+msgid "List Value 2"
+msgstr "列表值 2"
+
+msgid "Sub String Value"
+msgstr "子字符串值"
+
+msgid "Available Drop Down Value 1"
+msgstr "可用下拉框值 1"
+
+msgid "Available Drop Down Value 2"
+msgstr "可用下拉框值 2"
+
+msgid "Available Drop Down Value 3"
+msgstr "可用下拉框值 3"
+
+msgid "True"
+msgstr "bool值 True"
+
+msgid "False"
+msgstr "bool值 False"
+
+msgid "Select one of the available drop-down values."
+msgstr "请选择可用的下拉框值之一。"
+
+msgid "Select only available multi-selection values."
+msgstr "请只选择可用的多选值。"
+
+msgid "Select only available drop-down option values."
+msgstr "请只选择可用的下拉框选项值。"
