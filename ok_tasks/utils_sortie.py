@@ -383,7 +383,25 @@ def handle_battle_page(task: TriggerTask):
             _try_all_card_keys(task, hand_count)
         else:
             task.log_info("战斗页面无手牌，按E")
-            task.send_key("e")
+            # 检查右下角白色比例，小于5%则不执行按E
+            from ok.feature.Box import Box
+            from ok.util.color import calculate_color_percentage
+            e_box = Box(
+                x=int(0.849 * task.width),
+                y=int(0.792 * task.height),
+                width=int((0.932 - 0.849) * task.width),
+                height=int((0.943 - 0.792) * task.height)
+            )
+            white_ratio = calculate_color_percentage(
+                task.frame,
+                {'r': (255, 255), 'g': (255, 255), 'b': (255, 255)},
+                box=e_box
+            )
+            if white_ratio >= 0.04:
+                task.log_info(f"右下角白色比例{white_ratio:.2%}，按E")
+                task.send_key("e")
+            else:
+                task.log_info(f"右下角白色比例{white_ratio:.2%}小于4%，跳过按E")
         return True
 
     if any(int(card["key"]) > hand_count for card in cards):
@@ -1382,6 +1400,17 @@ def handle_curiosity_activate(task: TriggerTask):
     return False
 
 
+def handle_extra_card_use(task: TriggerTask):
+    """额外使用卡牌页面: 随机选择一张卡牌使用（战斗相关页面，优先级高于战斗页面）。"""
+    box = find_box_at_point(task, 0.498, 0.131)
+    if box and "请选择张要额外使用的卡牌" in box.name:
+        task.log_info("检测到额外使用卡牌页面，随机选择")
+        task.click(*random.choice([(0.251, 0.546), (0.508, 0.518), (0.764, 0.525)]))
+        task.sleep(2)
+        return True
+    return False
+
+
 def handle_card_function_select(task: TriggerTask):
     """卡牌功能选择页面: 量子晶种预测选创造，小丑任务随机选任务（战斗相关页面，优先级高于战斗页面）。"""
     title = find_box_at_point(task, 0.499, 0.131)
@@ -1514,6 +1543,7 @@ PAGE_HANDLERS = [
     handle_discard_hand_card,
     handle_card_discard_page,
     handle_curiosity_activate,
+    handle_extra_card_use,
     handle_card_function_select,
     handle_return_to_draw_pile,
     handle_battle_page,
