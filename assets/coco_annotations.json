@@ -23,6 +23,12 @@
             "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 32,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -77,6 +83,19 @@
             ],
             "area": 3886,
             "iscrowd": 0
+        },
+        {
+            "id": 5,
+            "image_id": 32,
+            "category_id": 5,
+            "bbox": [
+                123,
+                974,
+                69,
+                59
+            ],
+            "area": 4071,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -98,6 +117,11 @@
         {
             "id": 4,
             "name": "taskreward",
+            "supercategory": ""
+        },
+        {
+            "id": 5,
+            "name": "minimizemap",
             "supercategory": ""
         }
     ]

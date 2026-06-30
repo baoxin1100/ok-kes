@@ -901,28 +901,28 @@ def handle_card_assign(task: TriggerTask):
 
     task.log_info("检测到卡牌分配页面")
 
-    # 在区域内查找所有"等级"文本，每个代表一个主战员
-    px1, py1 = int(0.607 * task.width), int(0.289 * task.height)
-    px2, py2 = int(0.655 * task.width), int(0.782 * task.height)
+    # 在区域内查找所有"防御力"文本（精确匹配），每个代表一个主战员
+    px1, py1 = int(0.727 * task.width), int(0.206 * task.height)
+    px2, py2 = int(0.786 * task.width), int(0.742 * task.height)
 
-    lv_texts = sorted(
+    def_texts = sorted(
         [b for b in task.all_texts
          if b.x >= px1 and b.y >= py1 and b.x + b.width <= px2 and b.y + b.height <= py2
-         and b.name in "等级"],
+         and b.name in "防御力"],
         key=lambda b: b.y
     )
 
-    if not lv_texts:
-        task.log_info("未找到主战员等级信息")
+    if not def_texts:
+        task.log_info("未找到主战员防御力信息")
         return False
 
-    count = len(lv_texts)
+    count = len(def_texts)
     chosen_idx = random.randint(0, count - 1)
-    chosen_lv = lv_texts[chosen_idx]
+    chosen_def = def_texts[chosen_idx]
     task.log_info(f"共{count}个主战员，随机选择第{chosen_idx + 1}号")
 
     # 点击选中的主战员
-    task.click(0.756, (chosen_lv.y + chosen_lv.height / 2) / task.height)
+    task.click(0.756, (chosen_def.y + chosen_def.height / 2) / task.height)
     task.sleep(0.3)
     task.click(0.919, 0.933)
     task.sleep(0.5)
