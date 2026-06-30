@@ -627,6 +627,7 @@ PAGE_HANDLERS = [
     handle_extra_card_use,
     handle_card_function_select,
     handle_return_to_draw_pile,
+    handle_weakness_info,
     handle_battle_page,
     handle_close_page,
     handle_ether_supply,
@@ -674,7 +675,6 @@ PAGE_HANDLERS = [
     handle_skip,
     handle_event_task,
     handle_escape,
-    handle_weakness_info,
     handle_minimizemap,
     handle_close_button,
 ]
