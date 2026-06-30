@@ -868,18 +868,10 @@ def handle_codex_search(task: TriggerTask):
     title = find_box_at_point(task, 0.5, 0.438)
     if not (title and title.name == "法典"):
         return False
-    subtitle = find_box_at_point(task, 0.5, 0.570)
-    if subtitle and "搜索新坐标" in subtitle.name:
-        task.log_info("检测到法典搜索页面，点击搜索新坐标")
-        task.click(0.5, 0.760)
-        task.sleep(2)
-        return True
-    if subtitle and "已重置坐标" in subtitle.name:
-        task.log_info("检测到法典重置页面，点击搜索新坐标")
-        task.click(0.5, 0.760)
-        task.sleep(2)
-        return True
-    return False
+    task.log_info("检测到法典搜索页面，点击搜索新坐标")
+    task.click(0.5, 0.760)
+    task.sleep(2)
+    return True
 
 
 def handle_cares_tip(task: TriggerTask):
