@@ -286,7 +286,7 @@ def handle_destiny_choice(task: TriggerTask):
         titles = [
             b for b in task.all_texts
             if 0.202 <= (b.x + b.width / 2) / task.width <= 0.800
-            and 0.474 <= (b.y + b.height / 2) / task.height <= 0.546
+            and 0.474 <= (b.y + b.height / 2) / task.height <= 0.600
             and len(b.name.strip()) > 1
             and b.name not in ["确认", "返回", "跳过"]
         ]
