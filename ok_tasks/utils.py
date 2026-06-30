@@ -680,53 +680,54 @@ def handle_rest(task: TriggerTask):
         task.click(0.568, 0.669)
         task.sleep(0.5)
 
-    if _get_config_value(task, "进入商店", False):
-        shop_box = find_box_at_point(task, 0.366, 0.133)
-        if shop_box and shop_box.name == "德朗商店":
-            task.log_info("检测休息界面，发现德朗商店，进入")
-            task.click_box(shop_box)
-            return True
+#     # 德朗商店功能暂不启用
+#     if _get_config_value(task, "进入商店", False):
+#         shop_box = find_box_at_point(task, 0.366, 0.133)
+#         if shop_box and shop_box.name == "德朗商店":
+#             task.log_info("检测休息界面，发现德朗商店，进入")
+#             task.click_box(shop_box)
+#             return True
     return False
 
 
-def handle_shop(task: TriggerTask):
-    """德朗商店: 若信用点足够则点击移除卡牌。"""
-    box = find_box_at_point(task, 0.729, 0.261)
-    soldout = find_box_at_point(task, 0.727, 0.286)
-    if (box and box.name == "移除卡牌") or (soldout and soldout.name in ["售罄", "售馨"]):
-        task.log_info("handle_shop: 通过页面判定（移除卡牌或售罄）")
-        if soldout and soldout.name in ["售罄", "售馨"]:
-            task.log_info(f"德朗商店: 移除卡牌已售罄")
-            task.click(0.948, 0.935)
-            task.sleep(1)
-            task.click(0.941, 0.918)
-            task.sleep(1)
-            return True
-        credit_box = find_box_at_point(task, 0.794, 0.054)
-        task.log_info(f"handle_shop: 0.794,0.054处信用点文本='{credit_box.name if credit_box else None}'")
-        if not (credit_box and credit_box.name.isdigit()):
-            task.log_info("handle_shop: 信用点读取失败，return False")
-            return False
-        current_credit = int(credit_box.name)
-
-        cost_box = find_box_at_point(task, 0.724, 0.319)
-        task.log_info(f"handle_shop: 0.724,0.319处费用文本='{cost_box.name if cost_box else None}'")
-        if not (cost_box and cost_box.name.isdigit()):
-            task.log_info("handle_shop: 费用读取失败，return False")
-            return False
-        cost = int(cost_box.name)
-        if cost < current_credit:
-            task.log_info(f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，足够，点击移除")
-            task.click_box(box)
-            return True
-        else:
-            task.log_info(f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，不足，跳过")
-            task.click(0.948, 0.935)
-            task.sleep(1)
-            task.click(0.941, 0.918)
-            task.sleep(1)
-            return True
-    return False
+# def handle_shop(task: TriggerTask):
+#     """德朗商店: 若信用点足够则点击移除卡牌。"""
+#     box = find_box_at_point(task, 0.729, 0.261)
+#     soldout = find_box_at_point(task, 0.727, 0.286)
+#     if (box and box.name == "移除卡牌") or (soldout and soldout.name in ["售罄", "售馨"]):
+#         task.log_info("handle_shop: 通过页面判定（移除卡牌或售罄）")
+#         if soldout and soldout.name in ["售罄", "售馨"]:
+#             task.log_info(f"德朗商店: 移除卡牌已售罄")
+#             task.click(0.948, 0.935)
+#             task.sleep(1)
+#             task.click(0.941, 0.918)
+#             task.sleep(1)
+#             return True
+#         credit_box = find_box_at_point(task, 0.794, 0.054)
+#         task.log_info(f"handle_shop: 0.794,0.054处信用点文本='{credit_box.name if credit_box else None}'")
+#         if not (credit_box and credit_box.name.isdigit()):
+#             task.log_info("handle_shop: 信用点读取失败，return False")
+#             return False
+#         current_credit = int(credit_box.name)
+# 
+#         cost_box = find_box_at_point(task, 0.724, 0.319)
+#         task.log_info(f"handle_shop: 0.724,0.319处费用文本='{cost_box.name if cost_box else None}'")
+#         if not (cost_box and cost_box.name.isdigit()):
+#             task.log_info("handle_shop: 费用读取失败，return False")
+#             return False
+#         cost = int(cost_box.name)
+#         if cost < current_credit:
+#             task.log_info(f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，足够，点击移除")
+#             task.click_box(box)
+#             return True
+#         else:
+#             task.log_info(f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，不足，跳过")
+#             task.click(0.948, 0.935)
+#             task.sleep(1)
+#             task.click(0.941, 0.918)
+#             task.sleep(1)
+#             return True
+#     return False
 
 
 def handle_view_original(task: TriggerTask):
