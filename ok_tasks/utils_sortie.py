@@ -1488,6 +1488,21 @@ def handle_card_function_select(task: TriggerTask):
         task.sleep(4)
         return True
 
+    # 兜底: 在卡牌区域随机选择一张卡牌
+    cards = [
+        b for b in task.all_texts
+        if 0.023 <= (b.x + b.width / 2) / task.width <= 0.970
+        and 0.239 <= (b.y + b.height / 2) / task.height <= 0.312
+        and len(b.name.strip()) > 1
+        and b.name not in ["确认", "返回", "跳过"]
+    ]
+    if cards:
+        chosen = random.choice(cards)
+        task.log_info(f"卡牌功能选择兜底: 随机点击卡牌「{chosen.name}」")
+        task.click_box(chosen)
+        task.sleep(4)
+        return True
+
     return False
 def handle_card_assign(task: TriggerTask):
     """卡牌分配页面: 随机选择一个主战员接受卡牌（优先级高于卡牌奖励页面）。"""
