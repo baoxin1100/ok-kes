@@ -251,7 +251,11 @@ def handle_battle_page(task: TriggerTask):
     task.send_key(chosen["key"])
     task.sleep(0.5)
     task.send_key("enter")
-    task.sleep(2)
+    if re.search(r'展开极.', chosen['name']):
+        task.log_info(f"卡牌「{chosen['name']}」包含展开极，延长等待5秒")
+        task.sleep(5)
+    else:
+        task.sleep(2)
     return True
 
 
