@@ -931,6 +931,16 @@ def handle_cares_tip(task: TriggerTask):
     return False
 
 
+def handle_close_button(task: TriggerTask):
+    """通用关闭按钮: 检测到关闭按钮则点击关闭。"""
+    box = find_box_at_point(task, 0.512, 0.929)
+    if box and box.name == "关闭":
+        task.log_info("检测到关闭按钮，点击关闭")
+        task.click_box(box)
+        return True
+    return False
+
+
 def handle_memory_elimination(task: TriggerTask):
     """记忆消除页面: 点击记忆消除按钮。"""
     box = find_box_at_point(task, 0.589, 0.703)
@@ -1054,4 +1064,5 @@ PAGE_HANDLERS = [
     handle_leave,
     handle_skip,
     handle_event_task,
+    handle_close_button,
 ]

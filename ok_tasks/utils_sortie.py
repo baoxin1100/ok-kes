@@ -1300,6 +1300,16 @@ def handle_minimizemap(task: TriggerTask):
     return False
 
 
+def handle_close_button(task: TriggerTask):
+    """通用关闭按钮: 检测到关闭按钮则点击关闭。"""
+    box = find_box_at_point(task, 0.512, 0.929)
+    if box and box.name == "关闭":
+        task.log_info("检测到关闭按钮，点击关闭")
+        task.click_box(box)
+        return True
+    return False
+
+
 def handle_escape(task: TriggerTask):
     """逃脱页面: 检测战利品与逃脱按钮后点击逃脱。"""
     title = find_box_at_point(task, 0.675, 0.164)
@@ -1635,4 +1645,5 @@ PAGE_HANDLERS = [
     handle_escape,
     handle_weakness_info,
     handle_minimizemap,
+    handle_close_button,
 ]
