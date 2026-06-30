@@ -58,6 +58,16 @@ def find_exact_text(task: TriggerTask, text):
     return next((b for b in task.all_texts if b.name == text), None)
 
 
+def _is_valid_card_name(name):
+    """过滤非卡牌名的文本：单个字母、单个符号、纯符号等都不是卡牌名。"""
+    if len(name.strip()) <= 1:
+        return False
+    # 排除纯符号/特殊字符组成的名（不含中文字符和字母）
+    if not re.search(r'[\u4e00-\u9fff\w]', name):
+        return False
+    return True
+
+
 def _card_has_type_below(task: TriggerTask, box):
     """判断文本框下方是否有'攻击/强化/技能'类型标签（卡牌名特征）。"""
     box_bottom_y = (box.y + box.height) / task.height
@@ -71,16 +81,17 @@ def _card_has_type_below(task: TriggerTask, box):
 
 
 def select_card(task: TriggerTask, card_names, confirm_point=None, confirm_sleep=1, max_scrolls=5, fallback_delete=False, count=1):
-    """依次匹配卡牌名（名称完全相等），点击命中的前 count 张（同一张不会重复选）；可选再点击确认按钮。
+    """依次匹配卡牌名（子串包含匹配），点击命中的前 count 张（同一张不会重复选）；可选再点击确认按钮。
     支持向下滚动查找，若滚到底部仍未找到足够数量且 fallback_delete 为 True，则补充点击最后的牌。
     返回成功选择的数量。
     """
     selected = 0
-    used = set()
+    used_positions = []
     for i in range(max_scrolls + 1):
         found_cards = [b for b in task.all_texts
                        if 0.274 <= (b.x + b.width / 2) / task.width <= 0.931
                        and 0.106 <= (b.y + b.height / 2) / task.height <= 0.878
+                       and _is_valid_card_name(b.name)
                        and _card_has_type_below(task, b)]
         if found_cards:
             found_names = [b.name for b in found_cards]
@@ -88,15 +99,15 @@ def select_card(task: TriggerTask, card_names, confirm_point=None, confirm_sleep
 
         for name in card_names:
             card = next((b for b in task.all_texts
-                         if b.name == name
+                         if (name in b.name or b.name in name)
                      and 0.274 <= (b.x + b.width / 2) / task.width <= 0.931
                      and 0.106 <= (b.y + b.height / 2) / task.height <= 0.878
-                     and (b.x, b.y, b.width, b.height) not in used
+                     and not any(abs(ux - b.x) <= 10 and abs(uy - b.y) <= 10 for ux, uy, _, _ in used_positions)
                      and _card_has_type_below(task, b)), None)
             if card:
                 task.log_info(f"select_card 匹配成功: 名称「{card.name}」, 位置({card.x},{card.y})")
                 task.click_box(card)
-                used.add((card.x, card.y, card.width, card.height))
+                used_positions.append((card.x, card.y, card.width, card.height))
                 selected += 1
                 if selected >= count:
                     if confirm_point:
@@ -114,11 +125,14 @@ def select_card(task: TriggerTask, card_names, confirm_point=None, confirm_sleep
         remaining = count - selected
         task.log_info(f"滚动{max_scrolls}次仍未找到足够目标卡牌，补充点击最后{remaining}张")
         for _ in range(remaining):
+            task.all_texts = _simplify_texts(task.ocr())
             cards = [
                 b for b in task.all_texts
                 if 0.274 <= (b.x + b.width / 2) / task.width <= 0.931
                 and 0.106 <= (b.y + b.height / 2) / task.height <= 0.878
+                and not any(abs(ux - b.x) <= 10 and abs(uy - b.y) <= 10 for ux, uy, _, _ in used_positions)
                 and b.name not in ["确认", "返回", "跳过"]
+                and _is_valid_card_name(b.name)
                 and _card_has_type_below(task, b)
             ]
             if not cards:
@@ -127,6 +141,7 @@ def select_card(task: TriggerTask, card_names, confirm_point=None, confirm_sleep
             fallback_card = max(cards, key=lambda b: (b.y, b.x))
             task.log_info(f"select_card fallback 补充点击: 名称「{fallback_card.name}」, 位置({fallback_card.x},{fallback_card.y})")
             task.click_box(fallback_card)
+            used_positions.append((fallback_card.x, fallback_card.y, fallback_card.width, fallback_card.height))
             selected += 1
             task.sleep(0.3)
 
