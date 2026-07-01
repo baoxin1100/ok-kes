@@ -129,21 +129,28 @@ def _confirm_battle_member_selection(task: TriggerTask):
 def _select_battle_member(task: TriggerTask, max_scrolls=5):
     """按出战主战员优先级选择列表角色；找不到配置角色则随机选择。"""
     priority = _get_battle_member_priority(task)
+    task.log_info(f"出战主战员优先级配置: {priority}")
     for scroll_index in range(max_scrolls + 1):
         boxes = _battle_member_boxes(task)
+        recognized_names = [box.name for box in boxes]
+        task.log_info(f"第{scroll_index + 1}次扫描, OCR识别到的主战员: {recognized_names}")
         for name in priority:
             member = next((box for box in boxes if name in box.name), None)
             if member:
-                task.log_info(f"选择出战主战员「{member.name}」")
+                task.log_info(f"出战主战员优先级匹配成功: 「{name}」->「{member.name}」")
                 task.click_box(member)
                 task.sleep(0.5)
                 return _confirm_battle_member_selection(task)
+            else:
+                task.log_info(f"出战主战员优先级匹配失败: 「{name}」未在当前列表中")
         if scroll_index < max_scrolls:
+            task.log_info(f"第{scroll_index + 1}次未匹配到任何优先级角色, 向下滚动重试")
             task.scroll_relative(0.5, 0.7, -3)
             task.sleep(0.5)
             task.all_texts = task.ocr()
     boxes = _battle_member_boxes(task)
     if not boxes:
+        task.log_info("出战主战员列表为空，无法选择")
         return False
     member = random.choice(boxes)
     task.log_info(f"未找到配置中的出战主战员，随机选择「{member.name}」")
