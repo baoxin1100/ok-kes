@@ -398,11 +398,11 @@ def handle_main_member_flash(task: TriggerTask):
     box = find_box_at_point(task, 0.495, 0.936)
     if box and re.search(r'请选择获得', box.name):
         task.log_info("检测主战员闪光选择，进行相应操作")
-        for x, y in [(0.244, 0.446), (0.5, 0.446), (0.748, 0.485)]:
-            task.click(x, y)
-            task.sleep(1)
-            # task.click(0.884, 0.931)
-            # task.sleep(1)
+        x, y = random.choice([(0.244, 0.446), (0.5, 0.446), (0.748, 0.485)])
+        task.click(x, y)
+        task.sleep(1)
+        # task.click(0.884, 0.931)
+        # task.sleep(1)
         return True  # 选择后不点击确认按钮，返回True让其他逻辑处理
     return False
 
