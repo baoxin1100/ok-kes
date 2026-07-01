@@ -105,11 +105,15 @@ def _read_member_slots(task: TriggerTask):
 
 def _battle_member_boxes(task: TriggerTask):
     """读取出战主战员列表里的可点击主战员名称文本。"""
+    _excluded = {"主战员列表", "甄别主战员", "确认", "返回", "等级", "Q", "6", "支援",
+                 "治愈", "守护", "核心", "60", "令", "√", "攻", "弘命", "炫心",
+                 "详细信息", "配置", "同步", "全部", "``"}
     return [
         box for box in task.all_texts
         if 0.100 <= (box.x + box.width / 2) / task.width <= 0.984
         and 0.100 <= (box.y + box.height / 2) / task.height <= 0.892
-        and box.name not in ["主战员列表", "甄别主战员", "确认", "返回"]
+        and box.name not in _excluded
+        and len(box.name) > 1
     ]
 
 
