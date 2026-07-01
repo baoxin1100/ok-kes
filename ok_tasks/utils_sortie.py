@@ -108,7 +108,7 @@ def _battle_member_boxes(task: TriggerTask):
     return [
         box for box in task.all_texts
         if 0.08 <= (box.x + box.width / 2) / task.width <= 0.92
-        and 0.12 <= (box.y + box.height / 2) / task.height <= 0.86
+        and 0.12 <= (box.y + box.height / 2) / task.height <= 0.95
         and box.name not in ["主战员列表", "甄别主战员", "确认", "返回"]
     ]
 
@@ -367,8 +367,9 @@ def handle_battle_member_config(task: TriggerTask):
 
 def handle_battle_member_selection(task: TriggerTask):
     """出战主战员列表页面: 按配置优先级选择角色。"""
-    title = find_box_at_point(task, 0.132, 0.047)
-    if not (title and title.name in ["主战员列表", "甄别主战员"]):
+    title = find_box_at_point(task, 0.139, 0.044)
+    right_hint = find_box_at_point(task, 0.562, 0.044)
+    if not ((title and  "主战员列表" in title.name) and  (right_hint and "甄别主战员" in right_hint.name)):
         return False
     return _select_battle_member(task)
 
