@@ -4,7 +4,6 @@ from utils import (
     _simplify_texts, _get_config_value, _get_card_list, _get_route_priority,
     find_box_at_point, find_text, find_exact_text,
     _card_has_type_below, select_card, identify_node_type, calculate_dominant_hue,
-    _cluster_region_boxes, group_dialog_columns,
     log_credit, handle_battle_crash, handle_close_page,
     handle_center_confirm, handle_settlement, handle_skip,
     handle_destiny_choice, handle_main_member_flash,
@@ -18,6 +17,7 @@ from utils import (
     handle_trauma_center, handle_explore_result, handle_treating,
     handle_treat_approve, handle_cares_tip, handle_close_button,
     handle_expedition_unlock, handle_card_assign, handle_non_battle_page,
+    handle_remove, handle_flash, handle_copy, handle_weakness_info, handle_minimizemap
 )
 
 import re
@@ -109,7 +109,6 @@ def _battle_member_boxes(task: TriggerTask):
         box for box in task.all_texts
         if 0.08 <= (box.x + box.width / 2) / task.width <= 0.92
         and 0.12 <= (box.y + box.height / 2) / task.height <= 0.86
-        and len(box.name) > 1
         and box.name not in ["主战员列表", "甄别主战员", "确认", "返回"]
     ]
 
@@ -170,8 +169,8 @@ def handle_boss_selection(task: TriggerTask):
     boss = random.choice(bosses)
     task.log_info(f"首领选择: 随机选择「{boss['name']}」")
     task.click(boss["x"], boss["y"])
-    task.sleep(0.5)
-    task.click(0.919, 0.930)
+    task.sleep(1)
+    # task.click(0.919, 0.930)
     return True
 
 
@@ -273,8 +272,8 @@ def handle_get_card(task: TriggerTask):
     chosen = random.choice(cards)
     task.log_info(f"获得卡牌: 随机选择「{chosen['name']}」")
     task.click(chosen["x"], chosen["y"])
-    task.sleep(0.5)
-    task.click(0.912, 0.931)
+    task.sleep(1)
+    # task.click(0.912, 0.931)
     return True
 
 
@@ -302,8 +301,8 @@ def handle_draw_card_event(task: TriggerTask):
         chosen = random.choice(cards)
         task.log_info(f"抽牌事件: 未命中优先级，随机选择「{chosen.name}」")
     task.click_box(chosen)
-    task.sleep(0.5)
-    task.click(0.952, 0.933)
+    task.sleep(1)
+    # task.click(0.952, 0.933)
     return True
 
 
@@ -312,7 +311,7 @@ def handle_discard_hand_card(task: TriggerTask):
     box = find_box_at_point(task, 0.5, 0.356)
     if box and "手牌中仍有可用卡牌" in box.name:
         task.log_info("检测到手牌丢弃页面，点击丢弃")
-        task.click(0.424, 0.500)
+        task.click(0.424, 0.500) #今日不再提示
         task.sleep(0.5)
         task.click(0.663, 0.607)
         return True
@@ -572,9 +571,9 @@ def handle_return_to_draw_pile(task: TriggerTask):
         return False
     chosen = cards[0]
     task.click_box(chosen)
-    task.sleep(0.3)
-    task.click(0.934, 0.883)
     task.sleep(1)
+    # task.click(0.934, 0.883)
+    # task.sleep(1)
     return True
 
 
@@ -590,29 +589,17 @@ def handle_escape(task: TriggerTask):
     return False
 
 
-def handle_weakness_info(task: TriggerTask):
-    """怪物信息页面: 检测到弱点信息则关闭页面。"""
-    box = find_box_at_point(task, 0.387, 0.107)
-    if box and "弱点" in box.name:
-        task.log_info("检测到怪物信息页面，点击关闭")
-        task.click(0.502, 0.092)
-        return True
-    return False
-
-
-def handle_minimizemap(task: TriggerTask):
-    """地图页面: 检测到小地图按钮则点击关闭小地图。"""
-    boxes = task.find_feature(feature_name="minimizemap")
-    if boxes:
-        task.log_info("检测到地图页面，点击关闭小地图")
-        task.click_box(boxes[0])
-        return True
-    return False
-
 
 # 出击模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
     log_credit,
+
+    handle_close_button, #关闭按钮
+    handle_confirm, #确认按钮
+    handle_remove, #移除按钮
+    handle_flash, #闪光按钮
+    handle_copy, #复制按钮
+
     handle_non_battle_page,
     handle_battle_crash,
     handle_discard_hand_card,
@@ -625,7 +612,7 @@ PAGE_HANDLERS = [
     handle_battle_page,
     handle_close_page,
     handle_ether_supply,
-    handle_center_confirm,
+    # handle_center_confirm,
     handle_settlement,
     handle_destiny_choice,
     handle_main_member_flash,
@@ -648,7 +635,6 @@ PAGE_HANDLERS = [
     handle_continue,
     handle_battle_member_selection,
     handle_member_selection,
-    handle_confirm,
     handle_battle_member_config,
     handle_enter,
     handle_route_selection,
@@ -667,7 +653,6 @@ PAGE_HANDLERS = [
     handle_leave,
     handle_skip,
     handle_event_task,
-    handle_close_button,
     handle_escape,
     handle_weakness_info,
     handle_minimizemap,

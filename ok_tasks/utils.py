@@ -110,10 +110,10 @@ def select_card(task: TriggerTask, card_names, confirm_point=None, confirm_sleep
                 used_positions.append((card.x, card.y, card.width, card.height))
                 selected += 1
                 if selected >= count:
-                    if confirm_point:
-                        task.sleep(0.5)
-                        task.click(*confirm_point)
-                        task.sleep(confirm_sleep)
+                    # if confirm_point:
+                    #     task.sleep(0.5)
+                    #     task.click(*confirm_point)
+                    #     task.sleep(confirm_sleep)
                     return selected
         if i < max_scrolls:
             task.log_info(f"select_card 第{i+1}次未找到目标, 向下滚动")
@@ -145,10 +145,10 @@ def select_card(task: TriggerTask, card_names, confirm_point=None, confirm_sleep
             selected += 1
             task.sleep(0.3)
 
-    if selected > 0 and confirm_point:
-        task.sleep(0.5)
-        task.click(*confirm_point)
-        task.sleep(confirm_sleep)
+    # if selected > 0 and confirm_point:
+    #     task.sleep(0.5)
+    #     task.click(*confirm_point)
+    #     task.sleep(confirm_sleep)
     return selected
 
 
@@ -214,12 +214,12 @@ def is_button_active(task: TriggerTask, button_box):
 
     # 判断是否接近禁用灰色 (195,195,195)
     # 容错范围：每个通道在190-200之间，且三个通道值接近
-    target_gray = 195
+    # target_gray = 195
     tolerance = 5  # 允许±5的误差
 
     # 计算范围边界
-    lower_bound = target_gray - tolerance  # 190
-    upper_bound = target_gray + tolerance  # 200
+    lower_bound = 120 #target_gray - tolerance  # 190
+    upper_bound = 200 #target_gray + tolerance  # 200
 
     # 检查每个通道是否在目标范围内
     in_range = (
@@ -279,29 +279,29 @@ def _cluster_region_boxes(task: TriggerTask, region):
     return columns
 
 
-def group_dialog_columns(task: TriggerTask, region, max_width_ratio=0.25, align_tolerance=0.04):
-    """把区域内文本框按左边缘聚成对话框列。"""
-    x1, y1, x2, y2 = region
-    boxes = [
-        box for box in task.all_texts
-        if x1 <= (box.x + box.width / 2) / task.width <= x2
-        and y1 <= (box.y + box.height / 2) / task.height <= y2
-        and box.width / task.width <= max_width_ratio
-        and len(box.name) > 2
-    ]
-    columns = []
-    for box in sorted(boxes, key=lambda item: item.x):
-        left = box.x / task.width
-        center_x = (box.x + box.width / 2) / task.width
-        if columns and left - columns[-1]["left"] <= align_tolerance:
-            columns[-1]["centers"].append(center_x)
-            columns[-1]["texts"].append(box.name)
-        else:
-            columns.append({"left": left, "centers": [center_x], "texts": [box.name]})
-    return [
-        {"x": sum(column["centers"]) / len(column["centers"]), "texts": column["texts"]}
-        for column in columns
-    ]
+# def group_dialog_columns(task: TriggerTask, region, max_width_ratio=0.25, align_tolerance=0.04):
+#     """把区域内文本框按左边缘聚成对话框列。"""
+#     x1, y1, x2, y2 = region
+#     boxes = [
+#         box for box in task.all_texts
+#         if x1 <= (box.x + box.width / 2) / task.width <= x2
+#         and y1 <= (box.y + box.height / 2) / task.height <= y2
+#         and box.width / task.width <= max_width_ratio
+#         and len(box.name) > 2
+#     ]
+#     columns = []
+#     for box in sorted(boxes, key=lambda item: item.x):
+#         left = box.x / task.width
+#         center_x = (box.x + box.width / 2) / task.width
+#         if columns and left - columns[-1]["left"] <= align_tolerance:
+#             columns[-1]["centers"].append(center_x)
+#             columns[-1]["texts"].append(box.name)
+#         else:
+#             columns.append({"left": left, "centers": [center_x], "texts": [box.name]})
+#     return [
+#         {"x": sum(column["centers"]) / len(column["centers"]), "texts": column["texts"]}
+#         for column in columns
+#     ]
 
 
 # ------------------------- 页面处理函数（通用） -------------------------
@@ -368,13 +368,13 @@ def handle_destiny_choice(task: TriggerTask):
         task.log_info("检测到命运选择奖励，进行相应操作")
         task.sleep(2)  # 给按钮一些加载时间
 
-        # 检查确认按钮是否已处于激活状态
-        # 在确认按钮点击位置附近查找"确认"文本
-        confirm_box = find_box_at_point(task, 0.884, 0.931)
-        if confirm_box and confirm_box.name == "确认":
-            if is_button_active(task, confirm_box):
-                task.log_info("确认按钮已激活，跳过选择（由其他逻辑处理确认）")
-                return False  # 按钮已激活，不处理，让其他逻辑点击确认
+        # # 检查确认按钮是否已处于激活状态
+        # # 在确认按钮点击位置附近查找"确认"文本
+        # confirm_box = find_box_at_point(task, 0.884, 0.931)
+        # if confirm_box and confirm_box.name == "确认":
+        #     if is_button_active(task, confirm_box):
+        #         task.log_info("确认按钮已激活，跳过选择（由其他逻辑处理确认）")
+        #         return False  # 按钮已激活，不处理，让其他逻辑点击确认
         # 在命运标题区域随机选择一个
         titles = [
             b for b in task.all_texts
@@ -389,7 +389,7 @@ def handle_destiny_choice(task: TriggerTask):
             task.click_box(chosen)
             task.sleep(1)
             # 选择命运后不点击确认按钮，返回False让其他逻辑处理
-            return False
+            return True
     return False
 
 
@@ -401,9 +401,9 @@ def handle_main_member_flash(task: TriggerTask):
         for x, y in [(0.244, 0.446), (0.5, 0.446), (0.748, 0.485)]:
             task.click(x, y)
             task.sleep(1)
-            task.click(0.884, 0.931)
-            task.sleep(1)
-        return True
+            # task.click(0.884, 0.931)
+            # task.sleep(1)
+        return True  # 选择后不点击确认按钮，返回True让其他逻辑处理
     return False
 
 
@@ -438,9 +438,9 @@ def handle_card_reward(task: TriggerTask):
 
     cx, cy = card_positions[chosen_idx]
     task.click(cx, cy)
-    task.sleep(0.5)
-    task.click(0.922, 0.929)
-    task.sleep(0.5)
+    task.sleep(1)
+    # task.click(0.922, 0.929)
+    # task.sleep(0.5)
     return True
 
 
@@ -465,9 +465,9 @@ def handle_equipment(task: TriggerTask):
                 chosen = random.choice(lv_texts)
                 task.log_info(f"随机选择主战员: 位置 y={chosen.y}")
                 task.click(0.756, (chosen.y + chosen.height / 2) / task.height)
-                task.sleep(0.5)
-                task.click(0.884, 0.931)
-                task.sleep(2)
+                task.sleep(1)
+                # task.click(0.884, 0.931)
+                # task.sleep(2)
                 return True
             task.log_info("未找到主战员等级信息")
             return False
@@ -476,8 +476,8 @@ def handle_equipment(task: TriggerTask):
             chosen = random.choice([(0.518, 0.454), (0.521, 0.600)])
             task.click(*chosen)
             task.sleep(1)
-            task.click(0.919, 0.931)
-            task.sleep(1)
+            # task.click(0.919, 0.931)
+            # task.sleep(1)
             return True
     return False
 
@@ -513,8 +513,8 @@ def handle_copy_member(task: TriggerTask):
     if box and "选择要复制卡牌的主战员" in box.name:
         task.log_info("检测到卡牌复制主战员选择事件，进行相应操作")
         task.click(0.228, 0.510)
-        task.sleep(0.5)
-        task.click(0.951, 0.932)
+        task.sleep(1)
+        # task.click(0.951, 0.932)
         return True
     return False
 
@@ -594,6 +594,44 @@ def handle_confirm(task: TriggerTask):
             return False
     return False
 
+def handle_remove(task: TriggerTask):
+    """通用"移除"按钮。"""
+    box = find_exact_text(task, "移除")
+    if box:
+        if is_button_active(task, box):
+            task.log_info("检测到移除操作，点击移除")
+            task.click_box(box)
+            return True
+        else:
+            task.log_info("移除按钮未激活（灰色），跳过点击")
+            return False
+    return False
+
+def handle_flash(task: TriggerTask):
+    """通用"闪光"按钮。"""
+    box = find_exact_text(task, "闪光")
+    if box:
+        if is_button_active(task, box):
+            task.log_info("检测到闪光操作，点击闪光")
+            task.click_box(box)
+            return True
+        else:
+            task.log_info("闪光按钮未激活（灰色），跳过点击")
+            return False
+    return False
+
+def handle_copy(task: TriggerTask):
+    """通用"复制"按钮。"""
+    box = find_exact_text(task, "复制")
+    if box:
+        if is_button_active(task, box):
+            task.log_info("检测到复制操作，点击复制")
+            task.click_box(box)
+            return True
+        else:
+            task.log_info("复制按钮未激活（灰色），跳过点击")
+            return False
+    return False
 
 def handle_enter(task: TriggerTask):
     """通用"进入"按钮。"""
@@ -933,7 +971,7 @@ def handle_trauma_center(task: TriggerTask):
 
 
 def handle_explore_result(task: TriggerTask):
-    """探险结果页面: 点击关闭。"""
+    """探险结果页面: 点击页面关闭。"""
     box = find_box_at_point(task, 0.623, 0.115)
     if box and box.name == "探险结果":
         task.click(0.916, 0.915)
@@ -982,7 +1020,7 @@ def handle_expedition_unlock(task: TriggerTask):
     """解锁探险记录页面: 点击确定。"""
     box = find_box_at_point(task, 0.5, 0.151)
     if box and re.search(r"解锁的探险记录将会在.*", box.name):
-        task.log_info("检测到解锁探险记录页面，点击确定")
+        task.log_info("检测到解锁探险记录页面，点击页面")
         task.click(0.5, 0.8)
         task.sleep(1)
         return True
@@ -1017,11 +1055,28 @@ def handle_card_assign(task: TriggerTask):
     task.log_info(f"共{count}个主战员，随机选择第{chosen_idx + 1}号")
 
     task.click(0.756, (chosen_lv.y + chosen_lv.height / 2) / task.height)
-    task.sleep(0.3)
-    task.click(0.919, 0.933)
-    task.sleep(0.5)
+    task.sleep(1)
+    # task.click(0.919, 0.933)
+    # task.sleep(0.5)
     return True
 
+def handle_weakness_info(task: TriggerTask):
+    """怪物信息页面: 检测到弱点信息则关闭页面。"""
+    box = find_box_at_point(task, 0.387, 0.107)
+    if box and "弱点" in box.name:
+        task.log_info("检测到怪物信息页面，点击关闭")
+        task.click(0.502, 0.092)
+        return True
+    return False
+
+def handle_minimizemap(task: TriggerTask):
+    """地图页面: 检测到小地图按钮则点击关闭小地图。"""
+    boxes = task.find_feature(feature_name="minimizemap")
+    if boxes:
+        task.log_info("检测到地图页面，点击关闭小地图")
+        task.click_box(boxes[0])
+        return True
+    return False
 
 def handle_non_battle_page(task: TriggerTask):
     """非出击/卡厄思页面: 检测到故事/营救/方舟城市时自动停止当前模式，优先级最高。"""

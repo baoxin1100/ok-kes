@@ -3,8 +3,7 @@ from ok import TriggerTask
 from utils import (
     _simplify_texts, _get_config_value, _get_card_list, _get_route_priority,
     find_box_at_point, find_text, find_exact_text,
-    _card_has_type_below, select_card, identify_node_type,
-    _cluster_region_boxes, group_dialog_columns,
+    _card_has_type_below, handle_copy, handle_flash, handle_remove, select_card, identify_node_type,
     log_credit, handle_battle_crash, handle_close_page,
     handle_center_confirm, handle_settlement, handle_skip,
     handle_destiny_choice, handle_main_member_flash,
@@ -13,11 +12,11 @@ from utils import (
     handle_flash_card, handle_copy_card_pick, handle_convert_card,
     handle_negotiation, handle_continue, handle_confirm, handle_enter,
     handle_event_task, handle_route_selection, handle_obtain_reward,
-    handle_leave, handle_rest, handle_view_original,
+    handle_leave, handle_rest, handle_view_original, handle_weakness_info,
     handle_battle_failed, handle_data_collected, handle_mental_breakdown,
     handle_trauma_center, handle_explore_result, handle_treating,
     handle_treat_approve, handle_cares_tip, handle_close_button,
-    handle_expedition_unlock, handle_card_assign, handle_non_battle_page,
+    handle_expedition_unlock, handle_card_assign, handle_non_battle_page, handle_minimizemap,
 )
 
 import re
@@ -53,20 +52,21 @@ def handle_battle_auto_check(task: TriggerTask):
     return True
 
 
-def handle_discovery_select(task: TriggerTask):
+def handle_discovery_select(task: TriggerTask): #忘了按个页面要用
     """发现选择页面: 随机选择一个发现并确认。"""
     title = find_box_at_point(task, 0.498, 0.078)
-    confirm = find_box_at_point(task, 0.880, 0.921)
-    if not (title and title.name == "获得法典" and confirm and confirm.name == "确认"):
+    # confirm = find_box_at_point(task, 0.880, 0.921)
+    # if not (title and title.name == "获得法典" and confirm and confirm.name == "确认"):
+    if not (title and title.name == "获得法典"):
         return False
 
     task.log_info("检测到发现选择页面，随机选择一项")
     positions = [(0.180, 0.519), (0.505, 0.514), (0.818, 0.519)]
     chosen = random.choice(positions)
     task.click(*chosen)
-    task.sleep(0.3)
-    task.click_box(confirm)
     task.sleep(1)
+    # task.click_box(confirm)
+    # task.sleep(1)
     return True
 
 
@@ -107,6 +107,15 @@ def handle_memory_elimination(task: TriggerTask):
 # 卡厄思模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
     log_credit,
+
+    handle_close_button, #关闭按钮
+    handle_confirm, #确认按钮
+    handle_remove, #移除按钮
+    handle_flash, #闪光按钮
+    handle_copy, #复制按钮
+
+    handle_minimizemap,
+    handle_weakness_info,
     handle_non_battle_page,
     handle_battle_crash,
     handle_battle_auto_check,
@@ -128,7 +137,6 @@ PAGE_HANDLERS = [
     handle_discovery_select,
     handle_negotiation,
     handle_continue,
-    handle_confirm,
     handle_enter,
     handle_route_selection,
     handle_obtain_reward,
@@ -148,6 +156,5 @@ PAGE_HANDLERS = [
     handle_memory_elimination,
     handle_leave,
     handle_skip,
-    handle_close_button,
     handle_event_task,
 ]
