@@ -952,7 +952,7 @@ def handle_mental_breakdown(task: TriggerTask):
 
 
 def handle_trauma_center(task: TriggerTask):
-    """创伤中心: 优先使用旅行券治疗。"""
+    """创伤中心: 优先使用旅行券治疗；若配置"优先使用金币治疗"为True，则始终使用金币治疗。"""
     box = find_box_at_point(task, 0.125, 0.049)
     if not (box and "创伤中心" in box.name):
         return False
@@ -965,7 +965,12 @@ def handle_trauma_center(task: TriggerTask):
     travel_ticket = task.ocr(0.933, 0.904, 0.971, 0.943)
     if travel_ticket:
         has_ticket = int(travel_ticket[0].name[0]) > 0
-        task.click(0.798 if has_ticket else 0.702, 0.924)
+        prefer_gold = _get_config_value(task, '优先使用金币治疗', False)
+        if prefer_gold:
+            task.log_info("优先使用金币治疗配置为True，点击金币治疗")
+            task.click(0.702, 0.924)
+        else:
+            task.click(0.798 if has_ticket else 0.702, 0.924)
         task.sleep(0.5)
     return True
 
