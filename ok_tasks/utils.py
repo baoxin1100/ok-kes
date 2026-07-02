@@ -813,6 +813,8 @@ def handle_route_selection(task: TriggerTask):
         task.click(*click_points[node_key])
         task.sleep(0.5)
 
+    task.sleep(4)
+
     return True
 
 

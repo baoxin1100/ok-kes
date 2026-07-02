@@ -623,7 +623,7 @@ PAGE_HANDLERS = [
     handle_get_card,
     handle_draw_card_event,
     handle_equipment,
-    handle_mask_card,
+    # handle_mask_card,
     handle_remove_card,
     handle_copy_member,
     handle_copy_card,
