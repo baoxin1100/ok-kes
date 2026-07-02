@@ -34,6 +34,7 @@ pyinstaller --onefile --noconsole --uac-admin --runtime-tmpdir "C:\Temp\ok_kes" 
   --hidden-import src.tasks.MyOneTimeTask ^
   --hidden-import onnxocr ^
   --hidden-import onnxocr_ppocrv5 ^
+  --exclude-module PySide6.translations ^
   --collect-all onnxocr ^
   --collect-all openvino ^
   --collect-all pyappify ^
@@ -65,6 +66,7 @@ del "卡厄思自动化工具v1.0.3.spec"
 | `--runtime-tmpdir` | 指定纯英文临时解压路径，避免中文用户名导致 OpenCC C 库 fopen 失败 |
 | `--add-data opencc\clib;opencc\clib` | 打包 OpenCC 绑定的动态库和字典文件 |
 | `--add-data opencc\lib\share\opencc` | 额外映射字典目录到 lib 路径，解决中文路径下 C 库查找 `t2s.json` 失败 |
+| `--exclude-module PySide6.translations` | 排除 PySide6 翻译文件（.qm），避免某些系统上解压 CRC 校验失败 |
 
 ## 代码层面的必要修改
 
