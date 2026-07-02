@@ -621,6 +621,19 @@ def handle_flash(task: TriggerTask):
             return False
     return False
 
+def handle_reflash(task: TriggerTask):
+    """通用"重新闪光"按钮。"""
+    box = find_box_at_point(task, 0.945, 0.918)
+    if box and box.name == "重新闪光":
+        if is_button_active(task, box):
+            task.log_info("检测到重新闪光操作，点击重新闪光")
+            task.click_box(box)
+            return True
+        else:
+            task.log_info("重新闪光按钮未激活（灰色），跳过点击")
+            return False
+    return False
+
 def handle_grant_flash(task: TriggerTask):
     """通用"赋予闪光"按钮。"""
     box = find_box_at_point(task, 0.945, 0.918)

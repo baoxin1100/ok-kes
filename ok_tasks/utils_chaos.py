@@ -3,7 +3,7 @@ from ok import TriggerTask
 from utils import (
     _simplify_texts, _get_config_value, _get_card_list, _get_route_priority,
     find_box_at_point, find_text, find_exact_text,
-    _card_has_type_below, handle_copy, handle_flash, handle_grant_flash, handle_remove, select_card, identify_node_type,
+    _card_has_type_below, handle_copy, handle_flash, handle_reflash, handle_grant_flash, handle_remove, select_card, identify_node_type,
     log_credit, handle_battle_crash, handle_close_page,
     handle_center_confirm, handle_settlement, handle_skip,
     handle_destiny_choice, handle_main_member_flash,
@@ -114,6 +114,7 @@ PAGE_HANDLERS = [
     handle_confirm, #确认按钮
     handle_remove, #移除按钮
     handle_flash, #闪光按钮
+    handle_reflash, #重新闪光按钮
     handle_grant_flash, #赋予闪光按钮
     handle_copy, #复制按钮
     handle_leave, #离开按钮
