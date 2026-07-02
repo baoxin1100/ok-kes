@@ -54,8 +54,14 @@ def find_text(task: TriggerTask, pattern):
 
 
 def find_exact_text(task: TriggerTask, text):
-    """查找名称完全等于 text 的第一个 box。"""
-    return next((b for b in task.all_texts if b.name == text), None)
+    """查找名称（清理符号后）完全等于 text 的第一个 box。"""
+    return next((b for b in task.all_texts if _clean_match(b.name, text)), None)
+
+
+def _clean_match(name, target):
+    """去除OCR文本中的非中文/字母/数字符号后比较是否等于 target。"""
+    cleaned = re.sub(r'[^\u4e00-\u9fff\w]', '', name)
+    return cleaned == target
 
 
 def _is_valid_card_name(name):
@@ -337,7 +343,7 @@ def handle_close_page(task: TriggerTask):
 def handle_center_confirm(task: TriggerTask):
     """页面中央的"确认"按钮。"""
     box = find_box_at_point(task, 0.667, 0.632)
-    if box and box.name == "确认":
+    if box and _clean_match(box.name, "确认"):
         task.click(0.667, 0.632)
         return True
     return False
@@ -346,7 +352,7 @@ def handle_center_confirm(task: TriggerTask):
 def handle_settlement(task: TriggerTask):
     """"结算"按钮。"""
     box = find_box_at_point(task, 0.941, 0.917)
-    if box and box.name == "结算":
+    if box and _clean_match(box.name, "结算"):
         task.click(0.941, 0.917)
         return True
     return False
@@ -355,7 +361,7 @@ def handle_settlement(task: TriggerTask):
 def handle_skip(task: TriggerTask):
     """"跳过"按钮。"""
     box = find_box_at_point(task, 0.941, 0.917)
-    if box and box.name == "跳过":
+    if box and _clean_match(box.name, "跳过"):
         task.click_box(box)
         return True
     return False
@@ -598,7 +604,7 @@ def handle_confirm(task: TriggerTask):
 def handle_remove(task: TriggerTask):
     """通用"移除"按钮。"""
     box = find_box_at_point(task, 0.945, 0.918)
-    if box and box.name == "移除":
+    if box and _clean_match(box.name, "移除"):
         if is_button_active(task, box):
             task.log_info("检测到移除操作，点击移除")
             task.click_box(box)
@@ -611,7 +617,7 @@ def handle_remove(task: TriggerTask):
 def handle_flash(task: TriggerTask):
     """通用"闪光"按钮。"""
     box = find_box_at_point(task, 0.945, 0.918)
-    if box and box.name == "闪光":
+    if box and _clean_match(box.name, "闪光"):
         if is_button_active(task, box):
             task.log_info("检测到闪光操作，点击闪光")
             task.click_box(box)
@@ -624,7 +630,7 @@ def handle_flash(task: TriggerTask):
 def handle_reflash(task: TriggerTask):
     """通用"重新闪光"按钮。"""
     box = find_box_at_point(task, 0.945, 0.918)
-    if box and box.name == "重新闪光":
+    if box and _clean_match(box.name, "重新闪光"):
         if is_button_active(task, box):
             task.log_info("检测到重新闪光操作，点击重新闪光")
             task.click_box(box)
@@ -637,7 +643,7 @@ def handle_reflash(task: TriggerTask):
 def handle_grant_flash(task: TriggerTask):
     """通用"赋予闪光"按钮。"""
     box = find_box_at_point(task, 0.945, 0.918)
-    if box and box.name == "赋予闪光":
+    if box and _clean_match(box.name, "赋予闪光"):
         if is_button_active(task, box):
             task.log_info("检测到赋予闪光操作，点击赋予闪光")
             task.click_box(box)
@@ -650,7 +656,7 @@ def handle_grant_flash(task: TriggerTask):
 def handle_copy(task: TriggerTask):
     """通用"复制"按钮。"""
     box = find_box_at_point(task, 0.945, 0.918)
-    if box and box.name == "复制":
+    if box and _clean_match(box.name, "复制"):
         if is_button_active(task, box):
             task.log_info("检测到复制操作，点击复制")
             task.click_box(box)
@@ -813,7 +819,7 @@ def handle_route_selection(task: TriggerTask):
 def handle_obtain_reward(task: TriggerTask):
     """获得奖励页面: 点击领取。"""
     box = find_box_at_point(task, 0.924, 0.922)
-    if box and box.name == "获得":
+    if box and _clean_match(box.name, "获得"):
         task.log_info("检测到获得奖励页面，点击领取")
         task.click_box(box)
         return True
@@ -823,7 +829,7 @@ def handle_obtain_reward(task: TriggerTask):
 def handle_leave(task: TriggerTask):
     """离开按钮。"""
     box = find_box_at_point(task, 0.945, 0.918)
-    if box and box.name == "离开":
+    if box and _clean_match(box.name, "离开"):
         if is_button_active(task, box):
             task.log_info("检测到离开按钮，点击离开")
             task.click_box(box)
@@ -837,7 +843,7 @@ def handle_leave(task: TriggerTask):
 def handle_select(task: TriggerTask):
     """通用"选择"按钮。"""
     box = find_box_at_point(task, 0.945, 0.918)
-    if box and box.name == "选择":
+    if box and _clean_match(box.name, "选择"):
         if is_button_active(task, box):
             task.log_info("检测到选择按钮，点击选择")
             task.click_box(box)
