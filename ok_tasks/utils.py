@@ -675,6 +675,16 @@ def handle_enter(task: TriggerTask):
         return True
     return False
 
+def handle_equipment_recast(task: TriggerTask):
+    """装备重铸页面: 点击确认重铸。"""
+    box = find_box_at_point(task, 0.501, 0.128)
+    if box and "装备重铸" in box.name:
+        task.log_info("检测到装备重铸页面，点击确认重铸")
+        task.click(0.749, 0.932)
+        task.sleep(1)
+        return True
+    return False
+
 
 def handle_event_task(task: TriggerTask):
     """事件任务页面: 识别标题+描述区域，按任务优先级匹配描述选择推进。"""
