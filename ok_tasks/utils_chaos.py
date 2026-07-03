@@ -108,7 +108,6 @@ def handle_memory_elimination(task: TriggerTask):
 PAGE_HANDLERS = [
     log_credit,
 
-    handle_rest,
     handle_close_button, #关闭按钮
     handle_card_assign,
     handle_confirm, #确认按钮
@@ -120,6 +119,7 @@ PAGE_HANDLERS = [
     handle_leave, #离开按钮
     handle_select, #选择按钮
 
+    handle_rest,
     handle_equipment_recast, #装备重铸按钮
 
     handle_minimizemap,

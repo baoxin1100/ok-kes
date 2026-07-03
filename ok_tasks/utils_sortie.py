@@ -591,7 +591,6 @@ def handle_escape(task: TriggerTask):
 PAGE_HANDLERS = [
     log_credit,
 
-    handle_rest,
     handle_close_button, #关闭按钮
     handle_card_assign,
     handle_confirm, #确认按钮
@@ -604,6 +603,7 @@ PAGE_HANDLERS = [
     handle_select, #选择按钮
 
     handle_equipment_recast, #装备重铸按钮
+    handle_rest,
 
     handle_non_battle_page,
     handle_battle_crash,
