@@ -75,8 +75,8 @@ def _hand_cards(task: TriggerTask):
 
 def _try_all_card_keys(task: TriggerTask, count):
     """从当前手牌数向下尝试所有手牌按键，兜底处理按键漏识别或识别错误。"""
-    task.log_info(f"_try_all_card_keys: 手牌数={count}，发送按键 {min(count, 9)} 到 1")
-    for index in range(min(count, 9), 0, -1):
+    task.log_info(f"_try_all_card_keys: 手牌数={count}，发送按键 {min(count, 10)} 到 1")
+    for index in range(min(count, 10), 0, -1):
         task.send_key(str(index))
         task.sleep(0.5)
         task.send_key("enter")
