@@ -28,6 +28,7 @@ class ChaosMode(TriggerTask):
         self.default_config['优先使用金币治疗'] = True
         self.default_config['治疗崩溃'] = True
         self.default_config['进入商店'] = False
+        self.default_config['保留存档'] = False
         self.default_config['路线优先级'] = ["休息", "事件", "小怪", "boss"]
 
     def _ocr_and_simplify(self):

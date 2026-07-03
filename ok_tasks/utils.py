@@ -998,9 +998,16 @@ def handle_battle_failed(task: TriggerTask):
 
 
 def handle_data_collected(task: TriggerTask):
-    """存储数据收集完成页面: 点击下一步。"""
+    """存储数据收集完成页面: 点击下一步；如配置"保留存档"为False则删除所有存档。"""
     box = find_box_at_point(task, 0.505, 0.111)
     if box and box.name == "存储数据收集完成":
+        if not _get_config_value(task, '保留存档', False):
+            task.log_info("保留存档配置为False，删除存档")
+            for x, y in [(0.337, 0.807), (0.652, 0.807), (0.970, 0.811)]:
+                task.click(x, y)
+                task.sleep(1)
+            task.click(0.659, 0.662)
+            task.sleep(1)
         task.log_info("检测到存储数据收集完成，下一步")
         task.click(0.905, 0.917)
         return True
