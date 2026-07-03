@@ -35,8 +35,8 @@ def _get_member_priority(task: TriggerTask):
 
 def _get_blacklisted_members(task: TriggerTask):
     """读取拉黑主战员列表，返回列表；解析失败使用默认值。"""
-    value = _get_config_value(task, '拉黑主战员', ["戴安娜", "阿黛尔海特"])
-    return list(value) if isinstance(value, (list, tuple)) else ["戴安娜", "阿黛尔海特"]
+    value = _get_config_value(task, '拉黑主战员', ["黛安娜", "阿黛尔海特"])
+    return list(value) if isinstance(value, (list, tuple)) else ["黛安娜", "阿黛尔海特"]
 
 
 def _get_battle_member_priority(task: TriggerTask):

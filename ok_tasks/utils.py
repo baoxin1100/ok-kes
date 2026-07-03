@@ -469,8 +469,8 @@ def handle_equipment(task: TriggerTask):
                 key=lambda b: b.y
             )
             if lv_texts:
-                chosen = lv_texts[0]
-                task.log_info(f"选择最上方的主战员: 位置 y={chosen.y}")
+                chosen = random.choice(lv_texts)
+                task.log_info(f"随机选择主战员: 位置 y={chosen.y}")
                 task.click(0.756, (chosen.y + chosen.height / 2) / task.height)
                 task.sleep(1)
                 # task.click(0.884, 0.931)
