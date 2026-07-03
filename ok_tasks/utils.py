@@ -1006,8 +1006,8 @@ def handle_data_collected(task: TriggerTask):
             for x, y in [(0.337, 0.807), (0.652, 0.807), (0.970, 0.811)]:
                 task.click(x, y)
                 task.sleep(1)
-            task.click(0.659, 0.662)
-            task.sleep(1)
+                task.click(0.659, 0.662)
+                task.sleep(1)
         task.log_info("检测到存储数据收集完成，下一步")
         task.click(0.905, 0.917)
         return True
