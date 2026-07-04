@@ -779,6 +779,15 @@ def handle_event_task(task: TriggerTask):
     for t in tasks_info:
         task.log_info(f"  标题: {t['title']} | 描述: {t['description']}")
 
+    # 检查任务区域中是否有 treasure 特征
+    treasure_box = task.box_of_screen(0.477, 0.336, 0.841, 0.540)
+    treasure_features = task.find_feature(feature_name="treasure", box=treasure_box)
+    if treasure_features:
+        task.log_info("检测到事件任务区域中有treasure特征，优先点击")
+        task.click_box(treasure_features[0])
+        task.sleep(2)
+        return True
+
     priority = _get_config_value(task, '任务优先级', [])
     chosen = None
     for keyword in priority:
