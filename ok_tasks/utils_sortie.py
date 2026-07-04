@@ -293,8 +293,10 @@ def handle_battle_page(task: TriggerTask):
     else:
         task.log_info(f"防止意外弃牌，当前手牌数不为0但未识别到手牌，尝试按当前手牌数{hand_count}从大到小出牌")
         _try_all_card_keys(task, hand_count)
-        task.send_key("e")
-        task.sleep(1)
+        if task.find_feature(feature_name="finishturn"):
+            task.log_info("检测到finishturn特征，按E结束回合")
+            task.send_key("e")
+            task.sleep(1)
         return True
     return True
 
