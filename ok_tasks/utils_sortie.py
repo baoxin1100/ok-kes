@@ -277,7 +277,7 @@ def handle_battle_page(task: TriggerTask):
         play_priority = _get_config_value(task, "出牌优先级", [])
         if play_priority and cards:
             for pri_name in play_priority:
-                matched = next((c for c in cards if pri_name and pri_name in c["name"] and c["key"] is not None), None)
+                matched = next((c for c in cards if pri_name and (pri_name in c["name"] or c["name"] in pri_name) and c["key"] is not None), None)
                 if matched:
                     task.log_info(f"出牌优先级匹配: 卡牌「{matched['name']}」→ 按键 {matched['key']}")
                     task.send_key(matched['key'])
