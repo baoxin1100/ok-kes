@@ -284,6 +284,9 @@ def handle_battle_page(task: TriggerTask):
                     task.sleep(1)
                     task.send_key("enter")
                     task.sleep(2)
+                    if "极光" in matched["name"]:
+                        task.log_info(f"卡牌「{matched['name']}」包含极光，额外等待2秒")
+                        task.sleep(2)
                     return True
 
         # 未命中优先级，兜底从大到小出牌
@@ -291,8 +294,8 @@ def handle_battle_page(task: TriggerTask):
         _try_all_card_keys(task, hand_count)
         return True
     else:
-        task.log_info(f"防止意外弃牌，当前手牌数不为0但未识别到手牌，尝试按当前手牌数{hand_count}从大到小出牌")
-        _try_all_card_keys(task, hand_count)
+        # task.log_info(f"防止意外弃牌，当前手牌数不为0但未识别到手牌，尝试按当前手牌数{hand_count}从大到小出牌")
+        # _try_all_card_keys(task, hand_count)
         if task.find_feature(feature_name="finishturn"):
             task.log_info("检测到finishturn特征，按E结束回合")
             task.send_key("e")
