@@ -962,7 +962,7 @@ def handle_view_original(task: TriggerTask):
     """卡牌闪光（查看原件）事件: 聚类卡牌名和效果描述，按 FLASH_PRIORITY 优先选择。"""
     box1 = find_box_at_point(task, 0.890, 0.051)
     box2 = find_box_at_point(task, 0.896, 0.131)
-    if not ((box1 and box1.name == "查看原件") or (box2 and box2.name == "查看原件")):
+    if not ((box1 and (box1.name == "查看原件" or box1.name == "查看之前的闪光")) or (box2 and (box2.name == "查看原件" or box2.name == "查看之前的闪光"))):
         return False
 
     name_cols = _cluster_region_boxes(task, (0.148, 0.192, 0.859, 0.325))
