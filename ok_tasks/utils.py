@@ -702,6 +702,13 @@ def handle_event_task(task: TriggerTask):
     if bottom_box and re.search(r'\d+/\d+', bottom_box.name):
         return False
 
+    task_open_boxes = task.find_feature(feature_name="taskopen")
+    if task_open_boxes:
+        task.log_info("检测到taskopen特征，点击打开任务")
+        task.click_box(task_open_boxes[0])
+        task.sleep(1)
+        return True
+
     px1, py1 = int(0.121 * task.width), int(0.769 * task.height)
     px2, py2 = int(0.844 * task.width), int(0.818 * task.height)
 

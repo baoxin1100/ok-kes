@@ -35,6 +35,12 @@
             "file_name": "images/1.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 39,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -141,6 +147,19 @@
             ],
             "area": 2150,
             "iscrowd": 0
+        },
+        {
+            "id": 9,
+            "image_id": 39,
+            "category_id": 9,
+            "bbox": [
+                928,
+                998,
+                66,
+                50
+            ],
+            "area": 3300,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -182,6 +201,11 @@
         {
             "id": 8,
             "name": "deletecards3",
+            "supercategory": ""
+        },
+        {
+            "id": 9,
+            "name": "taskopen",
             "supercategory": ""
         }
     ]

@@ -213,24 +213,30 @@ def handle_battle_page(task: TriggerTask):
     cards = _hand_cards(task)
     if (cards or card_names):
         task.log_info(f"从右往左出牌配置为True，按当前手牌数{hand_count}从大到小出牌")
-        for round_index in range(3):
-            _try_all_card_keys(task, hand_count)
-            task._last_card_play_count = 0
-            task.sleep(4)
-            task.all_texts = task.ocr()
-            hand_count = _read_hand_count(task)
-            if not hand_count or hand_count == 0:
-                task.log_info("出牌后无手牌，按E")
-                task.send_key("e")
-                break
-            card_names = _hand_card_names(task)
-            cards = _hand_cards(task)
-            if not (cards or card_names):
-                task.log_info("出牌后无手牌，结束循环")
-                break
-            task.log_info(f"第{round_index + 1}轮出牌后仍有手牌{hand_count}张，继续下一轮")
+        # for round_index in range(3):
+        _try_all_card_keys(task, hand_count)
+        task._last_card_play_count = 0
+        task.sleep(4)
+        # task.all_texts = task.ocr()
+        # hand_count = _read_hand_count(task)
+        # if not hand_count or hand_count == 0:
+        #     task.log_info("出牌后无手牌，按E")
+        #     task.send_key("e")
+        #     # break
+        # card_names = _hand_card_names(task)
+        # cards = _hand_cards(task)
+        # if not (cards or card_names):
+        #     task.log_info("出牌后无手牌，结束循环")
+            # break
+        # task.log_info(f"第{round_index + 1}轮出牌后仍有手牌{hand_count}张，继续下一轮")
         return True
-    task.send_key("e")
+    else:
+        task.log_info(f"防止意外弃牌，当前手牌数不为0但未识别到手牌，尝试按当前手牌数{hand_count}从大到小出牌")
+        _try_all_card_keys(task, hand_count)
+        task.send_key("e")
+        task.sleep(1)
+        return True
+    # task.send_key("e")
     return True
 
 
