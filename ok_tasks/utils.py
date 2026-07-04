@@ -345,7 +345,7 @@ def handle_center_confirm(task: TriggerTask):
     box = find_box_at_point(task, 0.667, 0.632)
     if box and _clean_match(box.name, "确认"):
         task.click(0.667, 0.632)
-        task.sleep(2)
+        task.sleep(1)
         return True
     return False
 
@@ -355,7 +355,7 @@ def handle_settlement(task: TriggerTask):
     box = find_box_at_point(task, 0.941, 0.917)
     if box and _clean_match(box.name, "结算"):
         task.click(0.941, 0.917)
-        task.sleep(2)
+        task.sleep(1)
         return True
     return False
 
@@ -365,7 +365,7 @@ def handle_skip(task: TriggerTask):
     box = find_box_at_point(task, 0.941, 0.917)
     if box and _clean_match(box.name, "跳过"):
         task.click_box(box)
-        task.sleep(2)
+        task.sleep(1)
         return True
     return False
 
@@ -587,7 +587,7 @@ def handle_continue(task: TriggerTask):
     if box:
         task.log_info("检测到下一步操作，点击继续")
         task.click_box(box)
-        task.sleep(2)
+        task.sleep(1)
         return True
     return False
 
@@ -599,7 +599,7 @@ def handle_confirm(task: TriggerTask):
         if is_button_active(task, box):
             task.log_info("检测到确认操作，点击确认")
             task.click_box(box)
-            task.sleep(2)
+            task.sleep(1)
             return True
         else:
             task.log_info("确认按钮未激活（灰色），跳过点击")
@@ -613,7 +613,7 @@ def handle_remove(task: TriggerTask):
         if is_button_active(task, box):
             task.log_info("检测到移除操作，点击移除")
             task.click_box(box)
-            task.sleep(2)
+            task.sleep(1)
             return True
         else:
             task.log_info("移除按钮未激活（灰色），跳过点击")
@@ -627,7 +627,7 @@ def handle_flash(task: TriggerTask):
         if is_button_active(task, box):
             task.log_info("检测到闪光操作，点击闪光")
             task.click_box(box)
-            task.sleep(2)
+            task.sleep(1)
             return True
         else:
             task.log_info("闪光按钮未激活（灰色），跳过点击")
@@ -641,7 +641,7 @@ def handle_reflash(task: TriggerTask):
         if is_button_active(task, box):
             task.log_info("检测到重新闪光操作，点击重新闪光")
             task.click_box(box)
-            task.sleep(2)
+            task.sleep(1)
             return True
         else:
             task.log_info("重新闪光按钮未激活（灰色），跳过点击")
@@ -655,7 +655,7 @@ def handle_grant_flash(task: TriggerTask):
         if is_button_active(task, box):
             task.log_info("检测到赋予闪光操作，点击赋予闪光")
             task.click_box(box)
-            task.sleep(2)
+            task.sleep(1)
             return True
         else:
             task.log_info("赋予闪光按钮未激活（灰色），跳过点击")
@@ -669,7 +669,7 @@ def handle_copy(task: TriggerTask):
         if is_button_active(task, box):
             task.log_info("检测到复制操作，点击复制")
             task.click_box(box)
-            task.sleep(2)
+            task.sleep(1)
             return True
         else:
             task.log_info("复制按钮未激活（灰色），跳过点击")
@@ -682,7 +682,7 @@ def handle_enter(task: TriggerTask):
     if box:
         task.log_info("检测到进入按钮，点击进入")
         task.click_box(box)
-        task.sleep(2)
+        task.sleep(1)
         return True
     return False
 
@@ -852,7 +852,7 @@ def handle_obtain_reward(task: TriggerTask):
     if box and _clean_match(box.name, "获得"):
         task.log_info("检测到获得奖励页面，点击领取")
         task.click_box(box)
-        task.sleep(2)
+        task.sleep(1)
         return True
     return False
 
@@ -864,7 +864,7 @@ def handle_leave(task: TriggerTask):
         if is_button_active(task, box):
             task.log_info("检测到离开按钮，点击离开")
             task.click_box(box)
-            task.sleep(2)
+            task.sleep(1)
             return True
         else:
             task.log_info("离开按钮未激活（灰色），跳过点击")
@@ -878,7 +878,7 @@ def handle_select(task: TriggerTask):
         if is_button_active(task, box):
             task.log_info("检测到选择按钮，点击选择")
             task.click_box(box)
-            task.sleep(2)
+            task.sleep(1)
             return True
         else:
             task.log_info("选择按钮未激活（灰色），跳过点击")
@@ -904,7 +904,7 @@ def handle_rest(task: TriggerTask):
     if has_rest and has_free and rest_box:
         task.log_info("检测到休息界面，点击休息")
         task.click_box(rest_box)
-        task.sleep(2)
+        task.sleep(1)
         return True
     return False
 
@@ -1012,7 +1012,7 @@ def handle_battle_failed(task: TriggerTask):
     if box and box.name == "战斗失败":
         task.log_info("检测到战斗失败，建议降低难度")
         task.click(0.905, 0.917)
-        task.sleep(2)
+        task.sleep(1)
         return True
     return False
 
@@ -1116,7 +1116,7 @@ def handle_close_button(task: TriggerTask):
     if box and box.name == "关闭":
         task.log_info("检测到关闭按钮，点击关闭")
         task.click_box(box)
-        task.sleep(2)
+        task.sleep(1)
         return True
     return False
 
