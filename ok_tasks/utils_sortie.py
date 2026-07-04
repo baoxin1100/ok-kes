@@ -18,7 +18,7 @@ from utils import (
     handle_treat_approve, handle_cares_tip, handle_close_button,
     handle_expedition_unlock, handle_card_assign, handle_non_battle_page,
     handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_equipment_recast, handle_weakness_info, handle_minimizemap,
-    handle_held_cards_page
+    handle_held_cards_page, handle_unknown_page
 )
 
 import re
@@ -734,4 +734,5 @@ PAGE_HANDLERS = [
     handle_weakness_info,
     handle_minimizemap,
     handle_held_cards_page,
+    handle_unknown_page,
 ]

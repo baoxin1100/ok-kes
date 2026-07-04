@@ -1219,3 +1219,16 @@ def handle_non_battle_page(task: TriggerTask):
         task.disable()
         return True
     return False
+
+def handle_unknown_page(task: TriggerTask):
+    """检测到待确认的未知页面: 确认按钮不可点击时随机点击页面中央区域。"""
+    box = find_box_at_point(task, 0.916, 0.931)
+    if box and _clean_match(box.name, "确认") and not is_button_active(task, box):
+        task.log_info("检测到待确认的未知页面，确认按钮不可点击，随机点击页面区域")
+        import random
+        rx = random.uniform(0.043, 0.972)
+        ry = random.uniform(0.149, 0.843)
+        task.click(rx, ry)
+        task.sleep(1)
+        return True
+    return False

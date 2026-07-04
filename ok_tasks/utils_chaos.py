@@ -16,7 +16,7 @@ from utils import (
     handle_battle_failed, handle_data_collected, handle_mental_breakdown,
     handle_trauma_center, handle_explore_result, handle_treating,
     handle_treat_approve, handle_cares_tip, handle_close_button,
-    handle_expedition_unlock, handle_card_assign, handle_non_battle_page, handle_minimizemap, handle_held_cards_page,
+    handle_expedition_unlock, handle_card_assign, handle_non_battle_page, handle_minimizemap, handle_held_cards_page, handle_unknown_page,
 )
 
 import re
@@ -163,4 +163,5 @@ PAGE_HANDLERS = [
     handle_skip,
     handle_event_task,
     handle_held_cards_page,
+    handle_unknown_page,
 ]
