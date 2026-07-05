@@ -880,6 +880,20 @@ def handle_leave(task: TriggerTask):
             return False
     return False
 
+def handle_craft(task: TriggerTask):
+    """合成按钮。"""
+    box = find_box_at_point(task, 0.938, 0.903)
+    if box and _clean_match(box.name, "合成"):
+        if is_button_active(task, box):
+            task.log_info("检测到合成按钮，点击合成")
+            task.click_box(box)
+            task.sleep(1)
+            return True
+        else:
+            task.log_info("合成按钮未激活（灰色），跳过点击")
+            return False
+    return False
+
 def handle_select(task: TriggerTask):
     """通用"选择"按钮。"""
     box = find_box_at_point(task, 0.945, 0.918)
