@@ -32,6 +32,7 @@ class SortieMode(TriggerTask):
         self.default_config["任务优先级"] = ["选取随机3条命运","信用点增加", "移除"]
         self.default_config["拉黑主战员"] = ["黛安娜", "阿黛尔海特"]
         self.default_config["跳过非优先级卡牌"] = True
+        self.default_config["生命值大于多少优先闪光(百分比)"] = "60"
         # self.default_config["从右往左出牌"] = True
 
     def enable(self):

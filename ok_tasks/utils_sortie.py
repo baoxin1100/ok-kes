@@ -12,7 +12,7 @@ from utils import (
     handle_flash_card, handle_copy_card_pick, handle_convert_card,
     handle_negotiation, handle_continue, handle_confirm, handle_enter,
     handle_event_task, handle_route_selection, handle_obtain_reward,
-    handle_leave, handle_select, handle_rest, handle_view_original,
+    handle_leave, handle_select, handle_view_original,
     handle_battle_failed, handle_data_collected, handle_mental_breakdown,
     handle_trauma_center, handle_explore_result, handle_treating,
     handle_treat_approve, handle_cares_tip, handle_close_button,
@@ -685,6 +685,80 @@ def handle_escape(task: TriggerTask):
     return False
 
 
+def handle_rest_sortie(task: TriggerTask):
+    """出击模式休息页面: 包含休息和闪光两个功能，检测到对应条件分别处理。"""
+    # 检测闪光区域 (0.788,0.463)-(0.870,0.594) 是否存在"闪光"和"30"
+    flash_x1, flash_y1, flash_x2, flash_y2 = 0.788, 0.463, 0.870, 0.594
+    has_flash_text = False
+    has_flash_cost = False
+    flash_box = None
+    for b in task.all_texts:
+        cx = (b.x + b.width / 2) / task.width
+        cy = (b.y + b.height / 2) / task.height
+        if flash_x1 <= cx <= flash_x2 and flash_y1 <= cy <= flash_y2:
+            if "闪光" in b.name:
+                has_flash_text = True
+                flash_box = b
+            if "30" in b.name:
+                has_flash_cost = True
+
+    if has_flash_text and has_flash_cost and flash_box:
+        task.log_info("休息区存在可闪光选项")
+
+        # 获取当前信用点
+        credit = 0
+        credit_box = find_box_at_point(task, 0.794, 0.054)
+        if credit_box and credit_box.name.isdigit():
+            credit = int(credit_box.name)
+            task.log_info(f"当前信用点: {credit}")
+
+        # 获取当前生命值百分比
+        hp_percent = 100
+        hp_box = find_box_at_point(task, 0.209, 0.040)
+        if hp_box:
+            hp_match = re.search(r'(\d+)/(\d+)', hp_box.name)
+            if hp_match:
+                current_hp = int(hp_match.group(1))
+                max_hp = int(hp_match.group(2))
+                if max_hp > 0:
+                    hp_percent = int(current_hp * 100 / max_hp)
+                    task.log_info(f"当前生命值: {current_hp}/{max_hp} = {hp_percent}%")
+
+        flash_threshold_str = _get_config_value(task, '生命值大于多少优先闪光(百分比)', "60")
+        try:
+            flash_threshold = int(flash_threshold_str)
+        except (ValueError, TypeError):
+            flash_threshold = 60
+        task.log_info(f"生命值={hp_percent}%, 阈值={flash_threshold}%, 信用点={credit}")
+        if credit > 30 and hp_percent >= flash_threshold:
+            task.log_info("满足闪光条件，点击闪光")
+            task.click_box(flash_box)
+            task.sleep(2)
+            return True
+        else:
+            task.log_info("不满足闪光条件，继续检测休息")
+
+    # 检测休息区域 (0.298,0.681)-(0.420,0.850) 是否存在"休息"+"免费"
+    x1, y1, x2, y2 = 0.298, 0.681, 0.420, 0.850
+    has_rest = False
+    has_free = False
+    rest_box = None
+    for b in task.all_texts:
+        cx = (b.x + b.width / 2) / task.width
+        cy = (b.y + b.height / 2) / task.height
+        if x1 <= cx <= x2 and y1 <= cy <= y2:
+            if b.name == "休息":
+                has_rest = True
+                rest_box = b
+            if "免费" in b.name:
+                has_free = True
+    if has_rest and has_free and rest_box:
+        task.log_info("检测到休息界面，点击休息")
+        task.click_box(rest_box)
+        task.sleep(1)
+        return True
+    return False
+
 
 # 出击模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
@@ -703,7 +777,7 @@ PAGE_HANDLERS = [
     handle_select, #选择按钮
 
     handle_equipment_recast, #装备重铸按钮
-    handle_rest,
+    handle_rest_sortie,
 
     handle_non_battle_page,
     handle_battle_crash,
