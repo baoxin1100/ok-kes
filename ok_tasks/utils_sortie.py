@@ -556,7 +556,7 @@ def handle_member_selection(task: TriggerTask):
         task.log_info("主战员选择: 未找到优先角色或优先角色被拉黑，点击三个名字下方按钮刷新一次")
         for slot in slots:
             task.click(slot["x"], slot["refresh_y"])
-            task.sleep(0.5)
+            task.sleep(1)
         task.sleep(1)
         task.all_texts = task.ocr()
         slots = _read_member_slots(task)
