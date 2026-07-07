@@ -105,7 +105,7 @@ def _hand_cards(task: TriggerTask):
         else:
             cards.append({"name": name_box.name, "key": None, "x": cx})
 
-    # 推断缺失的按键
+    # 推断缺失的按键，所有推断的按键不超过9（数字键盘最大按键）
     if hand_count is not None and len(cards) < hand_count:
         # 手牌数 > 识别到的卡牌数，按位置顺序依次分配
         sorted_cards = sorted(enumerate(cards), key=lambda x: x[1]["x"])
@@ -114,19 +114,19 @@ def _hand_cards(task: TriggerTask):
             if c["key"] is not None:
                 next_key = int(c["key"]) + 1
             else:
-                c["key"] = str(next_key)
+                c["key"] = str(min(next_key, 9))
                 next_key += 1
     elif hand_count is not None and hand_count == len(cards):
         # 手牌数与识别数一致，直接用顺序分配
         for i, c in enumerate(cards):
-            expected = i + 1
+            expected = min(i + 1, 9)
             if c["key"] is None:
                 c["key"] = str(expected)
     else:
         # 无法读取手牌数，用简单推断
         for i, c in enumerate(cards):
             if c["key"] is None:
-                c["key"] = str(i + 1)
+                c["key"] = str(min(i + 1, 9))
 
     task.log_info(f"_hand_cards: 识别到 {len(cards)} 张手牌: {[(c['name'], c['key']) for c in cards]}")
     return cards
