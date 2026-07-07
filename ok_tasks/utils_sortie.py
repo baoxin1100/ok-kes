@@ -108,22 +108,22 @@ def _hand_cards(task: TriggerTask):
             cards.append({"name": name_box.name, "key": None, "x": cx})
 
     # 推断缺失的按键，所有推断的按键不超过9（数字键盘最大按键）
-    if hand_count is not None and len(cards) < hand_count:
-        # 手牌数 > 识别到的卡牌数，按位置顺序依次分配
+    # 使用位置插值法：根据手牌总数和卡牌 x 坐标估算每张牌的按键
+    if hand_count is not None and len(cards) > 0:
         sorted_cards = sorted(enumerate(cards), key=lambda x: x[1]["x"])
-        next_key = 1
-        for idx, c in sorted_cards:
-            if c["key"] is not None:
-                next_key = int(c["key"]) + 1
-            else:
-                c["key"] = str(min(next_key, 9))
-                next_key += 1
-    elif hand_count is not None and hand_count == len(cards):
-        # 手牌数与识别数一致，直接用顺序分配
-        for i, c in enumerate(cards):
-            expected = min(i + 1, 9)
-            if c["key"] is None:
-                c["key"] = str(expected)
+        if hand_count > 1 and len(cards) >= 2:
+            first_x = sorted_cards[0][1]["x"]
+            last_x = sorted_cards[-1][1]["x"]
+            total_span = last_x - first_x
+            expected_spacing = total_span / (hand_count - 1)
+            for idx, c in sorted_cards:
+                approx_key = 1 + round((c["x"] - first_x) / expected_spacing)
+                approx_key = min(approx_key, 9)
+                c["key"] = str(approx_key)
+        else:
+            # 只有一张卡牌或手牌数=1，直接分配按键1
+            for idx, c in sorted_cards:
+                c["key"] = "1"
     else:
         # 无法读取手牌数，用简单推断
         for i, c in enumerate(cards):

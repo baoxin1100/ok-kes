@@ -111,93 +111,35 @@ class TestTrigger(TriggerTask):
             else:
                 self.log_info(f"  卡牌「{c['name']}」 x={c['name_x']:.4f} → 无按键")
 
-        # 5b. 整体推断：用手牌数和卡牌间距确定每张牌的按键
+        # 5b. 整体推断：用手牌数 x 位置估算每张牌的按键（根据间距百分比）
         self.log_info("=== 间距推断结果 ===")
-        if hand_count is not None and len(cards) < hand_count:
-            # 手牌数 > 识别到的卡牌数，说明OCR漏了卡牌
-            # 先给识别到的按键的卡牌分配按键
-            assigned = [None] * len(cards)
-            assigned_keys = set()
-            for i, c in enumerate(cards):
-                if c["key"]:
-                    assigned[i] = int(c["key"])
-                    assigned_keys.add(int(c["key"]))
-
-            # 对有按键的卡牌，验证按键是否与其位置匹配
-            # 计算平均卡牌间距
-            if len(cards) >= 2:
-                total_gap = 0.0
-                for i in range(1, len(cards)):
-                    total_gap += cards[i]["x"] - cards[i-1]["x"]
-                avg_gap = total_gap / (len(cards) - 1)
-
-                # 检测哪些位置之间可能有遗漏的卡牌
-                for i in range(1, len(cards)):
-                    gap = cards[i]["x"] - cards[i-1]["x"]
-                    if gap > avg_gap * 1.4:
-                        # 这个间距明显偏大，中间可能漏了卡牌
-                        missing_count = round(gap / avg_gap) - 1
-                        self.log_info(f"  检测到卡牌[{i-1}]「{cards[i-1]['name']}」和卡牌[{i}]「{cards[i]['name']}」之间间距={gap:.4f} > avg={avg_gap:.4f}，可能遗漏了{missing_count}张")
-
-                # 根据已有按键反推缺失位置的按键
-                # 找到有按键的卡牌，按 key 值排序确定实际位置
-                keyed_items = [(i, int(c["key"])) for i, c in enumerate(cards) if c["key"] is not None]
-                keyed_items.sort(key=lambda x: x[1])
-
-                if keyed_items:
-                    # 检查按键序列是否连续
-                    for idx in range(1, len(keyed_items)):
-                        prev_i, prev_key = keyed_items[idx - 1]
-                        cur_i, cur_key = keyed_items[idx]
-                        expected_key_diff = cur_i - prev_i
-                        actual_key_diff = cur_key - prev_key
-                        if actual_key_diff > expected_key_diff:
-                            self.log_info(f"  按键{prev_key}→{cur_key} 跨越{actual_key_diff-1}个值，位置偏移{expected_key_diff}，可能中间漏{actual_key_diff-expected_key_diff}张")
-
-            # 最终推断：对于没有按键的卡牌，尝试推断
-            # 策略：根据识别到的按键映射，通过位置间距推断缺失卡牌的按键
-            # 先计算已有按键的卡牌的位置-按键映射，推断中间缺失的按键
+        if hand_count is not None and len(cards) > 0:
+            # 按 x 排序卡牌
             sorted_cards = sorted(enumerate(cards), key=lambda x: x[1]["x"])
-            used_key_set = set()
-            for idx, c in sorted_cards:
-                if c["key"] is not None:
-                    used_key_set.add(int(c["key"]))
+            if len(cards) >= 2 and hand_count > 1:
+                first_x = sorted_cards[0][1]["x"]
+                last_x = sorted_cards[-1][1]["x"]
+                total_span = last_x - first_x
+                expected_spacing = total_span / (hand_count - 1)
 
-            # 根据位置顺序依次分配按键
-            next_key = 1
-            final_keys = []
-            for idx, c in sorted_cards:
-                if c["key"] is not None:
-                    final_keys.append((idx, int(c["key"])))
-                    next_key = int(c["key"]) + 1
-                else:
-                    # 无按键：尝试推断
-                    final_keys.append((idx, next_key))
-                    next_key += 1
-
-            # 按原始顺序输出
-            for idx, key_val in final_keys:
-                c = cards[idx]
-                if c["key"] is not None and int(c["key"]) == key_val:
-                    pass  # 已有按键且一致
-                elif c["key"] is not None and int(c["key"]) != key_val:
-                    self.log_info(f"  卡牌「{c['name']}」 x={c['x']:.4f} → 原按键{c['key']}，间距推断调整→ {key_val}")
-                    c["key"] = str(key_val)
-                else:
-                    self.log_info(f"  卡牌「{c['name']}」 x={c['x']:.4f} → 间距推断→ {key_val}")
-                    c["key"] = str(key_val)
-
-        elif hand_count is not None and hand_count == len(cards):
-            # 手牌数与识别数一致，直接用顺序分配
-            for i, c in enumerate(cards):
-                expected = i + 1
-                if c["key"] is None:
-                    self.log_info(f"  卡牌「{c['name']}」 x={c['x']:.4f} → 手牌数匹配，推断为 {expected}")
-                    c["key"] = str(expected)
-                elif int(c["key"]) != expected:
-                    self.log_info(f"  卡牌「{c['name']}」 x={c['x']:.4f} → 原按键{c['key']}，调整为 {expected}")
-                    c["key"] = str(expected)
-        else:
+                # 根据位置估算每张卡牌的按键
+                for idx, c in sorted_cards:
+                    # 用位置插值计算近似按键 (位置0%→按键1, 位置100%→按键hand_count)
+                    approx_key = 1 + round((c["x"] - first_x) / expected_spacing)
+                    approx_key = min(approx_key, 9)
+                    if c["key"] is None:
+                        c["key"] = str(approx_key)
+                        self.log_info(f"  卡牌「{c['name']}」 x={c['x']:.4f} → 间距推断→ {approx_key}")
+                    elif int(c["key"]) != approx_key:
+                        self.log_info(f"  卡牌「{c['name']}」 x={c['x']:.4f} → 原按键{c['key']}，间距推断调整为 {approx_key}")
+                        c["key"] = str(approx_key)
+            else:
+                # 只有一张卡牌，直接分配按键1
+                for idx, c in sorted_cards:
+                    if c["key"] is None:
+                        c["key"] = "1"
+                        self.log_info(f"  卡牌「{c['name']}」 x={c['x']:.4f} → 间距推断→ 1")
+        elif hand_count is None:
             # 无法读取手牌数，用简单推断
             for i, c in enumerate(cards):
                 if c["key"] is None:
