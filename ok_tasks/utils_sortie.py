@@ -543,13 +543,18 @@ def handle_battle_hand_select(task: TriggerTask):
         cards = [
             b for b in task.all_texts
             if 0.116 <= (b.x + b.width / 2) / task.width <= 0.859
-            and 0.697 <= (b.y + b.height / 2) / task.height <= 0.908
+            and 0.697 <= (b.y + b.height / 2) / task.height <= 0.878
             and len(b.name.strip()) > 1
             and b.name not in ["确认", "返回", "跳过"]
         ]
         if not cards:
-            task.log_info("手牌区域未找到卡牌，停止选择")
-            break
+            task.log_info("手牌区域未找到卡牌，随机在手牌区域内点击一个位置")
+            rx = random.uniform(0.216, 0.759)
+            ry = random.uniform(0.697, 0.878)
+            task.click(rx, ry)
+            selected += 1
+            task.sleep(1)
+            continue
         chosen = random.choice(cards)
         task.log_info(f"选择手牌: {chosen.name}")
         task.click_box(chosen)
