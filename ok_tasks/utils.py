@@ -3,6 +3,7 @@ from ok import TriggerTask
 import re
 import json
 import random
+import time
 import cv2
 import numpy as np
 from opencc import OpenCC
@@ -308,6 +309,50 @@ def _cluster_region_boxes(task: TriggerTask, region):
 #         {"x": sum(column["centers"]) / len(column["centers"]), "texts": column["texts"]}
 #         for column in columns
 #     ]
+
+
+# ------------------------- 帧卡住检测 -------------------------
+
+def is_frame_stuck(task: TriggerTask, stuck_threshold_seconds=30, change_threshold=0.005):
+    """
+    基于像素变化检测画面是否卡住。
+    在 task 上缓存 _prev_frame_gray 和 _last_change_time。
+    连续 stuck_threshold_seconds 秒变化比例低于 change_threshold 返回 True。
+    stuck_threshold_seconds: 判定卡住的连续秒数阈值，默认30秒
+    change_threshold: 两帧之间变化像素比例阈值，默认0.005（0.5%）
+    """
+    if not hasattr(task, '_last_change_time'):
+        task._last_change_time = time.time()
+        task._prev_frame_gray = None
+
+    frame = task.frame
+    if frame is None:
+        return False
+
+    # 缩放灰度图以减少计算量
+    h, w = frame.shape[:2]
+    small = cv2.resize(frame, (w // 4, h // 4))
+    gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+
+    if task._prev_frame_gray is not None:
+        diff = cv2.absdiff(gray, task._prev_frame_gray)
+        _, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
+        change_ratio = cv2.countNonZero(thresh) / (gray.shape[0] * gray.shape[1])
+
+        if change_ratio >= change_threshold:
+            task._last_change_time = time.time()
+
+    task._prev_frame_gray = gray
+
+    return time.time() - task._last_change_time >= stuck_threshold_seconds
+
+
+def handle_stuck_log(task: TriggerTask):
+    """检测画面是否有变化，卡住则输出日志，不阻断其他处理。"""
+    if is_frame_stuck(task):
+        stuck_seconds = int(time.time() - task._last_change_time)
+        task.log_info(f"画面卡住，已持续{stuck_seconds}秒")
+    return False
 
 
 # ------------------------- 页面处理函数（通用） -------------------------

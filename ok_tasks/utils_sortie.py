@@ -18,7 +18,8 @@ from utils import (
     handle_treat_approve, handle_cares_tip, handle_close_button,
     handle_expedition_unlock, handle_card_assign, handle_non_battle_page,
     handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_equipment_recast, handle_weakness_info, handle_minimizemap,
-    handle_held_cards_page, handle_unknown_page
+    handle_held_cards_page, handle_unknown_page,
+    is_frame_stuck, handle_stuck_log
 )
 
 import re
@@ -272,9 +273,19 @@ def handle_boss_selection(task: TriggerTask):
 
 def handle_battle_page(task: TriggerTask):
     """战斗页面: 优先按"出牌优先级"配置出牌；找不到优先级中的牌时按当前手牌数从大到小兜底尝试。"""
+
     hand_count = _read_hand_count(task)
     if hand_count is None:
         return False
+
+    # 检测战斗画面是否卡住
+    if is_frame_stuck(task):
+        task.log_info("战斗画面卡住，从手牌区拖拽一张卡牌尝试恢复")
+        hand_x = random.uniform(0.200, 0.800)
+        hand_y = random.uniform(0.700, 0.830)
+        task.swipe_relative(hand_x, hand_y, 0.5, 0.3, duration=0.3)
+        task.sleep(1)
+        return True
 
     finishturn_box = task.box_of_screen(0.844, 0.782, 0.998, 0.990)
     if not task.find_feature(feature_name="finishturn", box=finishturn_box):
@@ -776,6 +787,7 @@ def handle_rest_sortie(task: TriggerTask):
 # 出击模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
     log_credit,
+    handle_stuck_log,
 
     handle_ether_supply,
     handle_close_button, #关闭按钮

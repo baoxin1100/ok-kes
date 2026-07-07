@@ -3,7 +3,7 @@ from ok import TriggerTask
 from utils import (
     _simplify_texts, _get_config_value, _get_card_list, _get_route_priority,
     find_box_at_point, find_text, find_exact_text,
-    _card_has_type_below, handle_copy, handle_flash, handle_reflash, handle_grant_flash, handle_remove, handle_equipment_recast, select_card, identify_node_type,
+    _card_has_type_below, select_card, identify_node_type,
     log_credit, handle_battle_crash, handle_close_page,
     handle_center_confirm, handle_settlement, handle_skip,
     handle_destiny_choice, handle_main_member_flash,
@@ -17,6 +17,9 @@ from utils import (
     handle_trauma_center, handle_explore_result, handle_treating,
     handle_treat_approve, handle_cares_tip, handle_close_button,
     handle_expedition_unlock, handle_card_assign, handle_non_battle_page, handle_minimizemap, handle_held_cards_page, handle_unknown_page, handle_craft,
+    handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy,
+    handle_equipment_recast,
+    handle_stuck_log,
 )
 
 import re
@@ -124,6 +127,7 @@ def handle_chaos_craft(task: TriggerTask):
 # 卡厄思模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
     log_credit,
+    handle_stuck_log, #画面卡住检测，仅输出日志
 
     handle_close_button, #关闭按钮
     handle_card_assign,
