@@ -5,6 +5,7 @@ import json
 import random
 import time
 import cv2
+import os
 import numpy as np
 from opencc import OpenCC
 
@@ -31,6 +32,51 @@ def _get_card_list(task: TriggerTask, key):
     """读取列表配置，解析失败返回空列表。"""
     value = _get_config_value(task, key, [])
     return list(value) if isinstance(value, (list, tuple)) else []
+
+
+# 游戏语言 → 映射文件路径
+_GAME_LANG_FILE_MAP = {
+    "繁体中文": os.path.join(os.path.dirname(__file__), 'assets', 'game_text_map', 'zh_tw.py'),
+}
+# 已加载的映射缓存 {语言: SERVER_TEXT_MAP字典}
+_LOADED_MAPS = {}
+
+
+def _load_game_text_map(game_lang):
+    """加载指定语言的映射表（带缓存）。"""
+    if game_lang not in _LOADED_MAPS:
+        file_path = _GAME_LANG_FILE_MAP.get(game_lang)
+        if file_path and os.path.exists(file_path):
+            try:
+                import importlib.util
+                spec = importlib.util.spec_from_file_location(f"_game_map_{game_lang}", file_path)
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                _LOADED_MAPS[game_lang] = getattr(mod, 'SERVER_TEXT_MAP', {})
+            except Exception:
+                _LOADED_MAPS[game_lang] = {}
+        else:
+            _LOADED_MAPS[game_lang] = {}
+    return _LOADED_MAPS[game_lang]
+
+
+def _get_game_text(task: TriggerTask, default_text):
+    """根据全局配置的游戏语言，返回对应服务器版本的搜索文本。
+    
+    用户在工具左下角 Settings → Game Language Config 中设置，
+    无需在每个任务中单独配置。
+    """
+    try:
+        lang_config = task.executor.global_config.get_config('游戏语言')
+        game_lang = lang_config.get('游戏语言', '简体中文')
+    except Exception:
+        game_lang = '简体中文'
+
+    if game_lang == '简体中文':
+        return default_text
+
+    mapping = _load_game_text_map(game_lang)
+    return mapping.get(default_text, default_text)
 
 
 def _get_route_priority(task: TriggerTask):
@@ -377,7 +423,7 @@ def handle_battle_crash(task: TriggerTask):
 
 def handle_close_page(task: TriggerTask):
     """提示"点击屏幕事件": 点击屏幕。"""
-    box = find_text(task, r'点击屏幕')
+    box = find_text(task, _get_game_text(task, '点击屏幕'))
     if box:
         task.log_info("点击屏幕事件，点击屏幕")
         task.click_box(box)
