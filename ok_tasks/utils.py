@@ -12,6 +12,23 @@ from opencc import OpenCC
 _cc = OpenCC('t2s')  # 繁转简，用于OCR文本统一转换
 
 
+def _edit_distance(s1, s2, max_dist=1):
+    """计算两个字符串的编辑距离是否 <= max_dist。"""
+    if abs(len(s1) - len(s2)) > max_dist:
+        return False
+    if not s1 or not s2:
+        return max(len(s1), len(s2)) <= max_dist
+    m, n = len(s1), len(s2)
+    prev = list(range(n + 1))
+    for i in range(1, m + 1):
+        curr = [i] + [0] * n
+        for j in range(1, n + 1):
+            cost = 0 if s1[i - 1] == s2[j - 1] else 1
+            curr[j] = min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost)
+        prev = curr
+    return prev[n] <= max_dist
+
+
 def _simplify_texts(texts):
     """将OCR结果的文本批量转换为简体（原地修改）。"""
     for b in texts:
@@ -948,6 +965,18 @@ def handle_leave(task: TriggerTask):
             return False
     return False
 
+
+def handle_next_step(task: TriggerTask):
+    """通用"下一步"按钮: 在(0.909,0.919)处检测文本，编辑距离<=1即匹配。"""
+    box = find_box_at_point(task, 0.909, 0.919)
+    if box and _edit_distance(box.name, "下一步"):
+        task.log_info(f"检测到下一步按钮「{box.name}」，点击")
+        task.click_box(box)
+        task.sleep(1)
+        return True
+    return False
+
+
 def handle_craft(task: TriggerTask):
     """合成按钮。"""
     box = find_box_at_point(task, 0.938, 0.903)
@@ -1165,13 +1194,13 @@ def handle_trauma_center(task: TriggerTask):
     return True
 
 
-def handle_explore_result(task: TriggerTask):
-    """探险结果页面: 点击页面关闭。"""
-    box = find_box_at_point(task, 0.623, 0.115)
-    if box and box.name == "探险结果":
-        task.click(0.916, 0.915)
-        return True
-    return False
+# def handle_explore_result(task: TriggerTask):
+#     """探险结果页面: 点击页面关闭。"""
+#     box = find_box_at_point(task, 0.623, 0.115)
+#     if box and box.name == "探险结果":
+#         task.click(0.916, 0.915)
+#         return True
+#     return False
 
 
 def handle_treating(task: TriggerTask):
@@ -1215,9 +1244,9 @@ def handle_close_button(task: TriggerTask):
 def handle_expedition_unlock(task: TriggerTask):
     """解锁探险记录页面: 点击确定。"""
     box = find_box_at_point(task, 0.5, 0.151)
-    if box and re.search(r"解锁的探险记录将会在.*", box.name):
+    if box and _get_game_text(task, '解锁的探险记录') in box.name:
         task.log_info("检测到解锁探险记录页面，点击页面")
-        task.click(0.500, 0.900)
+        task.click(0.5, 0.95)
         task.sleep(1)
         return True
     return False

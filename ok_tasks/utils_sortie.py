@@ -1,7 +1,7 @@
 from ok import TriggerTask
 
 from utils import (
-    _simplify_texts, _get_config_value, _get_card_list, _get_route_priority,
+    _simplify_texts, _edit_distance, _get_config_value, _get_card_list, _get_route_priority,
     find_box_at_point, find_text, find_exact_text,
     _card_has_type_below, select_card, identify_node_type, calculate_dominant_hue,
     log_credit, handle_battle_crash, handle_close_page,
@@ -12,9 +12,9 @@ from utils import (
     handle_convert_card,
     handle_negotiation, handle_continue, handle_confirm, handle_enter,
     handle_event_task, handle_route_selection, handle_obtain_reward,
-    handle_leave, handle_select, handle_view_original,
+    handle_leave, handle_next_step, handle_select, handle_view_original,
     handle_battle_failed, handle_data_collected, handle_mental_breakdown,
-    handle_trauma_center, handle_explore_result, handle_treating,
+    handle_trauma_center, handle_treating,
     handle_treat_approve, handle_cares_tip, handle_close_button,
     handle_expedition_unlock, handle_card_assign, handle_non_battle_page,
     handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_equipment_recast, handle_weakness_info, handle_minimizemap,
@@ -25,22 +25,6 @@ from utils import (
 import re
 import random
 import cv2
-
-
-def _edit_distance(s1, s2):
-    """计算两个字符串的编辑距离（Levenshtein距离）。"""
-    if len(s1) < len(s2):
-        return _edit_distance(s2, s1)
-    if len(s2) == 0:
-        return len(s1)
-    prev_row = list(range(len(s2) + 1))
-    for i, c1 in enumerate(s1):
-        curr_row = [i + 1]
-        for j, c2 in enumerate(s2):
-            cost = 0 if c1 == c2 else 1
-            curr_row.append(min(curr_row[j] + 1, prev_row[j + 1] + 1, prev_row[j] + cost))
-        prev_row = curr_row
-    return prev_row[-1]
 
 
 # ------------------------- 出击模式独有工具 -------------------------
@@ -853,6 +837,7 @@ PAGE_HANDLERS = [
     handle_grant_flash, #赋予闪光按钮
     handle_copy, #复制按钮
     handle_leave, #离开按钮
+    handle_next_step, #下一步按钮
     handle_select, #选择按钮
 
     handle_equipment_recast, #装备重铸按钮
@@ -899,7 +884,6 @@ PAGE_HANDLERS = [
     handle_trauma_center,
     handle_treating,
     handle_treat_approve,
-    handle_explore_result,
     handle_expedition_unlock,
     handle_cares_tip,
     handle_skip,

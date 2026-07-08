@@ -12,9 +12,9 @@ from utils import (
     handle_convert_card,
     handle_negotiation, handle_continue, handle_confirm, handle_enter,
     handle_event_task, handle_route_selection, handle_obtain_reward,
-    handle_leave, handle_select, handle_rest, handle_view_original, handle_weakness_info,
+    handle_leave, handle_next_step, handle_select, handle_rest, handle_view_original, handle_weakness_info,
     handle_battle_failed, handle_data_collected, handle_mental_breakdown,
-    handle_trauma_center, handle_explore_result, handle_treating,
+    handle_trauma_center, handle_treating,
     handle_treat_approve, handle_cares_tip, handle_close_button,
     handle_expedition_unlock, handle_card_assign, handle_non_battle_page, handle_minimizemap, handle_held_cards_page, handle_unknown_page, handle_craft,
     handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy,
@@ -138,6 +138,7 @@ PAGE_HANDLERS = [
     handle_grant_flash, #赋予闪光按钮
     handle_copy, #复制按钮
     handle_leave, #离开按钮
+    handle_next_step, #下一步按钮
     handle_craft, #合成按钮
     handle_select, #选择按钮
 
@@ -175,7 +176,6 @@ PAGE_HANDLERS = [
     handle_treat_approve,
     handle_zero_system_home,
     handle_codex_search,
-    handle_explore_result,
     handle_expedition_unlock,
     handle_cares_tip,
     handle_memory_elimination,
