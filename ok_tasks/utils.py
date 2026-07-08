@@ -774,7 +774,7 @@ def handle_enter(task: TriggerTask):
 def handle_equipment_recast(task: TriggerTask):
     """装备重铸页面: 点击确认重铸。"""
     box = find_box_at_point(task, 0.501, 0.128)
-    if box and "装备重铸" in box.name:
+    if box and _get_game_text(task, '装备重铸') in box.name:
         task.log_info("检测到装备重铸页面，点击跳过")
         task.click(0.749, 0.932)
         task.sleep(1)
@@ -967,13 +967,17 @@ def handle_leave(task: TriggerTask):
 
 
 def handle_next_step(task: TriggerTask):
-    """通用"下一步"按钮: 在(0.909,0.919)处检测文本，编辑距离<=1即匹配。"""
-    box = find_box_at_point(task, 0.909, 0.919)
-    if box and _edit_distance(box.name, "下一步"):
-        task.log_info(f"检测到下一步按钮「{box.name}」，点击")
-        task.click_box(box)
-        task.sleep(1)
-        return True
+    """通用"下一步"按钮: 在区域(0.833,0.885,0.954,0.957)内检测文本，编辑距离<=1即匹配。"""
+    x1, y1, x2, y2 = 0.833, 0.885, 0.954, 0.957
+    for b in task.all_texts:
+        cx = (b.x + b.width / 2) / task.width
+        cy = (b.y + b.height / 2) / task.height
+        if x1 <= cx <= x2 and y1 <= cy <= y2:
+            if _edit_distance(b.name, "下一步"):
+                task.log_info(f"检测到下一步按钮「{b.name}」，点击")
+                task.click_box(b)
+                task.sleep(1)
+                return True
     return False
 
 
@@ -1138,9 +1142,9 @@ def handle_battle_failed(task: TriggerTask):
 
 
 def handle_data_collected(task: TriggerTask):
-    """存储数据收集完成页面: 点击下一步；如配置"保留存档"为False则删除所有存档。"""
+    """存储数据收集完成页面: 删除存档。"""
     box = find_box_at_point(task, 0.505, 0.111)
-    if box and box.name == "存储数据收集完成":
+    if box and _get_game_text(task, '存储数据收集完成') in box.name:
         if not _get_config_value(task, '保留存档', False):
             task.log_info("保留存档配置为False，删除存档")
             for feature_name in ["deletecards", "deletecards2", "deletecards3"]:
@@ -1150,8 +1154,7 @@ def handle_data_collected(task: TriggerTask):
                     task.click_box(features[0])
                     task.sleep(1)
                     return True
-        task.log_info("检测到存储数据收集完成，下一步")
-        task.click(0.905, 0.917)
+        task.log_info("检测到存储数据收集完成，由通用按钮处理")
         return True
     return False
 

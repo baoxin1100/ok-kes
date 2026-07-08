@@ -124,6 +124,17 @@ def handle_chaos_craft(task: TriggerTask):
     return False
 
 
+def handle_conquer_difficulty(task: TriggerTask):
+    """征服新难度页面: 检测到'征服新难度'则点击空白处关闭。"""
+    box = find_box_at_point(task, 0.502, 0.572)
+    if box and "征服新难度" in box.name:
+        task.log_info("检测到征服新难度页面，点击关闭")
+        task.click(0.502, 0.943)
+        task.sleep(1)
+        return True
+    return False
+
+
 # 卡厄思模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
     log_credit,
@@ -180,6 +191,7 @@ PAGE_HANDLERS = [
     handle_cares_tip,
     handle_memory_elimination,
     handle_chaos_craft,
+    handle_conquer_difficulty,
     handle_skip,
     handle_event_task,
     handle_held_cards_page,
