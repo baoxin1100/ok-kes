@@ -1,22 +1,21 @@
 from ok import TriggerTask
 
 from utils import (
-    _simplify_texts,  _get_game_text, _edit_distance, _get_config_value, _get_card_list, _get_route_priority,
+    _simplify_texts, _edit_distance, _get_config_value, _get_card_list, _get_route_priority, _get_game_text,
     find_box_at_point, find_text, find_exact_text,
     _card_has_type_below, select_card, identify_node_type, calculate_dominant_hue,
     log_credit, handle_battle_crash, handle_close_page,
     handle_center_confirm, handle_settlement, handle_skip,
     handle_destiny_choice, handle_main_member_flash,
-    handle_card_reward, handle_equipment, handle_mask_card,
+    handle_card_reward, handle_equipment,
     handle_select_card, handle_copy_member,
     handle_convert_card,
     handle_negotiation, handle_continue, handle_confirm, handle_enter,
     handle_event_task, handle_route_selection, handle_obtain_reward,
     handle_leave, handle_next_step, handle_select, handle_view_original,
-    handle_battle_failed, handle_data_collected, handle_mental_breakdown,
-    handle_trauma_center, handle_treating,
-    handle_treat_approve, handle_cares_tip, handle_close_button,
-    handle_expedition_unlock, handle_card_assign, handle_non_battle_page,
+    handle_battle_failed,
+    handle_close_button,
+    handle_card_assign, handle_non_battle_page,
     handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_equipment_recast, handle_weakness_info, handle_minimizemap,
     handle_held_cards_page, handle_unknown_page,
     is_frame_stuck, handle_stuck_log
@@ -495,7 +494,7 @@ def handle_sortie_reward_claim(task: TriggerTask):
 def handle_battle_member_config(task: TriggerTask):
     """主战员配置页面: 区分出战主战员入口和确认进入入口。"""
     title = find_box_at_point(task, 0.130, 0.043)
-    if not (title and title.name == _get_game_text(task, "主战员配置")):
+    if not (title and _get_game_text(task, '主战员配置') in title.name):
         return False
     battle_member_hint = find_box_at_point(task, 0.188, 0.799)
     if not (battle_member_hint and battle_member_hint.name.strip()):
@@ -879,13 +878,6 @@ PAGE_HANDLERS = [
     handle_obtain_reward,
     handle_view_original,
     handle_battle_failed,
-    handle_data_collected,
-    handle_mental_breakdown,
-    handle_trauma_center,
-    handle_treating,
-    handle_treat_approve,
-    handle_expedition_unlock,
-    handle_cares_tip,
     handle_skip,
     handle_event_task,
     handle_escape,
