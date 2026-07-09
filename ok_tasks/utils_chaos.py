@@ -168,13 +168,13 @@ def handle_data_collected(task: TriggerTask):
     return False
 
 
-def handle_cares_tip(task: TriggerTask):
-    """卡厄思 TIP 提示页面: 点击关闭。"""
-    box = find_box_at_point(task, 0.502, 0.286)
-    if box and box.name == "TIP":
-        task.click(0.884, 0.915)
-        return True
-    return False
+# def handle_cares_tip(task: TriggerTask):
+#     """卡厄思 TIP 提示页面: 点击关闭。"""
+#     box = find_box_at_point(task, 0.502, 0.286)
+#     if box and box.name == "TIP":
+#         task.click(0.884, 0.915)
+#         return True
+#     return False
 
 
 def handle_expedition_unlock(task: TriggerTask):
@@ -297,7 +297,7 @@ PAGE_HANDLERS = [
     handle_zero_system_home,
     handle_codex_search,
     handle_expedition_unlock,
-    handle_cares_tip,
+    # handle_cares_tip,
     handle_memory_elimination,
     handle_chaos_craft,
     handle_conquer_difficulty,
