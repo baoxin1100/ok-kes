@@ -1,7 +1,7 @@
 from ok import TriggerTask
 
 from utils import (
-    _simplify_texts, _edit_distance, _get_config_value, _get_card_list, _get_route_priority,
+    _simplify_texts, _edit_distance, _get_config_value, _get_card_list, _get_route_priority, _get_game_text,
     find_box_at_point, find_text, find_exact_text,
     _card_has_type_below, select_card, identify_node_type, calculate_dominant_hue,
     log_credit, handle_battle_crash, handle_close_page,
@@ -494,7 +494,7 @@ def handle_sortie_reward_claim(task: TriggerTask):
 def handle_battle_member_config(task: TriggerTask):
     """主战员配置页面: 区分出战主战员入口和确认进入入口。"""
     title = find_box_at_point(task, 0.130, 0.043)
-    if not (title and title.name == "主战员配置"):
+    if not (title and _get_game_text(task, '主战员配置') in title.name):
         return False
     battle_member_hint = find_box_at_point(task, 0.188, 0.799)
     if not (battle_member_hint and battle_member_hint.name.strip()):
@@ -511,7 +511,7 @@ def handle_battle_member_selection(task: TriggerTask):
     """出战主战员列表页面: 按配置优先级选择角色。"""
     title = find_box_at_point(task, 0.139, 0.044)
     right_hint = find_box_at_point(task, 0.562, 0.044)
-    if not ((title and  "主战员列表" in title.name) and  (right_hint and "甄别主战员" in right_hint.name)):
+    if not ((title and  _get_game_text(task, '主战员列表') in title.name) and  (right_hint and _get_game_text(task, '甄别主战员') in right_hint.name)):
         return False
     return _select_battle_member(task)
 
