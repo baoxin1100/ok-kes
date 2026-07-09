@@ -611,6 +611,7 @@ _SELECT_CARD_CONFIG_KEYS = {
     "移除": "移除卡牌列表",
     "复制": "复制卡牌列表",
     "闪光": "闪光卡牌列表",
+    "灵光一闪": "闪光卡牌列表",
 }
 
 
@@ -619,7 +620,7 @@ def handle_select_card(task: TriggerTask):
     box = find_box_at_point(task, 0.198, 0.039)
     if not box:
         return False
-    m = re.search(r'请选择(\d*)张*.*?(移除|复制|闪光)的卡牌', box.name)
+    m = re.search(r'请选择(\d*)张*.*?(移除|复制|闪光|灵光一闪).*?卡牌', box.name)
     if not m:
         return False
     count_text = m.group(1)
@@ -708,7 +709,7 @@ def handle_remove(task: TriggerTask):
 def handle_flash(task: TriggerTask):
     """通用"闪光"按钮。"""
     box = find_box_at_point(task, 0.945, 0.918)
-    if box and _clean_match(box.name, "闪光"):
+    if box and _get_game_text(task, '闪光') in box.name:
         if is_button_active(task, box):
             task.log_info("检测到闪光操作，点击闪光")
             task.click_box(box)
@@ -722,7 +723,7 @@ def handle_flash(task: TriggerTask):
 def handle_reflash(task: TriggerTask):
     """通用"重新闪光"按钮。"""
     box = find_box_at_point(task, 0.945, 0.918)
-    if box and _clean_match(box.name, "重新闪光"):
+    if box and _get_game_text(task, '重新闪光') in box.name:
         if is_button_active(task, box):
             task.log_info("检测到重新闪光操作，点击重新闪光")
             task.click_box(box)
