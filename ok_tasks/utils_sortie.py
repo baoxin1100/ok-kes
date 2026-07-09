@@ -533,7 +533,7 @@ def handle_battle_member_selection(task: TriggerTask):
 def handle_member_selection(task: TriggerTask):
     """主战员选择页面: 优先选配置角色（跳过拉黑角色）；没有则点击每个名字下方按钮刷新一次，仍没有就随机选（跳过拉黑角色）。"""
     prompt = find_box_at_point(task, 0.500, 0.931)
-    if not (prompt and "主战员" in prompt.name):
+    if not (prompt and _get_game_text(task, '主战员') in prompt.name):
         return False
     priority = _get_member_priority(task)
     blacklisted = _get_blacklisted_members(task)
@@ -572,11 +572,11 @@ def handle_member_selection(task: TriggerTask):
         chosen = random.choice(valid_slots)
         task.log_info(f"主战员选择: 未找到优先角色，随机选择「{chosen['name']}」")
     task.click(chosen["x"], chosen["y"])
-    task.sleep(0.5)
-    task.click(0.884, 0.931)
-    task.sleep(0.5)
-    task.click(0.635, 0.639)
-    task.sleep(0.5)
+    task.sleep(1)
+    # task.click(0.884, 0.931)
+    # task.sleep(0.5)
+    # task.click(0.635, 0.639)
+    # task.sleep(0.5)
     return True
 
 
@@ -898,5 +898,5 @@ PAGE_HANDLERS = [
     handle_weakness_info,
     handle_minimizemap,
     handle_held_cards_page,
-    handle_unknown_page,
+    # handle_unknown_page,
 ]

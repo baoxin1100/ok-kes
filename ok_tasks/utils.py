@@ -477,7 +477,7 @@ def handle_skip(task: TriggerTask):
 def handle_destiny_choice(task: TriggerTask):
     """命运选择奖励页面: 随机选择一个命运标题。"""
     box = find_box_at_point(task, 0.499, 0.932)
-    if box and re.search(r'请选择你的命运', box.name):
+    if box and _get_game_text(task, '请选择你的命运') in box.name:
         task.log_info("检测到命运选择奖励，进行相应操作")
         task.sleep(2)  # 给按钮一些加载时间
 
