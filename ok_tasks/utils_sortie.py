@@ -752,7 +752,7 @@ def handle_escape(task: TriggerTask):
     """逃脱页面: 检测战利品与逃脱按钮后点击逃脱。"""
     title = find_box_at_point(task, 0.675, 0.164)
     escape_box = find_box_at_point(task, 0.952, 0.928)
-    if title and title.name == "战利品" and escape_box and escape_box.name == "逃脱":
+    if title and title.name == "战利品" and escape_box and _get_game_text(task, '逃脱') in escape_box.name:
         task.log_info("检测到逃脱页面，点击逃脱")
         task.click_box(escape_box)
         task.sleep(0.5)
