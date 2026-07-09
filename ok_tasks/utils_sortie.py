@@ -612,6 +612,7 @@ def handle_battle_hand_select(task: TriggerTask):
     need = int(m.group(1))
     task.log_info(f"检测到战斗中手牌选择页面，需选择{need}张卡牌，随机选择")
 
+    _card_exclude_keywords = {"攻击", "强化", "技能", "咒术", "状态异常", "诅咒"}
     selected = 0
     for _ in range(need):
         task.all_texts = _simplify_texts(task.ocr())
@@ -621,6 +622,7 @@ def handle_battle_hand_select(task: TriggerTask):
             and 0.697 <= (b.y + b.height / 2) / task.height <= 0.878
             and len(b.name.strip()) > 1
             and b.name not in ["确认", "返回", "跳过"]
+            and not any(kw in b.name for kw in _card_exclude_keywords)
         ]
         if not cards:
             task.log_info("手牌区域未找到卡牌，随机在手牌区域内点击一个位置")

@@ -523,7 +523,7 @@ def handle_main_member_flash(task: TriggerTask):
 def handle_card_reward(task: TriggerTask):
     """卡牌奖励页面: 在区域内OCR识别卡牌名，按优先级选择卡牌并确认。"""
     box = find_box_at_point(task, 0.498, 0.129)
-    if not (box and box.name == "卡牌奖励"):
+    if not (box and _get_game_text(task, '卡牌奖励') in box.name):
         return False
 
     task.log_info("检测到卡牌奖励页面")
