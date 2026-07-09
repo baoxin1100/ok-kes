@@ -1,7 +1,7 @@
 from ok import TriggerTask
 
 from utils import (
-    _simplify_texts, _edit_distance, _get_config_value, _get_card_list, _get_route_priority,
+    _simplify_texts,  _get_game_text, _edit_distance, _get_config_value, _get_card_list, _get_route_priority,
     find_box_at_point, find_text, find_exact_text,
     _card_has_type_below, select_card, identify_node_type, calculate_dominant_hue,
     log_credit, handle_battle_crash, handle_close_page,
