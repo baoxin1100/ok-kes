@@ -592,20 +592,6 @@ def handle_equipment(task: TriggerTask):
     return False
 
 
-def handle_mask_card(task: TriggerTask):
-    """面具获得卡牌页面: 跳过。"""
-    box = find_box_at_point(task, 0.507, 0.090)
-    if box and "获得卡牌" in box.name:
-        task.log_info("检测获得卡牌选择，进行跳过操作")
-        skip_box = find_text(task, r'跳过')
-        if skip_box:
-            task.click_box(skip_box)
-            task.sleep(0.5)
-            task.click(0.654, 0.626)
-        return True
-    return False
-
-
 # 卡牌操作关键词 → 配置 key 映射
 _SELECT_CARD_CONFIG_KEYS = {
     "移除": "移除卡牌列表",
@@ -1142,62 +1128,6 @@ def handle_battle_failed(task: TriggerTask):
     return False
 
 
-def handle_data_collected(task: TriggerTask):
-    """存储数据收集完成页面: 删除存档。"""
-    box = find_box_at_point(task, 0.505, 0.111)
-    if box and _get_game_text(task, '存储数据收集完成') in box.name:
-        if not _get_config_value(task, '保留存档', False):
-            task.log_info("保留存档配置为False，删除存档")
-            for feature_name in ["deletecards", "deletecards2", "deletecards3"]:
-                features = task.find_feature(feature_name=feature_name)
-                if features:
-                    task.log_info(f"找到{feature_name}特征，点击删除")
-                    task.click_box(features[0])
-                    task.sleep(1)
-                    return True
-        task.log_info("检测到存储数据收集完成，由通用按钮处理")
-        return True
-    return False
-
-
-def handle_mental_breakdown(task: TriggerTask):
-    """精神崩溃发生页面: 根据配置决定是否治疗崩溃。"""
-    box = find_box_at_point(task, 0.496, 0.186)
-    if box and box.name == "精神崩溃发生":
-        if _get_config_value(task, '治疗崩溃', True):
-            task.log_info("检测到精神崩溃发生，去创伤中心治疗")
-            task.click(0.706, 0.915)
-        else:
-            task.log_info("检测到精神崩溃发生，治疗崩溃配置为False，关闭页面")
-            task.click(0.889, 0.919)
-        return True
-    return False
-
-
-def handle_trauma_center(task: TriggerTask):
-    """创伤中心: 优先使用旅行券治疗；若配置"优先使用金币治疗"为True，则始终使用金币治疗。"""
-    box = find_box_at_point(task, 0.125, 0.049)
-    if not (box and "创伤中心" in box.name):
-        return False
-    task.log_info("检测到创伤中心，采取策略，优先使用旅行券")
-    if find_text(task, r'没有恢复中的战员'):
-        task.click(0.044, 0.046)
-        return True
-    task.click(0.420, 0.339)
-    task.sleep(0.5)
-    travel_ticket = task.ocr(0.933, 0.904, 0.971, 0.943)
-    if travel_ticket:
-        has_ticket = int(travel_ticket[0].name[0]) > 0
-        prefer_gold = _get_config_value(task, '优先使用金币治疗', False)
-        if prefer_gold:
-            task.log_info("优先使用金币治疗配置为True，点击金币治疗")
-            task.click(0.702, 0.924)
-        else:
-            task.click(0.798 if has_ticket else 0.702, 0.924)
-        task.sleep(0.5)
-    return True
-
-
 # def handle_explore_result(task: TriggerTask):
 #     """探险结果页面: 点击页面关闭。"""
 #     box = find_box_at_point(task, 0.623, 0.115)
@@ -1207,50 +1137,12 @@ def handle_trauma_center(task: TriggerTask):
 #     return False
 
 
-def handle_treating(task: TriggerTask):
-    """治疗进行中页面: 选择治疗方法。"""
-    if find_text(task, r'选择哪种方法进行治疗'):
-        task.log_info("检测到治疗进行中")
-        task.click(0.765, 0.500)
-        return True
-    return False
-
-
-def handle_treat_approve(task: TriggerTask):
-    """治疗完成页面: 点击批准。"""
-    if find_text(task, r'点击批准'):
-        task.log_info("检测到治疗完成，点击批准")
-        task.click(0.768, 0.810)
-        return True
-    return False
-
-
-def handle_cares_tip(task: TriggerTask):
-    """卡厄思 TIP 提示页面: 点击关闭。"""
-    box = find_box_at_point(task, 0.502, 0.286)
-    if box and box.name == "TIP":
-        task.click(0.884, 0.915)
-        return True
-    return False
-
-
 def handle_close_button(task: TriggerTask):
     """通用关闭按钮: 检测到关闭按钮则点击关闭。"""
     box = find_box_at_point(task, 0.512, 0.929)
     if box and box.name == "关闭":
         task.log_info("检测到关闭按钮，点击关闭")
         task.click_box(box)
-        task.sleep(1)
-        return True
-    return False
-
-
-def handle_expedition_unlock(task: TriggerTask):
-    """解锁探险记录页面: 点击确定。"""
-    box = find_box_at_point(task, 0.5, 0.151)
-    if box and _get_game_text(task, '解锁的探险记录') in box.name:
-        task.log_info("检测到解锁探险记录页面，点击页面")
-        task.click(0.5, 0.95)
         task.sleep(1)
         return True
     return False
