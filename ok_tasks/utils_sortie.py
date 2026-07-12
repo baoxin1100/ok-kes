@@ -19,7 +19,8 @@ from utils import (
     handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_equipment_recast, handle_weakness_info, handle_minimizemap,
     handle_held_cards_page, handle_unknown_page,
     is_frame_stuck, handle_stuck_log,
-    handle_shop
+    handle_shop,
+    _get_current_credit
 )
 
 import re
@@ -799,11 +800,8 @@ def handle_rest_sortie(task: TriggerTask):
         task.log_info("休息区存在可闪光选项")
 
         # 获取当前信用点
-        credit = 0
-        credit_box = find_box_at_point(task, 0.794, 0.054)
-        if credit_box and credit_box.name.isdigit():
-            credit = int(credit_box.name)
-            task.log_info(f"当前信用点: {credit}")
+        credit = _get_current_credit(task)
+        task.log_info(f"当前信用点: {credit}")
 
         # 获取当前生命值百分比
         hp_percent = 100

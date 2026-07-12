@@ -108,6 +108,18 @@ def _get_route_priority(task: TriggerTask):
 
 # ------------------------- 通用工具 -------------------------
 
+def _get_current_credit(task: TriggerTask):
+    """读取当前信用点数，从两个可能位置取最大值。"""
+    credit = 0
+    for pos_x, pos_y in [(0.794, 0.054), (0.734, 0.053)]:
+        box = find_box_at_point(task, pos_x, pos_y)
+        if box and box.name.isdigit():
+            val = int(box.name)
+            if val > credit:
+                credit = val
+    return credit
+
+
 def find_box_at_point(task: TriggerTask, rel_x, rel_y):
     """查找包含相对坐标点的 box，多个命中时返回面积最小的（最精确）。"""
     px, py = rel_x * task.width, rel_y * task.height
@@ -419,9 +431,9 @@ def handle_stuck_log(task: TriggerTask):
 
 def log_credit(task: TriggerTask):
     """记录当前信用点数量（仅记录, 不拦截后续处理）。"""
-    box = find_box_at_point(task, 0.794, 0.054)
-    if box and box.name.isdigit():
-        task.log_info(f"当前信用点: {box.name}")
+    credit = _get_current_credit(task)
+    if credit > 0:
+        task.log_info(f"当前信用点: {credit}")
     return False
 
 
@@ -1050,12 +1062,11 @@ def handle_shop(task: TriggerTask):
         if soldout and "售" in soldout.name:
             task.log_info(f"德朗商店: 移除卡牌已售罄")
             return False
-        credit_box = find_box_at_point(task, 0.794, 0.054)
-        task.log_info(f"handle_shop: 0.794,0.054处信用点文本='{credit_box.name if credit_box else None}'")
-        if not (credit_box and credit_box.name.isdigit()):
+        current_credit = _get_current_credit(task)
+        task.log_info(f"handle_shop: 当前信用点={current_credit}")
+        if current_credit <= 0:
             task.log_info("handle_shop: 信用点读取失败，return False")
             return False
-        current_credit = int(credit_box.name)
 
         cost_box = find_box_at_point(task, 0.724, 0.319)
         task.log_info(f"handle_shop: 0.724,0.319处费用文本='{cost_box.name if cost_box else None}'")
