@@ -22,7 +22,7 @@ python -m ok.update.inline_ok_requirements
 ### 2. 执行 PyInstaller 打包
 
 ```bash
-pyinstaller --onefile --noconsole --uac-admin --runtime-tmpdir "C:\Temp\ok_kes" --name "卡厄思自动化工具v1.2.5" --icon icons/icon.ico ^
+pyinstaller --onefile --noconsole --uac-admin --noupx --runtime-tmpdir "C:\Temp\ok_kes" --name "卡厄思自动化工具v1.2.5" --icon icons/icon.ico ^
   --add-data assets;assets ^
   --add-data i18n;i18n ^
   --add-data ok_tasks;ok_tasks ^
