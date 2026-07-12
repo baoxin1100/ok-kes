@@ -663,7 +663,7 @@ def handle_battle_hand_select(task: TriggerTask):
 def handle_curiosity_activate(task: TriggerTask):
     """尼娅的好奇心发动页面: 按优先级选择要手持的卡牌（战斗相关页面，优先级高于战斗页面）。"""
     box = find_box_at_point(task, 0.499, 0.129)
-    if box and "请选择要手持的卡牌" in box.name:
+    if box and _get_game_text(task, '请选择要手持的卡牌') in box.name:
         task.log_info("检测到尼娅的好奇心发动页面")
         priority = ["剑雨", "展开极光", "一缕光芒", "万众英雄"]
         px1, py1 = int(0.168 * task.width), int(0.247 * task.height)

@@ -3,7 +3,7 @@ import os
 import numpy as np
 from ok import ConfigOption
 
-version = "v1.2.4"
+version = "v1.2.5"
 #不需要修改version, Github Action打包会自动修改
 
 key_config_option = ConfigOption('Game Hotkey Config', { #全局配置示例

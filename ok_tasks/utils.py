@@ -955,8 +955,6 @@ def handle_leave(task: TriggerTask):
             task.log_info("离开按钮未激活（灰色），跳过点击")
             return False
     return False
-
-
 def handle_next_step(task: TriggerTask):
     """通用"下一步"按钮: 在区域(0.833,0.885,0.954,0.957)内检测文本，编辑距离<=1即匹配。"""
     x1, y1, x2, y2 = 0.833, 0.885, 0.954, 0.957

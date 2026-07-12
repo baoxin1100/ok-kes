@@ -19,6 +19,7 @@ from utils import (
     handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy,
     handle_equipment_recast,
     handle_stuck_log,
+    is_button_active, _clean_match,
 )
 
 import re
@@ -244,6 +245,21 @@ def handle_treat_approve(task: TriggerTask):
     return False
 
 
+def handle_go_to_chaos_core(task: TriggerTask):
+    """前往卡厄思核心按钮。"""
+    box = find_box_at_point(task, 0.945, 0.918)
+    if box and _clean_match(box.name, "前往卡厄思核心"):
+        if is_button_active(task, box):
+            task.log_info("检测到前往卡厄思核心按钮，点击进入")
+            task.click_box(box)
+            task.sleep(1)
+            return True
+        else:
+            task.log_info("前往卡厄思核心按钮未激活（灰色），跳过点击")
+            return False
+    return False
+
+
 # 卡厄思模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
     log_credit,
@@ -262,6 +278,7 @@ PAGE_HANDLERS = [
     handle_next_step, #下一步按钮
     handle_craft, #合成按钮
     handle_select, #选择按钮
+    handle_go_to_chaos_core, #前往卡厄思核心
 
     handle_rest,
     handle_equipment_recast, #装备重铸按钮
