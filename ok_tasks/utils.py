@@ -638,7 +638,7 @@ def handle_copy_member(task: TriggerTask):
 def handle_convert_card(task: TriggerTask):
     """转换卡牌页面: 跳过转换。"""
     box = find_box_at_point(task, 0.226, 0.046)
-    if box and "转换的卡牌" in box.name:
+    if box and _get_game_text(task, '转换的卡牌') in box.name:
         task.log_info("检测到卡牌转换选择，进行跳过操作")
         task.click(0.776, 0.926)
         task.sleep(0.5)
