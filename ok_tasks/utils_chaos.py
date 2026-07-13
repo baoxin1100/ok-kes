@@ -280,6 +280,7 @@ PAGE_HANDLERS = [
     handle_copy, #复制按钮
     handle_leave, #离开按钮
     handle_mental_breakdown, #精神崩溃，优先级高于下一步按钮
+    handle_data_collected, #存储数据收集完成，优先级高于下一步按钮
     handle_next_step, #下一步按钮
     handle_craft, #合成按钮
     handle_select, #选择按钮
@@ -309,7 +310,6 @@ PAGE_HANDLERS = [
     handle_obtain_reward,
     handle_view_original,
     handle_battle_failed,
-    handle_data_collected,
     handle_trauma_center,
     handle_treating,
     handle_treat_approve,

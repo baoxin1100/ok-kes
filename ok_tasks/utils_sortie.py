@@ -18,7 +18,7 @@ from utils import (
     handle_card_assign, handle_non_battle_page,
     handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_convert, handle_equipment_recast, handle_weakness_info, handle_minimizemap,
     handle_held_cards_page, handle_unknown_page,
-    is_frame_stuck, handle_stuck_log,
+    is_frame_stuck, handle_stuck_log, is_button_active, _clean_match,
     handle_shop,
     _get_current_credit
 )
@@ -596,6 +596,24 @@ def handle_member_selection(task: TriggerTask):
     return True
 
 
+def handle_rational_supply(task: TriggerTask):
+    """补充理性页面: 确认按钮未激活时关闭领取奖励并放弃补充。"""
+    title = find_box_at_point(task, 0.496, 0.172)
+    if not (title and "补充理性" in title.name):
+        return False
+    task.log_info("检测到补充理性页面")
+    confirm_box = find_box_at_point(task, 0.664, 0.774)
+    if confirm_box and _clean_match(confirm_box.name, "确认") and not is_button_active(task, confirm_box):
+        task.log_info("确认按钮未激活，将领取奖励设置为False，点击放弃补充")
+        task.config['领取奖励'] = False
+        from ok.gui.Communicate import communicate
+        communicate.task_list_updated.emit()
+        task.click(0.352, 0.774)
+        task.sleep(1)
+        return True
+    return False
+
+
 def handle_ether_supply(task: TriggerTask):
     """以太补充页面: 提示用户手动补充以太。"""
     box = find_box_at_point(task, 0.502, 0.139)
@@ -921,6 +939,7 @@ PAGE_HANDLERS = [
     handle_battle_failed,
     handle_skip,
     handle_event_task,
+    handle_rational_supply,
     handle_escape,
     handle_weakness_info,
     handle_minimizemap,
