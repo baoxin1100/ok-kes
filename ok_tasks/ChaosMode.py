@@ -10,7 +10,7 @@ class ChaosMode(TriggerTask):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = "自动卡厄思模式"
-        self.description = "判断卡厄思梦境当前界面，处理路线、事件、卡牌、商店等页面"
+        self.description = "1. 请主动打开游戏内自动战斗和自动剧情功能。\n2. 国际服玩家请到软件左下角设置页内将\"游戏语言\"设置为繁体中文。"
         self.instructions = """<a href="https://github.com/ok-oldking/ok-py">ok-py</a>"""
         self.trigger_interval = 1
         self.all_texts = []

@@ -11,7 +11,7 @@ class SortieMode(TriggerTask):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = "自动出击模式"
-        self.description = "自动出击模式"
+        self.description = "1. 自动战斗依赖按键识别，请在游戏设置中打开快捷键显示，提升出牌准确率。\n2. 国际服玩家请到软件左下角设置页内将\"游戏语言\"设置为繁体中文。"
         self.instructions = """<a href="https://github.com/ok-oldking/ok-py">ok-py</a>"""
         self.trigger_interval = 1
         self.all_texts = []
