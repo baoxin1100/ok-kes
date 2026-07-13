@@ -16,7 +16,7 @@ from utils import (
     handle_battle_failed,
     handle_close_button,
     handle_card_assign, handle_non_battle_page, handle_minimizemap, handle_held_cards_page, handle_unknown_page, handle_craft,
-    handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy,
+    handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_convert,
     handle_equipment_recast,
     handle_stuck_log,
     is_button_active, _clean_match,
@@ -267,11 +267,12 @@ PAGE_HANDLERS = [
     handle_stuck_log, #画面卡住检测，仅输出日志
 
     handle_equipment, #装备选择
+    handle_card_assign,
     handle_confirm, #确认按钮
+    handle_convert, #转换按钮
     handle_shop, #德朗商店
     handle_rest, #休息/商店入口
     handle_close_button, #关闭按钮
-    handle_card_assign,
     handle_remove, #移除按钮
     handle_flash, #闪光按钮
     handle_reflash, #重新闪光按钮

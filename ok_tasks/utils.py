@@ -604,7 +604,7 @@ def handle_equipment(task: TriggerTask):
             task.sleep(1)
             # task.click(0.919, 0.931)
             # task.sleep(1)
-            return True
+            return False
     return False
 
 
@@ -692,6 +692,22 @@ def handle_confirm(task: TriggerTask):
         else:
             task.log_info("确认按钮未激活（灰色），跳过点击")
             return False
+    return False
+
+def handle_convert(task: TriggerTask):
+    """通用"转换"按钮: 按钮激活则点击转换，未激活则点击跳过(0.776,0.926)。"""
+    box = find_box_at_point(task, 0.945, 0.918)
+    if box and _clean_match(box.name, "转换"):
+        if is_button_active(task, box):
+            task.log_info("检测到转换按钮，点击转换")
+            task.click_box(box)
+            task.sleep(1)
+            return True
+        else:
+            task.log_info("转换按钮未激活（灰色），点击跳过")
+            task.click(0.776, 0.926)
+            task.sleep(1)
+            return True
     return False
 
 def handle_remove(task: TriggerTask):
@@ -1201,9 +1217,7 @@ def handle_card_assign(task: TriggerTask):
 
     task.click(0.756, (chosen_lv.y + chosen_lv.height / 2) / task.height)
     task.sleep(1)
-    task.click(0.919, 0.933)
-    task.sleep(1)
-    return True
+    return False
 
 def handle_held_cards_page(task: TriggerTask):
     """持有卡牌页面: 检测到持有卡牌则关闭页面。"""
