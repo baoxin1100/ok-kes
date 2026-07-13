@@ -266,6 +266,7 @@ PAGE_HANDLERS = [
     log_credit,
     handle_stuck_log, #画面卡住检测，仅输出日志
 
+    handle_equipment, #装备选择
     handle_confirm, #确认按钮
     handle_shop, #德朗商店
     handle_rest, #休息/商店入口
@@ -295,7 +296,6 @@ PAGE_HANDLERS = [
     handle_destiny_choice,
     handle_main_member_flash,
     handle_card_reward,
-    handle_equipment,
     handle_mask_card,
     handle_select_card,
     handle_copy_member,

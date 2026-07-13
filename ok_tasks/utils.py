@@ -594,7 +594,7 @@ def handle_equipment(task: TriggerTask):
                 task.sleep(1)
                 # task.click(0.884, 0.931)
                 # task.sleep(2)
-                return True
+                return False
             task.log_info("未找到主战员等级信息")
             return False
         else:
