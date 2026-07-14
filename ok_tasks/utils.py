@@ -1300,7 +1300,7 @@ def handle_card_assign(task: TriggerTask):
 def handle_held_cards_page(task: TriggerTask):
     """持有卡牌页面: 检测到持有卡牌则关闭页面。"""
     box = find_box_at_point(task, 0.500, 0.056)
-    if box and box.name == "持有卡牌":
+    if box and box.name == _get_game_text(task, '持有卡牌'):
         task.log_info("检测到持有卡牌页面，点击关闭")
         task.click(0.966, 0.053)
         return True

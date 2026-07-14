@@ -354,23 +354,11 @@ def handle_battle_page(task: TriggerTask):
     cards = _hand_cards(task)
 
     if (cards or card_names):
-        # 兜底策略：优先检测连续三轮卡牌名集合无变化（说明优先级匹配的牌打不出去）
-        current_names = {c["name"] for c in cards if c["key"] is not None}
-        if not hasattr(task, '_card_stuck_round'):
-            task._card_stuck_round = 0
-            task._last_card_names = set()
-        if task._last_card_names and task._last_card_names == current_names:
-            task._card_stuck_round += 1
-            task.log_info(f"卡牌名连续{task._card_stuck_round}轮未变化，当前手牌: {current_names}")
-            if task._card_stuck_round >= 3:
-                task.log_info(f"卡牌名连续3轮未变化，执行兜底出牌")
-                task._card_stuck_round = 0
-                task._last_card_names = set()
-                _try_all_card_keys(task, hand_count)
-                return True
-        else:
-            task._card_stuck_round = 0
-            task._last_card_names = current_names
+        # 出牌卡手检测：追踪上一次尝试打出的卡牌是否连续多轮仍留在手牌中
+        if not hasattr(task, '_play_stuck_count'):
+            task._play_stuck_count = 0
+        if not hasattr(task, '_last_attempted_card'):
+            task._last_attempted_card = None
 
         # 检查"出牌优先级"配置
         play_priority = _get_config_value(task, "出牌优先级", [])
@@ -378,6 +366,20 @@ def handle_battle_page(task: TriggerTask):
             for pri_name in play_priority:
                 matched = next((c for c in cards if pri_name and (pri_name in c["name"] or c["name"] in pri_name) and c["key"] is not None), None)
                 if matched:
+                    # 检测当前匹配到的卡牌是否与上次尝试打出的是同一张且仍在手牌中
+                    if task._last_attempted_card == matched["name"]:
+                        task._play_stuck_count += 1
+                        task.log_info(f"卡牌「{matched['name']}」连续{task._play_stuck_count + 1}次尝试未出掉")
+                        if task._play_stuck_count >= 3:
+                            task.log_info(f"卡牌「{matched['name']}」连续3次未出掉，执行兜底出牌")
+                            task._last_attempted_card = None
+                            task._play_stuck_count = 0
+                            _try_all_card_keys(task, hand_count)
+                            return True
+                    else:
+                        task._last_attempted_card = matched["name"]
+                        task._play_stuck_count = 0
+
                     task.log_info(f"出牌优先级匹配: 卡牌「{matched['name']}」→ 按键 {matched['key']}")
                     task.send_key(matched['key'])
                     task.sleep(1)
@@ -391,7 +393,10 @@ def handle_battle_page(task: TriggerTask):
                         task.sleep(2)
                     return True
 
-        # 未命中优先级，兜底从大到小出牌
+        # 未命中出牌优先级，重置卡手状态
+        task._last_attempted_card = None
+        task._play_stuck_count = 0
+        # 兜底从大到小出牌
         task.log_info(f"未命中出牌优先级，按当前手牌数{hand_count}从大到小兜底出牌")
         _try_all_card_keys(task, hand_count)
         return True
@@ -598,8 +603,13 @@ def handle_member_selection(task: TriggerTask):
 
 def handle_rational_supply(task: TriggerTask):
     """补充理性页面: 确认按钮未激活时关闭领取奖励并放弃补充。"""
-    title = find_box_at_point(task, 0.496, 0.172)
-    if not (title and "补充理性" in title.name):
+    # 在区域(0.438,0.101,0.561,0.250)内查找包含"补充理性"的文本
+    x1, y1, x2, y2 = 0.438, 0.101, 0.561, 0.250
+    title = next((b for b in task.all_texts
+                  if x1 <= (b.x + b.width / 2) / task.width <= x2
+                  and y1 <= (b.y + b.height / 2) / task.height <= y2
+                  and "补充理性" in b.name), None)
+    if not title:
         return False
     task.log_info("检测到补充理性页面")
     confirm_box = find_box_at_point(task, 0.664, 0.774)
