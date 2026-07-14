@@ -8,7 +8,7 @@
   <p>
     一个基于图像识别的卡厄思梦境自动化辅助工具，支持后台运行，基于 <a href="https://github.com/ok-oldking/ok-script">ok-script</a> 开发。
     <br />
-    An image-recognition-based automation tool for Nikke: Goddess of Victory (卡厄思梦境/CHAOS mode), with background mode support, developed with <a href="https://github.com/ok-oldking/ok-script">ok-script</a>.
+    An image-recognition-based automation tool for Chaos Zero Nightmare (卡厄思梦境), with background mode support, developed with <a href="https://github.com/ok-oldking/ok-script">ok-script</a>.
   </p>
   
   <p><i>通过 Windows 接口模拟用户进行操作，无内存读取、无文件修改</i></p>

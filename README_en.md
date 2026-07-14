@@ -6,7 +6,7 @@
   </h1> 
   
   <p>
-    An image-recognition-based automation tool for Nikke: Goddess of Victory (卡厄思梦境/CHAOS mode), with background mode support, developed with <a href="https://github.com/ok-oldking/ok-script">ok-script</a>.
+    An image-recognition-based automation tool for Chaos Zero Nightmare (卡厄思梦境), with background mode support, developed with <a href="https://github.com/ok-oldking/ok-script">ok-script</a>.
   </p>
   
   <p><i>Operates by simulating the Windows user interface, with no memory reading or file modification.</i></p>
@@ -28,7 +28,7 @@ English | [中文说明](README.md)
 
 ## ⚠️ Disclaimer
 
-This software is an external auxiliary tool designed to automate parts of the gameplay for Nikke: Goddess of Victory (卡厄思梦境/CHAOS mode). It interacts with the game solely by simulating standard user interface actions, in compliance with relevant laws and regulations. This project aims to simplify repetitive user tasks and does not disrupt game balance or provide an unfair advantage. It will never modify any game files or data.
+This software is an external auxiliary tool designed to automate parts of the gameplay for Chaos Zero Nightmare (卡厄思梦境). It interacts with the game solely by simulating standard user interface actions, in compliance with relevant laws and regulations. This project aims to simplify repetitive user tasks and does not disrupt game balance or provide an unfair advantage. It will never modify any game files or data.
 
 This software is open-source and free, intended for personal learning and communication purposes only. Do not use it for any commercial or profit-making activities. The development team reserves the right of final interpretation. Any issues arising from the use of this software are not the responsibility of this project or its developers.
 
