@@ -69,6 +69,10 @@ This software is open-source and free, intended for personal learning and commun
 - 💬 **Auto Dialogue**: Skip story dialogues automatically
 - ⚠️ **Manual Mode Switching**: Switch to Sortie/Chaos mode when encountering battles or chaos stages
 
+### Config Export & Import
+- 📤 **Export Config**: One-click encode your current mode configuration as text and copy to clipboard for sharing
+- 📥 **Import Config**: Paste a shared configuration code to apply it, compatible across different versions
+
 ### General Features
 - 🖥️ **High-Resolution Support**: Supports 1920x1080 / 1600x900 / 1280x720 and other 16:9 resolutions
 - 🔄 **Background Mode**: Supports running in the background while the game window is minimized or obscured

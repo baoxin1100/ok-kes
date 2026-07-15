@@ -2,6 +2,7 @@ from ok import TriggerTask, og
 
 import utils_sortie
 from opencc import OpenCC
+from config_io import make_export_callback, make_import_callback
 
 _cc = OpenCC('t2s')  # 繁转简，用于OCR文本统一转换
 
@@ -35,6 +36,11 @@ class SortieMode(TriggerTask):
         self.default_config["生命值大于多少优先闪光(百分比)"] = "60"
         # self.default_config["从右往左出牌"] = True
         self.node_status = {"shop": False, "flash_or_rest": False}
+
+        self.config_type = {
+            'export_config': {'type': 'button', 'text': '导出配置', 'callback': make_export_callback(self)},
+            'import_config': {'type': 'button', 'text': '导入配置', 'callback': make_import_callback(self)},
+        }
 
     def enable(self):
         """开启出击模式时自动禁用卡厄思模式。"""

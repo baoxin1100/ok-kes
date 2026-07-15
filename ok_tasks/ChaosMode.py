@@ -2,6 +2,7 @@ from ok import TriggerTask, og
 
 import utils_chaos
 from opencc import OpenCC
+from config_io import make_export_callback, make_import_callback
 
 _cc = OpenCC('t2s')  # 繁转简，用于OCR文本统一转换
 
@@ -32,6 +33,11 @@ class ChaosMode(TriggerTask):
         self.default_config['保留存档'] = False
         self.default_config['路线优先级'] = ["休息", "事件", "小怪", "boss"]
         self.node_status = {"shop": False, "flash_or_rest": False}
+
+        self.config_type = {
+            'export_config': {'type': 'button', 'text': '导出配置', 'callback': make_export_callback(self)},
+            'import_config': {'type': 'button', 'text': '导入配置', 'callback': make_import_callback(self)},
+        }
 
     def enable(self):
         """开启卡厄思模式时自动禁用出击模式。"""
