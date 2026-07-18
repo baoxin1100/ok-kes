@@ -24,8 +24,8 @@ jobs:
           [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
           git config --global core.autocrlf false
           git config --global core.eol lf
-          git config --global user.email "ok-oldking@users.noreply.github.com"
-          git config --global user.name "ok-oldking"
+          git config --global user.email "baoxin1100@users.noreply.github.com"
+          git config --global user.name "baoxin1100"
           echo "action_state=yellow" >> $env:GITHUB_ENV
           echo "${{ env.action_state }}"
 
@@ -63,8 +63,7 @@ jobs:
         uses: ok-oldking/partial-sync-repo@master
         with:
           repos: |
-            https://cnb:${{ secrets.CNB_TOKEN }}@cnb.cool/ok-oldking/ok-py.git            
-            https://ok-oldking:${{ secrets.OK_GH }}@github.com/ok-oldking/ok-boilerplate-update.git
+            https://cnb:${{ secrets.CNB_TOKEN }}@cnb.cool/baoxin1100/ok-kes.git
           sync_list: 'deploy.txt'
           tag: ${{ github.ref_name }}
           gitignore_file: '.update_repo_gitignore'
@@ -83,8 +82,8 @@ jobs:
             ###  更新日志 ${{ steps.sync.outputs.start_tag }} -> ${{ steps.sync.outputs.end_tag }}:
               ${{ steps.sync.outputs.changes_with_asterisk }}          
             ### 下载包说明
-              * [ok-py-win32-China-setup.exe](https://github.com/ok-oldking/ok-py/releases/download/${{ github.ref_name }}/ok-py-win32-China-setup.exe) 完整安装包, 更新使用阿里云+腾讯CNB.               
-              * [ok-py-win32-Global-setup.exe](https://github.com/ok-oldking/ok-py/releases/download/${{ github.ref_name }}/ok-py-win32-Global-setup.exe) full package with dependencies, using GitHub and PyPi as update source 
+              * [ok-kes-win32-China-setup.exe](https://github.com/baoxin1100/ok-kes/releases/download/${{ github.ref_name }}/ok-kes-win32-China-setup.exe) 完整安装包, 更新使用阿里云+腾讯CNB.               
+              * [ok-kes-win32-Global-setup.exe](https://github.com/baoxin1100/ok-kes/releases/download/${{ github.ref_name }}/ok-kes-win32-Global-setup.exe) full package with dependencies, using GitHub and PyPi as update source 
             ### 如果无法下载或下载慢, 可以使用其他下载源
               * [Mirror酱下载渠道](https://mirrorchyan.com/zh/projects?rid=ok-kes&source=ok-kes-release), 国内网页直链, 下载需要购买CD-KEY, 已有Mirror酱CD-KEY可免费下载
               * [夸克网盘](https://pan.quark.cn/s/a1052cec4d13), 免费, 但需要注册并下载夸克网盘客户端
