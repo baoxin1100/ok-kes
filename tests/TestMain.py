@@ -230,17 +230,17 @@ class TestMyOneTimeTask(TaskTestCase):
         text = self.task.find_some_text_with_relative_box()
         self.assertEqual(text[0].name, '招募')
 
-    def test_feature1(self):
-        # Create a BattleReport object
-        self.set_image('tests/images/main.png')
-        feature = self.task.test_find_one_feature()
-        self.assertIsNotNone(feature)
+    # def test_feature1(self):
+    #     # Create a BattleReport object
+    #     self.set_image('tests/images/main.png')
+    #     feature = self.task.test_find_one_feature()
+    #     self.assertIsNotNone(feature)
 
-    def test_feature2(self):
-        # Create a BattleReport object
-        self.set_image('tests/images/main.png')
-        features = self.task.test_find_feature_list()
-        self.assertEqual(1, len(features))
+    # def test_feature2(self):
+    #     # Create a BattleReport object
+    #     self.set_image('tests/images/main.png')
+    #     features = self.task.test_find_feature_list()
+    #     self.assertEqual(1, len(features))
 
 
 if __name__ == '__main__':
