@@ -4,7 +4,7 @@
 #
 #    pip-compile requirements.in
 #
-ok-script==1.0.152
+ok-script==1.0.163
 OpenCC==1.2.0
 pynput==1.8.1
     # via -r requirements.in
