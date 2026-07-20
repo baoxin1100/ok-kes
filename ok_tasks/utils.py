@@ -212,12 +212,10 @@ def select_card(task: TriggerTask, card_names, max_scrolls=5, fallback_delete=Fa
             task.log_info(f"select_card 第{i+1}次查找, 目标: {card_names}, 区域内发现卡牌: {found_names}")
 
         for name in card_names:
-            card = next((b for b in task.all_texts
+            card = next((b for b in found_cards
                          if (name in b.name or b.name in name)
-                     and 0.274 <= (b.x + b.width / 2) / task.width <= 0.931
-                     and 0.106 <= (b.y + b.height / 2) / task.height <= 0.878
                      and not any(abs(ux - b.x) <= 10 and abs(uy - b.y) <= 10 for ux, uy, _, _ in used_positions)
-                     and _card_has_type_below(task, b)), None)
+                         ), None)
             if card:
                 task.log_info(f"select_card 匹配成功: 名称「{card.name}」, 位置({card.x},{card.y})")
                 task.click_box(card)
@@ -1209,30 +1207,8 @@ def handle_view_original(task: TriggerTask):
         log_parts.append(f"闪光{i}效果是{'、'.join(card['descs'])}")
     task.log_info('，'.join(log_parts))
 
-    flash_priority = _get_config_value(task, '闪光优先级', {})
-    if isinstance(flash_priority, str):
-        try:
-            flash_priority = json.loads(flash_priority)
-        except json.JSONDecodeError:
-            flash_priority = {}
-    chosen_card = None
-    for card_name, priority_descs in flash_priority.items():
-        for card in cards:
-            if card_name not in card['name']:
-                continue
-            for desc_keyword in priority_descs:
-                if any(desc_keyword in d for d in card['descs']):
-                    chosen_card = card
-                    task.log_info(f"优先选择「{card['name']}」({desc_keyword})")
-                    break
-            if chosen_card:
-                break
-        if chosen_card:
-            break
-
-    if not chosen_card:
-        chosen_card = random.choice(cards)
-        task.log_info(f"随机选择「{chosen_card['name']}」")
+    chosen_card = random.choice(cards)
+    task.log_info(f"随机选择闪光效果列 x={chosen_card['x']:.4f}")
 
     task.click(chosen_card['x'], 0.515)
     return True
