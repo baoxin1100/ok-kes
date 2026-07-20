@@ -32,6 +32,8 @@ class ChaosMode(TriggerTask):
         self.default_config['进入商店'] = False
         self.default_config['保留存档'] = False
         self.default_config['领取奖励(只使用验证卡)'] = False
+        self.default_config['指定面具卡牌'] = "丢弃最多2张卡牌"
+        self.default_config['面具卡牌刻印'] = "自身攻击卡牌伤害总量提升30%"
         self.default_config['路线优先级'] = ["休息", "事件", "小怪", "boss"]
         self.node_status = {"shop": False, "flash_or_rest": False}
 
