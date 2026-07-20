@@ -994,13 +994,13 @@ def handle_event_task(task: TriggerTask):
 
 
 def handle_route_selection(task: TriggerTask):
-    """路线选择页面: 识别节点类型，按优先级排序后依次点击所有节点，每次间隔1秒。"""
+    """路线选择页面: 识别节点类型，按配置优先级只点击一个最高优先级节点。"""
     position_feature = task.find_feature(feature_name="position")
     cant_receive = find_box_at_point(task, 0.186, 0.850)
     is_route_page = position_feature or (cant_receive and "无法接收到梦境号" in cant_receive.name)
     if not is_route_page:
         return False
-    task.log_info("检测到路线选择页面，按优先级依次点击节点")
+    task.log_info("检测到路线选择页面，按优先级选择一个节点")
 
     # 更新节点状态：进入路线选择页面时 flash_or_rest 置为 True
     if hasattr(task, 'node_status'):
@@ -1034,13 +1034,16 @@ def handle_route_selection(task: TriggerTask):
         except ValueError:
             return len(priority)
 
-    sorted_nodes = sorted(node_types.items(), key=sort_key)
+    known_nodes = [(node_key, node_type) for node_key, node_type in node_types.items() if node_type != "未知"]
+    sorted_nodes = sorted(known_nodes, key=sort_key)
+    if not sorted_nodes:
+        task.log_info("路线选择未识别到可点击节点，等待下一帧重试")
+        task.sleep(1)
+        return True
 
-    for node_key, node_type in sorted_nodes:
-        task.log_info(f"点击节点{node_key[-1]} (类型: {node_type})")
-        task.click(*click_points[node_key])
-        task.sleep(0.5)
-
+    node_key, node_type = sorted_nodes[0]
+    task.log_info(f"点击节点{node_key[-1]} (类型: {node_type})")
+    task.click(*click_points[node_key])
     task.sleep(4)
 
     return True

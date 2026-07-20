@@ -69,8 +69,11 @@ def _is_card_name(name):
 
 
 def _hand_card_names(task: TriggerTask):
-    """读取手牌区域内的卡牌名，排除按键和类型标签文本。"""
-    x1, y1, x2, y2 = 0.159, 0.683, 0.836, 0.831
+    """读取手牌区域内的卡牌名，排除按键和类型标签文本。
+
+    手牌名在部分战斗画面会落到 0.84~0.90 区间，原 y2=0.831 会漏掉实际卡名。
+    """
+    x1, y1, x2, y2 = 0.159, 0.683, 0.836, 0.900
 
     # 打印所有文本及其坐标，帮助判断手牌区域过滤问题
     task.log_info(f"_hand_card_names 区域: cx=[{x1}, {x2}], cy=[{y1}, {y2}]")
@@ -225,7 +228,7 @@ def _battle_member_boxes(task: TriggerTask):
     for box in task.all_texts:
         cx = (box.x + box.width / 2) / task.width
         cy = (box.y + box.height / 2) / task.height
-        in_x = 0.100 <= cx <= 0.984
+        in_x = 0.100 <= cx <= 0.500
         in_y = 0.100 <= cy <= 0.892
         excluded = box.name in _excluded
         task.log_debug(f"_battle_member_boxes: name=「{box.name}」 cx={cx:.4f} cy={cy:.4f} "
@@ -235,8 +238,38 @@ def _battle_member_boxes(task: TriggerTask):
     return matched
 
 
-def _confirm_battle_member_selection(task: TriggerTask):
-    """出战主战员选择后，按确认按钮色相决定确认或返回。"""
+def _battle_member_name_match(priority_name, ocr_name):
+    """匹配出战主战员名称，单字配置只允许精确匹配，避免命中说明文本。"""
+    if len(priority_name.strip()) <= 1:
+        return _clean_match(ocr_name, priority_name)
+    return priority_name in ocr_name
+
+
+def _click_battle_member_row(task: TriggerTask, member):
+    """根据 OCR 名称定位行高，点击左侧列表固定选择区域。"""
+    row_y = (member.y + member.height / 2) / task.height
+    task.log_info(f"点击出战主战员行固定位置 x=0.315 y={row_y:.4f}")
+    task.click(0.315, row_y)
+
+
+def _selected_battle_member_match(task: TriggerTask, expected_name):
+    """点击后在右侧详情区域校验当前选中角色是否为期望角色。"""
+    task.all_texts = _simplify_texts(task.ocr())
+    for box in task.all_texts:
+        cx = (box.x + box.width / 2) / task.width
+        cy = (box.y + box.height / 2) / task.height
+        in_detail = 0.500 <= cx <= 0.984 and 0.100 <= cy <= 0.892
+        if in_detail and _battle_member_name_match(expected_name, box.name):
+            task.log_info(f"出战主战员选中校验通过: 期望「{expected_name}」, 右侧详情识别到「{box.name}」 cx={cx:.4f} cy={cy:.4f}")
+            return True
+    task.log_info(f"出战主战员选中校验失败: 右侧详情未识别到「{expected_name}」，不点击确认")
+    return False
+
+
+def _confirm_battle_member_selection(task: TriggerTask, expected_name):
+    """出战主战员选择后，先校验选中角色，再按确认按钮色相决定确认或返回。"""
+    if expected_name and not _selected_battle_member_match(task, expected_name):
+        return True
     dominant_hue = calculate_dominant_hue(task, (0.901, 0.931, 0.911, 0.941))
     if dominant_hue != -1 and 7 <= dominant_hue <= 17:
         task.log_info(f"出战主战员确认按钮色相={dominant_hue}，点击确认")
@@ -261,14 +294,14 @@ def _select_battle_member(task: TriggerTask, max_scrolls=5):
             cy = (b.y + b.height / 2) / task.height
             task.log_info(f"  box: name=「{b.name}」 cx={cx:.4f} cy={cy:.4f} x={b.x} y={b.y} w={b.width} h={b.height}")
         for name in priority:
-            member = next((box for box in boxes if name in box.name), None)
+            member = next((box for box in boxes if _battle_member_name_match(name, box.name)), None)
             if member:
                 cx = (member.x + member.width / 2) / task.width
                 cy = (member.y + member.height / 2) / task.height
                 task.log_info(f"出战主战员优先级匹配成功: 配置名「{name}」-> OCR名「{member.name}」 cx={cx:.4f} cy={cy:.4f} x={member.x} y={member.y} w={member.width} h={member.height}")
-                task.click_box(member)
+                _click_battle_member_row(task, member)
                 task.sleep(0.5)
-                return _confirm_battle_member_selection(task)
+                return _confirm_battle_member_selection(task, name)
             else:
                 task.log_info(f"出战主战员优先级匹配失败: 「{name}」未在当前列出的{len(boxes)}个主战员中")
         if scroll_index < max_scrolls:
@@ -284,9 +317,9 @@ def _select_battle_member(task: TriggerTask, max_scrolls=5):
     cx = (member.x + member.width / 2) / task.width
     cy = (member.y + member.height / 2) / task.height
     task.log_info(f"未找到配置中的出战主战员，随机选择「{member.name}」 cx={cx:.4f} cy={cy:.4f} x={member.x} y={member.y} w={member.width} h={member.height}")
-    task.click_box(member)
+    _click_battle_member_row(task, member)
     task.sleep(0.5)
-    return _confirm_battle_member_selection(task)
+    return _confirm_battle_member_selection(task, member.name)
 
 
 # ------------------------- 出击模式独有页面处理函数 -------------------------
@@ -370,12 +403,9 @@ def handle_battle_page(task: TriggerTask):
                     if task._last_attempted_card == matched["name"]:
                         task._play_stuck_count += 1
                         task.log_info(f"卡牌「{matched['name']}」连续{task._play_stuck_count + 1}次尝试未出掉")
-                        if task._play_stuck_count >= 3:
-                            task.log_info(f"卡牌「{matched['name']}」连续3次未出掉，执行兜底出牌")
-                            task._last_attempted_card = None
-                            task._play_stuck_count = 0
-                            _try_all_card_keys(task, hand_count)
-                            return True
+                        if task._play_stuck_count >= 1:
+                            task.log_info(f"卡牌「{matched['name']}」连续2次未出掉，跳过该牌并尝试下一张优先级卡")
+                            continue
                     else:
                         task._last_attempted_card = matched["name"]
                         task._play_stuck_count = 0
@@ -401,9 +431,13 @@ def handle_battle_page(task: TriggerTask):
         _try_all_card_keys(task, hand_count)
         return True
     else:
+        if hand_count > 0:
+            task.log_info(f"检测到手牌数{hand_count}但未识别到卡牌名，不结束回合，按手牌数兜底出牌")
+            _try_all_card_keys(task, hand_count)
+            return True
         finishturn_box = task.box_of_screen(0.844, 0.782, 0.998, 0.990)
         if task.find_feature(feature_name="finishturn", box=finishturn_box):
-            task.log_info("检测到finishturn特征，按E结束回合")
+            task.log_info("未检测到可用手牌且检测到finishturn特征，按E结束回合")
             task.send_key("e")
             task.sleep(1)
         return True

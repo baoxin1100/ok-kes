@@ -39,12 +39,12 @@
 
 ## 🚀 快速开始
 
-1. **下载安装包**：从下方的"下载渠道"中选择一个，下载最新的安装文件。
-2. 运行程序：右击以管理员模式运行 `.exe` 文件（无需安装，首次启动会弹出防火墙提示，请允许通过）。
+1. **下载安装包**：从下方的"下载渠道"中选择一个，下载最新的 Windows 安装包（如 `ok-kes-win32-China-setup.exe`）。
+2. 运行程序：右击以管理员模式运行 `.exe` 文件（首次启动会弹出防火墙提示，请允许通过）。
 
 ## 📥 下载渠道
 
-* **[GitHub](https://github.com/baoxin1100/ok-kes/releases)**: 官方发布页。（**请下载 `ok-kes-win32-portable-v*.exe` 文件，而不是 `Source Code` 源码压缩包**）
+* **[GitHub](https://github.com/baoxin1100/ok-kes/releases)**: 官方发布页。（**请下载 Assets 中的 `ok-kes-win32-*-setup.exe` 安装包，而不是 `Source Code` 源码压缩包；若文件名变化，以 Release 页面说明为准**）
 
 ## ✨ 主要功能
 
@@ -120,6 +120,40 @@ python main.py
 # 运行 Debug 版本
 python main_debug.py
 ```
+
+### 测试流程
+
+```powershell
+# Windows PowerShell：运行 tests 目录下全部 unittest 用例
+.\run_tests.ps1
+
+# 或运行单个测试文件
+python -m unittest .\tests\TestMain.py
+```
+
+如果只想做语法检查，可针对改动文件执行：
+
+```bash
+python -m py_compile ok_tasks/utils.py ok_tasks/utils_sortie.py ok_tasks/SortieMode.py
+```
+
+### 打包流程
+
+完整 PyInstaller 打包参数见 [`BUILD.md`](BUILD.md)。常规流程如下：
+
+```bash
+# 1. 安装依赖和 PyInstaller
+pip install -r requirements.txt --upgrade
+pip install pyinstaller
+
+# 2. 内联 ok-script / pyappify 运行时依赖
+python -m ok.update.inline_ok_requirements
+
+# 3. 按 BUILD.md 中的 PyInstaller 命令打包
+# 手工打包产物默认输出到 dist\ 目录
+```
+
+打包环境建议使用 Windows + Python 3.12，并按 `BUILD.md` 处理 `opencc`、`openvino`、`onnxocr` 等运行时资源。GitHub Release 的安装包资产名以发布页为准，当前常见命名为 `ok-kes-win32-*-setup.exe`。
 
 ## 💬 加入我们
 

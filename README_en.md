@@ -36,12 +36,12 @@ This software is open-source and free, intended for personal learning and commun
 
 ## 🚀 Quick Start
 
-1. **Download the Installer**: From the "Downloads" section below, download the latest `卡厄思自动化工具v*.exe` file.
-2. **Run the Program**: Right-click the `.exe` file and select "Run as administrator" (no installation required; the first launch may trigger a firewall prompt, please allow access).
+1. **Download the Installer**: From the "Downloads" section below, download the latest Windows installer, such as `ok-kes-win32-China-setup.exe`.
+2. **Run the Program**: Right-click the `.exe` file and select "Run as administrator" (the first launch may trigger a firewall prompt, please allow access).
 
 ## 📥 Downloads
 
-* **[GitHub](https://github.com/baoxin1100/ok-kes/releases)**: Official release page. (**Please download the `卡厄思自动化工具v*.exe` file, not the `Source Code` archive**).
+* **[GitHub](https://github.com/baoxin1100/ok-kes/releases)**: Official release page. (**Please download the `ok-kes-win32-*-setup.exe` installer from Assets, not the `Source Code` archive. If the filename changes, follow the release page description**).
 
 ## ✨ Main Features
 
