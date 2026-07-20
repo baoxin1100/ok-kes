@@ -31,6 +31,7 @@ class ChaosMode(TriggerTask):
         self.default_config['优先移除基础牌'] = True
         self.default_config['进入商店'] = False
         self.default_config['保留存档'] = False
+        self.default_config['领取奖励(只使用验证卡)'] = False
         self.default_config['路线优先级'] = ["休息", "事件", "小怪", "boss"]
         self.node_status = {"shop": False, "flash_or_rest": False}
 

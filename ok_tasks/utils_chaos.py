@@ -261,6 +261,69 @@ def handle_go_to_chaos_core(task: TriggerTask):
     return False
 
 
+def handle_chaos_reward_claim(task: TriggerTask):
+    """卡厄思模式奖励领取页面: 如果0.568,0.711处文本包含"获得"，则为奖励领取页面。
+    识别0.959,0.281处"\d/\d"作为当前/最大战利品验证卡，
+    如果验证卡大于0则点击获得，否则重置"领取奖励(只使用验证卡)"为False并取消。"""
+    claim_box = find_box_at_point(task, 0.568, 0.711)
+    if not (claim_box and "获得" in claim_box.name):
+        return False
+
+    task.log_info("检测到卡厄思模式奖励领取页面")
+
+    # 读取0.959,0.281处的战利品验证卡文本，格式如 "2/3"
+    verify_box = find_box_at_point(task, 0.959, 0.281)
+    if verify_box and re.search(r'(\d+)/(\d+)', verify_box.name):
+        match = re.search(r'(\d+)/(\d+)', verify_box.name)
+        current_cards = int(match.group(1))
+        max_cards = int(match.group(2))
+        task.log_info(f"战利品验证卡: {current_cards}/{max_cards}")
+
+        if current_cards > 0:
+            task.log_info(f"当前战利品验证卡{current_cards}>0，点击获得")
+            task.click_box(claim_box)
+            task.sleep(1)
+            return True
+        else:
+            task.log_info("当前战利品验证卡为0，将领取奖励(只使用验证卡)设置为False，点击取消")
+            task.config['领取奖励(只使用验证卡)'] = False
+            from ok.gui.Communicate import communicate
+            communicate.task_list_updated.emit()
+            task.click(0.352, 0.708)
+            task.sleep(1)
+            return True
+    else:
+        task.log_info("未检测到战利品验证卡信息，点击取消")
+        task.click(0.352, 0.708)
+        task.sleep(1)
+        return True
+
+
+def handle_chaos_reward_settlement(task: TriggerTask):
+    """卡厄思奖励结算页面: 如果0.552,0.067处包含"结算"，则为卡厄思奖励结算页面。
+    如果0.851,0.389处包含"获得"且当前战利品验证卡>0，则点击获得按钮。"""
+    title_box = find_box_at_point(task, 0.552, 0.067)
+    if not (title_box and "结算" in title_box.name):
+        return False
+
+    task.log_info("检测到卡厄思奖励结算页面")
+
+    if not _get_config_value(task, '领取奖励(只使用验证卡)', False):
+        task.log_info("领取奖励(只使用验证卡)配置为False，跳过")
+        return False
+
+    # 检查0.851,0.389处是否有"获得"按钮
+    reward_box = find_box_at_point(task, 0.851, 0.389)
+    if not (reward_box and "获得" in reward_box.name):
+        task.log_info("未检测到获得按钮，跳过")
+        return False
+
+    task.log_info("检测到获得按钮，点击获得")
+    task.click_box(reward_box)
+    task.sleep(1)
+    return True
+
+
 # 卡厄思模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
     log_credit,
@@ -304,6 +367,8 @@ PAGE_HANDLERS = [
     handle_convert_card,
     handle_discovery_select,
     handle_negotiation,
+    handle_chaos_reward_settlement, #卡厄思奖励结算页面，优先级高于继续按钮
+    handle_chaos_reward_claim, #卡厄思模式奖励领取页面
     handle_continue,
     handle_enter,
     handle_route_selection,
