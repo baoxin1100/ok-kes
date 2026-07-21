@@ -12,18 +12,13 @@
 - 配置版本号
 - 匿名用户标识（机器特征的哈希）
 """
-import base64
 import hashlib
-import json
-import os
 import platform
-import time
 import uuid
-from typing import Optional
 
 import requests
-from ok import TriggerTask, og
-from ok.gui.Communicate import communicate
+from ok import TriggerTask
+from config_io import _import_config_from_text, _export_config_to_text
 
 # Supabase 配置
 SUPABASE_URL = "https://curzwmogotwmltaprmin.supabase.co"
@@ -33,8 +28,8 @@ TABLE_NAME = "configs"
 # 上传间隔（秒）
 UPLOAD_INTERVAL = 300  # 5分钟
 
-# 有效数据最低场数
-MIN_ROUNDS = 5
+# 有效数据最低场数（后期用户多了可以改大）
+MIN_ROUNDS = 2
 
 
 def _get_version():
@@ -63,24 +58,6 @@ def _get_user_hash() -> str:
         raw = f"{mac}|{platform.node()}|{os.environ.get('USERNAME', 'unknown')}"
         _get_user_hash._cache = hashlib.sha256(raw.encode()).hexdigest()[:16]
     return _get_user_hash._cache
-
-
-def _get_config_b64(task: TriggerTask) -> Optional[str]:
-    """导出当前任务的配置为 base64 字符串。"""
-    config_file = task.config.config_file
-    if not os.path.exists(config_file):
-        task.log_info("[配置同步] 配置文件不存在，跳过上传")
-        return None
-    try:
-        with open(config_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-    except Exception as e:
-        task.log_info(f"[配置同步] 读取配置文件失败: {e}")
-        return None
-    # 只保留用户配置项（去掉 _ 开头的内部状态）
-    clean = {k: v for k, v in data.items() if not k.startswith('_')}
-    json_str = json.dumps(clean, ensure_ascii=False, separators=(',', ':'))
-    return base64.b64encode(json_str.encode('utf-8')).decode('ascii')
 
 
 def _get_win_rate(task: TriggerTask) -> float:
@@ -125,7 +102,7 @@ def upload_config(task: TriggerTask, mode: str) -> bool:
     if not _should_upload(task):
         return False
 
-    config_b64 = _get_config_b64(task)
+    config_b64 = _export_config_to_text(task)
     if not config_b64:
         return False
 
@@ -368,7 +345,7 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
         config_list.clear()
         loading_label.setVisible(False)
         if not results:
-            item = QListWidgetItem("暂无热门配置数据（至少需要5场有效数据才会被统计）")
+            item = QListWidgetItem("暂无热门配置数据（至少需要2场有效数据才会被统计）")
             config_list.addItem(item)
             return
         for i, r in enumerate(results, 1):
@@ -400,7 +377,7 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
             QMessageBox.Yes | QMessageBox.No,
         )
         if reply == QMessageBox.Yes:
-            success = import_config_from_b64(task, r["config_b64"])
+            success = _import_config_from_text(task, r["config_b64"])
             if success:
                 QMessageBox.information(dialog, "导入成功", "热门配置已成功应用！")
                 dialog.accept()
@@ -420,37 +397,3 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
     loading_label.setVisible(False)
 
     dialog.exec_()
-
-
-def import_config_from_b64(task: TriggerTask, config_b64: str) -> bool:
-    """从 base64 配置文本导入到任务。"""
-    try:
-        json_str = base64.b64decode(config_b64.encode('ascii')).decode('utf-8')
-        data = json.loads(json_str)
-    except Exception as e:
-        task.log_info(f"[配置同步] 配置解码失败: {e}")
-        return False
-
-    if not isinstance(data, dict):
-        task.log_info("[配置同步] 无效的配置格式")
-        return False
-
-    config_file = task.config.config_file
-    try:
-        existing = {}
-        if os.path.exists(config_file):
-            try:
-                with open(config_file, 'r', encoding='utf-8') as f:
-                    existing = json.load(f)
-            except Exception:
-                pass
-        for k, v in data.items():
-            existing[k] = v
-        with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(existing, f, ensure_ascii=False, indent=2)
-        task.config.update(data)
-        communicate.task_list_updated.emit()
-        return True
-    except Exception as e:
-        task.log_info(f"[配置同步] 写入配置失败: {e}")
-        return False
