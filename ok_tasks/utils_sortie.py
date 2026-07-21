@@ -4,7 +4,7 @@ from utils import (
     _simplify_texts, _edit_distance, _get_config_value, _get_card_list, _get_route_priority, _get_game_text,
     find_box_at_point, find_text, find_exact_text,
     _card_has_type_below, select_card, identify_node_type, calculate_dominant_hue,
-    log_credit, handle_battle_crash, handle_close_page,
+    log_credit, log_node_status, handle_battle_crash, handle_close_page,
     handle_center_confirm, handle_settlement, handle_skip,
     handle_destiny_choice, handle_main_member_flash,
     handle_card_reward, handle_equipment,
@@ -18,7 +18,7 @@ from utils import (
     handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_convert, handle_equipment_recast, handle_weakness_info, handle_minimizemap,
     handle_held_cards_page, handle_unknown_page,
     is_frame_stuck, handle_stuck_log, is_button_active, _clean_match,
-    handle_shop,
+    handle_shop, handle_expedition_result,
     handle_escape,
     _get_current_credit
 )
@@ -797,42 +797,7 @@ def handle_return_to_draw_pile(task: TriggerTask):
     return True
 
 
-def handle_expedition_result(task: TriggerTask):
-    """探险结果页面: 如果0.625,0.122处有"探险结果"，则为探险结果页面。
-    如果0.928,0.122处有"完成"，则success_rounds+1。"""
-    title_box = find_box_at_point(task, 0.625, 0.122)
-    if not (title_box and "探险结果" in title_box.name):
-        return False
 
-    task.log_info("检测到探险结果页面")
-    complete_box = find_box_at_point(task, 0.928, 0.122)
-    if hasattr(task, 'node_status'):
-        task.node_status['total_rounds'] += 1
-    if complete_box and "完成" in complete_box.name:
-        if hasattr(task, 'node_status'):
-            task.node_status['success_rounds'] += 1
-            task.log_info(f"出击模式探险完成，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
-    elif complete_box and "失败" in complete_box.name:
-        if hasattr(task, 'node_status'):
-            if _get_config_value(task, '只打第一层', False) and task.node_status.get('pass_final_boss_count', 0) >= 1:
-                task.node_status['success_rounds'] += 1
-                task.log_info(f"出击模式成功通关第一层，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
-            else:
-                task.log_info(f"出击模式探险失败，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
-    else:
-        task.log_info("探险结果页面未检测到完成或失败按钮, 当前为卡厄思模式探险结果")
-        if hasattr(task, 'node_status'):
-            complete_box = find_box_at_point(task, 0.323, 0.714)
-            if complete_box and "失败" in complete_box.name:
-                task.log_info(f"卡厄思模式探险失败，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
-            elif _get_config_value(task, '只打第一层', False) and task.node_status.get('pass_final_boss_count', 0) >= 1:
-                task.node_status['success_rounds'] += 1
-                task.log_info(f"卡厄思模式成功通关第一层，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
-    if hasattr(task, 'node_status'):
-        task.node_status['pass_final_boss_count'] = 0
-        task.node_status['reach_final_boss'] = False
-        task.node_status['final_boss_battle'] = False
-    return False
 
 
 def handle_rest_sortie(task: TriggerTask):
@@ -921,6 +886,7 @@ def handle_rest_sortie(task: TriggerTask):
 # 出击模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
     log_credit,
+    log_node_status,
     handle_stuck_log,
 
     handle_ether_supply,

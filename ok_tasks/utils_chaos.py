@@ -4,7 +4,7 @@ from utils import (
     _simplify_texts, _get_config_value, _get_card_list, _get_route_priority, _get_game_text,
     find_box_at_point, find_text, find_exact_text,
     _card_has_type_below, select_card, identify_node_type,
-    log_credit, handle_battle_crash, handle_close_page,
+    log_credit, log_node_status, handle_battle_crash, handle_close_page,
     handle_center_confirm, handle_settlement, handle_skip,
     handle_destiny_choice, handle_main_member_flash,
     handle_card_reward, handle_equipment,
@@ -13,12 +13,11 @@ from utils import (
     handle_negotiation, handle_continue, handle_confirm, handle_enter,
     handle_event_task, handle_route_selection, handle_obtain_reward,
     handle_leave, handle_next_step, handle_select, handle_rest, handle_view_original, handle_weakness_info,
-    handle_battle_failed,
     handle_close_button,
     handle_card_assign, handle_non_battle_page, handle_minimizemap, handle_held_cards_page, handle_unknown_page, handle_craft,
     handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_convert,
     handle_equipment_recast,
-    handle_stuck_log,
+    handle_stuck_log, handle_expedition_result,
     is_button_active, _clean_match,
     handle_shop,
     handle_escape,
@@ -534,6 +533,7 @@ def handle_chaos_reward_settlement(task: TriggerTask):
 # 卡厄思模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
     log_credit,
+    log_node_status,
     handle_stuck_log, #画面卡住检测，仅输出日志
 
     handle_center_confirm, #页面中央确认按钮
@@ -554,7 +554,8 @@ PAGE_HANDLERS = [
     handle_leave, #离开按钮
     handle_mental_breakdown, #精神崩溃，优先级高于下一步按钮
     handle_data_collected, #存储数据收集完成，优先级高于下一步按钮
-    handle_battle_failed, #战斗失败，优先级高于下一步
+    # handle_battle_failed, #战斗失败，优先级高于下一步
+    handle_expedition_result, #探险结果页面，优先级高于下一步
     handle_next_step, #下一步按钮
     handle_craft, #合成按钮
     handle_select, #选择按钮

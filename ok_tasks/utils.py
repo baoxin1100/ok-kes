@@ -505,7 +505,23 @@ def log_credit(task: TriggerTask):
     """记录当前信用点数量（仅记录, 不拦截后续处理）。"""
     credit = _get_current_credit(task)
     if credit > 0:
-        task.log_info(f"当前信用点: {credit}")
+        task.info_set("当前信用点", f"{credit}")
+    return False
+
+
+def log_node_status(task: TriggerTask):
+    """记录当前胜率（仅记录, 不拦截后续处理）。"""
+    ns = getattr(task, 'node_status', None)
+    if ns:
+        total = ns.get('total_rounds', 0)
+        task.info_set("所处层数", f"第{ns['pass_final_boss_count']+1}层")
+        task.info_set("是否到达关底boss", f"{ns['reach_final_boss']}")
+        task.info_set("是否进入关底boss战斗", f"{ns['final_boss_battle']}")
+        if total > 0:
+            task.info_set("当前胜率", f"{ns['success_rounds']}/{total} ({ns['success_rounds']*100//total}%)")
+        else:
+            task.info_set("当前胜率","NaN")
+        task.log_info("")
     return False
 
 
@@ -1273,27 +1289,60 @@ def handle_escape(task: TriggerTask):
     return False
 
 
-def handle_battle_failed(task: TriggerTask):
-    """战斗失败页面: 记录失败并重置boss状态。"""
-    box = find_box_at_point(task, 0.291, 0.718)
-    if box and box.name == "战斗失败":
-        task.log_info("检测到战斗失败，记录失败并重置boss状态")
-        if hasattr(task, 'node_status'):
-            task.node_status['total_rounds'] += 1
-            task.log_info(f"战斗失败，total_rounds={task.node_status['total_rounds']}")
-            task.node_status['pass_final_boss_count'] = 0
-            task.node_status['reach_final_boss'] = False
-            task.node_status['final_boss_battle'] = False
-    return False
-
-
-# def handle_explore_result(task: TriggerTask):
-#     """探险结果页面: 点击页面关闭。"""
-#     box = find_box_at_point(task, 0.623, 0.115)
-#     if box and box.name == "探险结果":
-#         task.click(0.916, 0.915)
-#         return True
+# def handle_battle_failed(task: TriggerTask):
+#     """战斗失败页面: 记录失败并重置boss状态。"""
+#     box = find_box_at_point(task, 0.291, 0.718)
+#     if box and box.name == "战斗失败":
+#         task.log_info("检测到战斗失败，记录失败并重置boss状态")
+#         if hasattr(task, 'node_status'):
+#             task.node_status['total_rounds'] += 1
+#             task.log_info(f"战斗失败，total_rounds={task.node_status['total_rounds']}")
+#             task.node_status['pass_final_boss_count'] = 0
+#             task.node_status['reach_final_boss'] = False
+#             task.node_status['final_boss_battle'] = False
 #     return False
+
+def handle_expedition_result(task: TriggerTask):
+    """探险结果页面: 如果0.625,0.122处有"探险结果"，则为探险结果页面。
+    如果0.928,0.122处有"完成"，则success_rounds+1。"""
+    title_box = find_box_at_point(task, 0.625, 0.122)
+    if not (title_box and "探险结果" in title_box.name):
+        return False
+    task.sleep(2)
+    task.all_texts = _simplify_texts(task.ocr())
+    title_box = find_box_at_point(task, 0.625, 0.122)
+    if not (title_box and "探险结果" in title_box.name):
+        return False
+
+    task.log_info("检测到探险结果页面")
+    complete_box = find_box_at_point(task, 0.928, 0.122)
+    if hasattr(task, 'node_status'):
+        task.node_status['total_rounds'] += 1
+    if complete_box and "完成" in complete_box.name:
+        if hasattr(task, 'node_status'):
+            task.node_status['success_rounds'] += 1
+            task.log_info(f"出击模式探险完成，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
+    elif complete_box and "失败" in complete_box.name:
+        if hasattr(task, 'node_status'):
+            if _get_config_value(task, '只打第一层', False) and task.node_status.get('pass_final_boss_count', 0) >= 1:
+                task.node_status['success_rounds'] += 1
+                task.log_info(f"出击模式成功通关第一层，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
+            else:
+                task.log_info(f"出击模式探险失败，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
+    else:
+        task.log_info("探险结果页面未检测到完成或失败按钮, 当前为卡厄思模式探险结果")
+        if hasattr(task, 'node_status'):
+            complete_box = find_box_at_point(task, 0.323, 0.714)
+            if complete_box and "失败" in complete_box.name:
+                task.log_info(f"卡厄思模式探险失败，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
+            elif _get_config_value(task, '只打第一层', False) and task.node_status.get('pass_final_boss_count', 0) >= 1:
+                task.node_status['success_rounds'] += 1
+                task.log_info(f"卡厄思模式成功通关第一层，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
+    if hasattr(task, 'node_status'):
+        task.node_status['pass_final_boss_count'] = 0
+        task.node_status['reach_final_boss'] = False
+        task.node_status['final_boss_battle'] = False
+    return False
 
 
 def handle_close_button(task: TriggerTask):
