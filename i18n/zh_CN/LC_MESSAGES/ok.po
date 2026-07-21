@@ -242,3 +242,187 @@ msgstr "请只选择可用的多选值。"
 
 msgid "Select only available drop-down option values."
 msgstr "请只选择可用的下拉框选项值。"
+
+msgid "export_config"
+msgstr "导出配置"
+
+msgid "import_config"
+msgstr "导入配置"
+
+msgid "hottest_config"
+msgstr "热门配置"
+
+msgid ""
+"1. 自动战斗依赖按键识别，请在游戏设置中打开快捷键显示，提升出牌准确率。\n"
+"2. 国际服玩家请到软件左下角设置页内将\"游戏语言\"设置为繁体中文。"
+msgstr ""
+
+msgid ""
+"1. 请主动打开游戏内自动战斗和自动剧情功能。\n"
+"2. 国际服玩家请到软件左下角设置页内将\"游戏语言\"设置为繁体中文。"
+msgstr ""
+
+msgid ""
+"1.剧情内战斗关卡可手动开启出击模式调用自动战斗功能。\n"
+"2. 遇到卡厄思关卡请手动打开卡厄思模式。\n"
+"3. 剧情战斗关卡队伍需手动配置"
+msgstr ""
+
+msgid "Echo Key"
+msgstr ""
+
+msgid "F10"
+msgstr ""
+
+msgid "F11"
+msgstr ""
+
+msgid "F12"
+msgstr ""
+
+msgid "F9"
+msgstr ""
+
+msgid "In Game Hotkey for Skills"
+msgstr ""
+
+msgid "Liberation Key"
+msgstr ""
+
+msgid "Resonance Key"
+msgstr ""
+
+msgid "Tool Key"
+msgstr ""
+
+msgid "丢弃卡牌优先级"
+msgstr ""
+
+msgid "主战员优先级"
+msgstr ""
+
+msgid "任务优先级"
+msgstr ""
+
+msgid "优先使用金币治疗"
+msgstr ""
+
+msgid "优先移除基础牌"
+msgstr ""
+
+msgid "保留存档"
+msgstr ""
+
+msgid "出战主战员优先级"
+msgstr ""
+
+msgid "出牌优先级"
+msgstr ""
+
+msgid "刷梦边"
+msgstr ""
+
+msgid "半自动剧情模式"
+msgstr ""
+
+msgid "卡牌奖励优先级"
+msgstr ""
+
+msgid "只打第一层"
+msgstr ""
+
+msgid "复制卡牌列表"
+msgstr ""
+
+msgid "导入配置"
+msgstr ""
+
+msgid "导出配置"
+msgstr ""
+
+msgid ""
+"开启后每5分钟自动上传匿名的配置信息和胜率，帮助统计热门配置。\n"
+"不上传任何个人信息、游戏账号、截图、IP地址等隐私数据。\n"
+"仅上传配置内容和胜率统计数据。"
+msgstr ""
+
+msgid "拉黑主战员"
+msgstr ""
+
+msgid "指定面具卡牌"
+msgstr ""
+
+msgid "日文"
+msgstr ""
+
+msgid "是否上传配置"
+msgstr ""
+
+msgid "梦边"
+msgstr ""
+
+msgid "治疗崩溃"
+msgstr ""
+
+msgid "测试trigger"
+msgstr ""
+
+msgid "游戏语言"
+msgstr ""
+
+msgid "热门配置"
+msgstr ""
+
+msgid "生命值大于多少优先闪光(百分比)"
+msgstr ""
+
+msgid "移除卡牌列表"
+msgstr ""
+
+msgid "简体中文"
+msgstr ""
+
+msgid "繁体中文"
+msgstr ""
+
+msgid "自动出击模式"
+msgstr ""
+
+msgid "自动卡厄思模式"
+msgstr ""
+
+msgid "英文"
+msgstr ""
+
+msgid "获得卡牌优先级"
+msgstr ""
+
+msgid "路线优先级"
+msgstr ""
+
+msgid "跳过非优先级卡牌"
+msgstr ""
+
+msgid "进入商店"
+msgstr ""
+
+msgid "选择游戏客户端语言，影响OCR文本匹配"
+msgstr ""
+
+msgid "配置上传"
+msgstr ""
+
+msgid "闪光优先级"
+msgstr ""
+
+msgid "闪光卡牌列表"
+msgstr ""
+
+msgid "面具卡牌刻印"
+msgstr ""
+
+msgid "领取奖励"
+msgstr ""
+
+msgid "领取奖励(只使用验证卡)"
+msgstr ""

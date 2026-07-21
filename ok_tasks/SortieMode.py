@@ -3,6 +3,7 @@ from ok import TriggerTask, og
 import utils_sortie
 from opencc import OpenCC
 from config_io import make_export_callback, make_import_callback
+from config_sync import check_upload_if_needed, show_hot_configs_dialog
 
 _cc = OpenCC('t2s')  # 繁转简，用于OCR文本统一转换
 
@@ -30,6 +31,7 @@ class SortieMode(TriggerTask):
         self.default_config["进入商店"] = False
         self.default_config["卡牌奖励优先级"] = ["梦之边境", "装备包"]
         self.default_config["任务优先级"] = ["选取随机3条命运","信用点增加", "移除"]
+        self.default_config["拉黑任务"] = ["咒术卡牌", "压力"]
         self.default_config["拉黑主战员"] = ["黛安娜", "阿黛尔海特"]
         self.default_config["跳过非优先级卡牌"] = True
         self.default_config["优先移除基础牌"] = True
@@ -38,9 +40,11 @@ class SortieMode(TriggerTask):
         # self.default_config["从右往左出牌"] = True
         self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, "total_rounds": 0, "success_rounds": 0}
 
+        self._last_upload_time = 0
         self.config_type = {
             'export_config': {'type': 'button', 'text': '导出配置', 'callback': make_export_callback(self)},
             'import_config': {'type': 'button', 'text': '导入配置', 'callback': make_import_callback(self)},
+            'hottest_config': {'type': 'button', 'text': '热门配置', 'callback': self._show_hot_configs},
         }
 
     def enable(self):
@@ -58,8 +62,16 @@ class SortieMode(TriggerTask):
             b.name = _cc.convert(b.name)
         return texts
 
+    def _check_upload_if_needed(self):
+        check_upload_if_needed(self, "sortie")
+
+    def _show_hot_configs(self):
+        show_hot_configs_dialog(self, "sortie")
+
     def run(self):
         self.all_texts = self._ocr_and_simplify()
         for handle_page in utils_sortie.PAGE_HANDLERS:
             if handle_page(self):
                 return
+        # 帧末尾检查是否需要上传配置
+        self._check_upload_if_needed()

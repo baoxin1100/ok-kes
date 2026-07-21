@@ -211,6 +211,43 @@ def select_card(task: TriggerTask, card_names, max_scrolls=5, fallback_delete=Fa
             found_names = [b.name for b in found_cards]
             task.log_info(f"select_card 第{i+1}次查找, 目标: {card_names}, 区域内发现卡牌: {found_names}")
 
+        # 合并分离的单字卡牌名（如 "剑" + "雨" → "剑雨"）
+        # 查找所有名为"剑"的 box，在紧邻右边找"雨"的 box，合成一张名称为"剑雨"的 Box
+        from ok.feature.Box import Box
+        sword_boxes = [b for b in task.all_texts
+                       if b.name.strip() == "剑"
+                       and 0.274 <= (b.x + b.width / 2) / task.width <= 0.931
+                       and 0.106 <= (b.y + b.height / 2) / task.height <= 0.878
+                       and _card_has_type_below(task, b)]
+        if sword_boxes:
+            for sword_box in sword_boxes:
+                sword_right = sword_box.x + sword_box.width
+                sword_cy = (sword_box.y + sword_box.height / 2) / task.height
+                # 在同一行找紧邻右边的"雨"box（水平距离不超过 20px，垂直中心偏差不超过 15px）
+                rain_box = next((b for b in task.all_texts
+                                 if b.name.strip() == "雨"
+                                 and b.x >= sword_right - 2
+                                 and b.x <= sword_right + 20
+                                 and abs((b.y + b.height / 2) / task.height - sword_cy) * task.height <= 15
+                                 and _card_has_type_below(task, b)), None)
+                if rain_box:
+                    task.log_info(f"select_card: 发现分离单字「剑」+「雨」，合并为卡牌「剑雨」")
+                    # 创建一个新的 Box，名称设为"剑雨"，覆盖两个单字的范围
+                    merged_box = Box(
+                        x=sword_box.x,
+                        y=sword_box.y,
+                        width=rain_box.x + rain_box.width - sword_box.x,
+                        height=max(sword_box.height, rain_box.height),
+                        confidence=1.0,
+                        name="剑雨"
+                    )
+                    task.all_texts.append(merged_box)
+                    # 删除旧的"剑"和"雨"box，避免重复匹配
+                    if sword_box in task.all_texts:
+                        task.all_texts.remove(sword_box)
+                    if rain_box in task.all_texts:
+                        task.all_texts.remove(rain_box)
+
         for name in card_names:
             card = next((b for b in task.all_texts
                          if (name in b.name or b.name in name)
@@ -986,6 +1023,26 @@ def handle_event_task(task: TriggerTask):
         task.sleep(2)
         return True
 
+    # 读取拉黑任务列表
+    blacklist = _get_config_value(task, '拉黑任务', ["咒术卡牌"])
+    blacklist = list(blacklist) if isinstance(blacklist, (list, tuple)) else []
+    if blacklist:
+        # 过滤掉描述包含拉黑关键词的任务
+        filtered_tasks = [
+            t for t in tasks_info
+            if not any(bk in t['description'] for bk in blacklist)
+        ]
+        if len(filtered_tasks) < len(tasks_info):
+            task.log_info(f"拉黑任务关键词: {blacklist}，过滤前{len(tasks_info)}个，过滤后{len(filtered_tasks)}个")
+            for t in tasks_info:
+                if t not in filtered_tasks:
+                    task.log_info(f"  已拉黑: {t['title']} | 描述: {t['description']}")
+        # 如果全部被拉黑，兜底用原列表
+        if not filtered_tasks:
+            task.log_info("所有任务均被拉黑，兜底使用原列表")
+            filtered_tasks = tasks_info
+        tasks_info = filtered_tasks
+
     priority = _get_config_value(task, '任务优先级', [])
     chosen = None
     for keyword in priority:
@@ -999,7 +1056,7 @@ def handle_event_task(task: TriggerTask):
 
     if chosen is None:
         chosen = random.choice(tasks_info)
-        task.log_info(f"未命中优先级描述，随机选择: {chosen['title']}")
+        task.log_info(f"未命中优先级描述, 从{len(tasks_info)}个可选任务中随机选择: {chosen['title']}")
 
     chosen_x = chosen['x']
     task.click(chosen_x, 0.832)

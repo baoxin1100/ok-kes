@@ -3,6 +3,7 @@ from ok import TriggerTask, og
 import utils_chaos
 from opencc import OpenCC
 from config_io import make_export_callback, make_import_callback
+from config_sync import check_upload_if_needed, show_hot_configs_dialog
 
 _cc = OpenCC('t2s')  # 繁转简，用于OCR文本统一转换
 
@@ -19,6 +20,7 @@ class ChaosMode(TriggerTask):
         self.default_config['_enabled'] = False
         # 事件任务优先级列表, 匹配到包含对应文字的选项时会优先选择
         self.default_config['任务优先级'] = ["复制","信用点增加", "移除"]
+        self.default_config['拉黑任务'] = ["咒术卡牌", "压力"]
         # 闪光卡牌优先级配置 (JSON字符串): {"卡牌名": ["效果关键词1", "效果关键词2"], ...}
         self.default_config['闪光优先级'] = '{"剑雨": ["生成2张极光剑", "生成1张极光剑"]}'
         # 卡牌策略配置 (列表)
@@ -38,9 +40,11 @@ class ChaosMode(TriggerTask):
         self.default_config['路线优先级'] = ["休息", "事件", "小怪", "boss"]
         self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, "total_rounds": 0, "success_rounds": 0}
 
+        self._last_upload_time = 0
         self.config_type = {
             'export_config': {'type': 'button', 'text': '导出配置', 'callback': make_export_callback(self)},
             'import_config': {'type': 'button', 'text': '导入配置', 'callback': make_import_callback(self)},
+            'hottest_config': {'type': 'button', 'text': '热门配置', 'callback': self._show_hot_configs},
         }
 
     def enable(self):
@@ -58,6 +62,12 @@ class ChaosMode(TriggerTask):
             b.name = _cc.convert(b.name)
         return texts
 
+    def _check_upload_if_needed(self):
+        check_upload_if_needed(self, "chaos")
+
+    def _show_hot_configs(self):
+        show_hot_configs_dialog(self, "chaos")
+
     def run(self):
         # 每帧执行一次 OCR 并转简体, 供各页面处理函数复用
         self.all_texts = self._ocr_and_simplify()
@@ -65,3 +75,5 @@ class ChaosMode(TriggerTask):
         for handle_page in utils_chaos.PAGE_HANDLERS:
             if handle_page(self):
                 return
+        # 帧末尾检查是否需要上传配置
+        self._check_upload_if_needed()
