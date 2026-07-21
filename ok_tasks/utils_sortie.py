@@ -13,13 +13,13 @@ from utils import (
     handle_negotiation, handle_continue, handle_confirm, handle_enter,
     handle_event_task, handle_route_selection, handle_obtain_reward,
     handle_leave, handle_next_step, handle_select, handle_view_original,
-    handle_battle_failed,
     handle_close_button,
     handle_card_assign, handle_non_battle_page,
     handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_convert, handle_equipment_recast, handle_weakness_info, handle_minimizemap,
     handle_held_cards_page, handle_unknown_page,
     is_frame_stuck, handle_stuck_log, is_button_active, _clean_match,
     handle_shop,
+    handle_escape,
     _get_current_credit
 )
 
@@ -318,6 +318,11 @@ def handle_battle_page(task: TriggerTask):
     if hand_count is None:
         return False
 
+    # 如果已到达最终boss节点，标记boss战状态
+    if hasattr(task, 'node_status') and task.node_status.get('reach_final_boss', False):
+        task.node_status['final_boss_battle'] = True
+        task.log_info("检测到最终boss战斗开始，final_boss_battle=True")
+
     # 检测战斗画面是否卡住
     if is_frame_stuck(task):
         task.log_info("战斗画面卡住，从手牌区拖拽一张卡牌尝试恢复")
@@ -506,9 +511,9 @@ def handle_sortie_reward_settlement(task: TriggerTask):
         task.sleep(1)
         return True
     task.log_info("检测到出击模式奖励结算页面，关闭页面")
-    task.click(0.959, 0.057)
-    task.sleep(1)
-    return True
+    # task.click(0.959, 0.057)
+    # task.sleep(1)
+    return False
 
 
 def handle_sortie_reward_claim(task: TriggerTask):
@@ -792,15 +797,41 @@ def handle_return_to_draw_pile(task: TriggerTask):
     return True
 
 
-def handle_escape(task: TriggerTask):
-    """逃脱页面: 检测战利品与逃脱按钮后点击逃脱。"""
-    title = find_box_at_point(task, 0.675, 0.164)
-    escape_box = find_box_at_point(task, 0.952, 0.928)
-    if title and title.name == "战利品" and escape_box and _get_game_text(task, '逃脱') in escape_box.name:
-        task.log_info("检测到逃脱页面，点击逃脱")
-        task.click_box(escape_box)
-        task.sleep(0.5)
-        return True
+def handle_expedition_result(task: TriggerTask):
+    """探险结果页面: 如果0.625,0.122处有"探险结果"，则为探险结果页面。
+    如果0.928,0.122处有"完成"，则success_rounds+1。"""
+    title_box = find_box_at_point(task, 0.625, 0.122)
+    if not (title_box and "探险结果" in title_box.name):
+        return False
+
+    task.log_info("检测到探险结果页面")
+    complete_box = find_box_at_point(task, 0.928, 0.122)
+    if hasattr(task, 'node_status'):
+        task.node_status['total_rounds'] += 1
+    if complete_box and "完成" in complete_box.name:
+        if hasattr(task, 'node_status'):
+            task.node_status['success_rounds'] += 1
+            task.log_info(f"出击模式探险完成，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
+    elif complete_box and "失败" in complete_box.name:
+        if hasattr(task, 'node_status'):
+            if _get_config_value(task, '只打第一层', False) and task.node_status.get('pass_final_boss_count', 0) >= 1:
+                task.node_status['success_rounds'] += 1
+                task.log_info(f"出击模式成功通关第一层，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
+            else:
+                task.log_info(f"出击模式探险失败，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
+    else:
+        task.log_info("探险结果页面未检测到完成或失败按钮, 当前为卡厄思模式探险结果")
+        if hasattr(task, 'node_status'):
+            complete_box = find_box_at_point(task, 0.323, 0.714)
+            if complete_box and "失败" in complete_box.name:
+                task.log_info(f"卡厄思模式探险失败，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
+            elif _get_config_value(task, '只打第一层', False) and task.node_status.get('pass_final_boss_count', 0) >= 1:
+                task.node_status['success_rounds'] += 1
+                task.log_info(f"卡厄思模式成功通关第一层，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
+    if hasattr(task, 'node_status'):
+        task.node_status['pass_final_boss_count'] = 0
+        task.node_status['reach_final_boss'] = False
+        task.node_status['final_boss_battle'] = False
     return False
 
 
@@ -907,6 +938,7 @@ PAGE_HANDLERS = [
     handle_grant_flash, #赋予闪光按钮
     handle_copy, #复制按钮
     handle_leave, #离开按钮
+    handle_expedition_result, #探险结果页面，优先级高于下一步
     handle_next_step, #下一步按钮
     handle_select, #选择按钮
 
@@ -946,13 +978,12 @@ PAGE_HANDLERS = [
     handle_route_selection,
     handle_obtain_reward,
     handle_view_original,
-    handle_battle_failed,
     handle_skip,
     handle_event_task,
     handle_rational_supply,
-    handle_escape,
     handle_weakness_info,
     handle_minimizemap,
     handle_held_cards_page,
+    handle_escape,
     handle_unknown_page,
 ]

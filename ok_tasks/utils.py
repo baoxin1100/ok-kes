@@ -1011,6 +1011,33 @@ def handle_route_selection(task: TriggerTask):
             task.node_status['shop'] = True
             task.log_info(f"进入商店配置为True，更新 node_status['shop']=True")
     task.sleep(1)
+
+    # 检测最终boss节点：在(0.202,0.656,0.245,0.963)区域内同时检测currentpos和finalboss特征
+    boss_check_box = task.box_of_screen(0.202, 0.656, 0.245, 0.963)
+    currentpos_features = task.find_feature(feature_name="currentpos", box=boss_check_box)
+    finalboss_features = task.find_feature(feature_name="finalboss")
+    if currentpos_features and finalboss_features:
+        task.log_info("检测到最终boss节点，点击进入")
+        if hasattr(task, 'node_status'):
+            task.node_status['reach_final_boss'] = True
+        task.click(0.815, 0.492)
+        task.sleep(4)
+        return True
+    else:
+        if hasattr(task, 'node_status'):
+            if task.node_status.get('reach_final_boss', False) and task.node_status.get('final_boss_battle', False):
+                task.node_status['pass_final_boss_count'] += 1
+                task.log_info(f"最终boss战斗结束，pass_final_boss_count={task.node_status['pass_final_boss_count']}")
+            task.node_status['reach_final_boss'] = False
+            task.node_status['final_boss_battle'] = False
+
+    # 只打第一层：如果配置为True且已通过一次最终boss，则点击退出
+    if hasattr(task, 'node_status') and _get_config_value(task, '只打第一层', False) and task.node_status.get('pass_final_boss_count', 0) >= 1:
+        task.log_info("只打第一层配置为True且已通过最终boss，点击退出")
+        task.click(0.959, 0.053)
+        task.sleep(1)
+        return True
+
     node_regions = {
         "node1": (0.759, 0.168, 0.769, 0.186),
         "node2": (0.901, 0.471, 0.910, 0.486),
@@ -1235,14 +1262,28 @@ def handle_view_original(task: TriggerTask):
     return True
 
 
+def handle_escape(task: TriggerTask):
+    """逃脱页面: 检测到逃脱按钮后点击逃脱。"""
+    escape_box = find_box_at_point(task, 0.952, 0.928)
+    if escape_box and _get_game_text(task, '逃脱') in escape_box.name:
+        task.log_info("检测到逃脱页面，点击逃脱")
+        task.click_box(escape_box)
+        task.sleep(0.5)
+        return True
+    return False
+
+
 def handle_battle_failed(task: TriggerTask):
-    """战斗失败页面: 点击下一步。"""
+    """战斗失败页面: 记录失败并重置boss状态。"""
     box = find_box_at_point(task, 0.291, 0.718)
     if box and box.name == "战斗失败":
-        task.log_info("检测到战斗失败，建议降低难度")
-        task.click(0.905, 0.917)
-        task.sleep(1)
-        return True
+        task.log_info("检测到战斗失败，记录失败并重置boss状态")
+        if hasattr(task, 'node_status'):
+            task.node_status['total_rounds'] += 1
+            task.log_info(f"战斗失败，total_rounds={task.node_status['total_rounds']}")
+            task.node_status['pass_final_boss_count'] = 0
+            task.node_status['reach_final_boss'] = False
+            task.node_status['final_boss_battle'] = False
     return False
 
 

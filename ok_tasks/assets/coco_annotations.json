@@ -65,6 +65,12 @@
             "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 51,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -249,6 +255,32 @@
             ],
             "area": 1110,
             "iscrowd": 0
+        },
+        {
+            "id": 15,
+            "image_id": 51,
+            "category_id": 15,
+            "bbox": [
+                529,
+                871,
+                136,
+                55
+            ],
+            "area": 7480,
+            "iscrowd": 0
+        },
+        {
+            "id": 16,
+            "image_id": 51,
+            "category_id": 16,
+            "bbox": [
+                414,
+                823,
+                37,
+                41
+            ],
+            "area": 1517,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -320,6 +352,16 @@
         {
             "id": 14,
             "name": "enterbattle",
+            "supercategory": ""
+        },
+        {
+            "id": 15,
+            "name": "finalboss",
+            "supercategory": ""
+        },
+        {
+            "id": 16,
+            "name": "currentpos",
             "supercategory": ""
         }
     ]

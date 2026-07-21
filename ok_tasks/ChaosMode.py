@@ -34,8 +34,9 @@ class ChaosMode(TriggerTask):
         self.default_config['领取奖励(只使用验证卡)'] = False
         self.default_config['指定面具卡牌'] = "丢弃最多2张卡牌"
         self.default_config['面具卡牌刻印'] = "自身攻击卡牌伤害总量提升30%"
+        self.default_config['只打第一层'] = False
         self.default_config['路线优先级'] = ["休息", "事件", "小怪", "boss"]
-        self.node_status = {"shop": False, "flash_or_rest": False}
+        self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, "total_rounds": 0, "success_rounds": 0}
 
         self.config_type = {
             'export_config': {'type': 'button', 'text': '导出配置', 'callback': make_export_callback(self)},

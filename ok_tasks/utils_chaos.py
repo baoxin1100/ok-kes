@@ -21,6 +21,7 @@ from utils import (
     handle_stuck_log,
     is_button_active, _clean_match,
     handle_shop,
+    handle_escape,
 )
 
 import re
@@ -53,6 +54,11 @@ def handle_battle_auto_check(task: TriggerTask):
         task.log_info("自动战斗处于关闭状态，点击开启")
         task.click(0.880, 0.056)
         task.sleep(0.5)
+
+    # 如果已到达最终boss节点，标记boss战状态
+    if hasattr(task, 'node_status') and task.node_status.get('reach_final_boss', False):
+        task.node_status['final_boss_battle'] = True
+        task.log_info("检测到最终boss战斗开始，final_boss_battle=True")
     return True
 
 
@@ -548,6 +554,7 @@ PAGE_HANDLERS = [
     handle_leave, #离开按钮
     handle_mental_breakdown, #精神崩溃，优先级高于下一步按钮
     handle_data_collected, #存储数据收集完成，优先级高于下一步按钮
+    handle_battle_failed, #战斗失败，优先级高于下一步
     handle_next_step, #下一步按钮
     handle_craft, #合成按钮
     handle_select, #选择按钮
@@ -576,7 +583,6 @@ PAGE_HANDLERS = [
     handle_route_selection,
     handle_obtain_reward,
     handle_view_original,
-    handle_battle_failed,
     handle_trauma_center,
     handle_treating,
     handle_treat_approve,
@@ -590,5 +596,6 @@ PAGE_HANDLERS = [
     handle_skip,
     handle_event_task,
     handle_held_cards_page,
+    handle_escape,
     handle_unknown_page,
 ]

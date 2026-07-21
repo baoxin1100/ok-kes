@@ -34,8 +34,9 @@ class SortieMode(TriggerTask):
         self.default_config["跳过非优先级卡牌"] = True
         self.default_config["优先移除基础牌"] = True
         self.default_config["生命值大于多少优先闪光(百分比)"] = "60"
+        self.default_config["只打第一层"] = True
         # self.default_config["从右往左出牌"] = True
-        self.node_status = {"shop": False, "flash_or_rest": False}
+        self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, "total_rounds": 0, "success_rounds": 0}
 
         self.config_type = {
             'export_config': {'type': 'button', 'text': '导出配置', 'callback': make_export_callback(self)},
