@@ -73,6 +73,14 @@ This software is open-source and free, intended for personal learning and commun
 - 📤 **Export Config**: One-click encode your current mode configuration as text and copy to clipboard for sharing
 - 📥 **Import Config**: Paste a shared configuration code to apply it, compatible across different versions
 
+### Config Sync & Hot Configs (v1.3.5+)
+- 📡 **Auto Upload Config**: Automatically uploads anonymous config info and win rates to the cloud every 5 minutes to help compile popular configurations
+- 🌟 **Hot Configs**: Click "Hot Configs" button in Chaos/Sortie Mode config pages
+  - Browse high-win-rate configurations shared by other players (sortable by win rate or user count)
+  - One-click apply a hot config to your local setup
+  - Requires config upload to be enabled (prevents downloading without contributing)
+- 🔒 **Privacy**: Uploads no personal info, game accounts, screenshots, or IP addresses
+
 ### General Features
 - 🖥️ **High-Resolution Support**: Supports 1920x1080 / 1600x900 / 1280x720 and other 16:9 resolutions
 - 🔄 **Background Mode**: Supports running in the background while the game window is minimized or obscured

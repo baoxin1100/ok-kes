@@ -29,7 +29,7 @@ TABLE_NAME = "configs"
 UPLOAD_INTERVAL = 300  # 5分钟
 
 # 有效数据最低场数（后期用户多了可以改大）
-MIN_ROUNDS = 2
+MIN_ROUNDS = 5
 
 
 def _get_version():
@@ -345,7 +345,7 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
         config_list.clear()
         loading_label.setVisible(False)
         if not results:
-            item = QListWidgetItem("暂无热门配置数据（至少需要2场有效数据才会被统计）")
+            item = QListWidgetItem("暂无热门配置数据（至少需要5场有效数据才会被统计）")
             config_list.addItem(item)
             return
         for i, r in enumerate(results, 1):
