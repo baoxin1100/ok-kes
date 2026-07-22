@@ -12,6 +12,7 @@
 - 配置版本号
 - 匿名用户标识（机器特征的哈希）
 """
+import os
 import hashlib
 import platform
 import uuid
