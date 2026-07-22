@@ -87,6 +87,7 @@ jobs:
               * [Mirror酱下载渠道](https://mirrorchyan.com/zh/projects?rid=ok-kes), 国内网页直链, 下载需要购买CD-KEY, 已有Mirror酱CD-KEY可免费下载
               * [夸克网盘](https://pan.quark.cn/s/13b266aa8e80), 免费, 但需要注册并下载夸克网盘客户端
               * [百度网盘](https://pan.baidu.com/s/156h76VWpUwPIffkZqFy_dw?pwd=okes), 需下载百度网盘客户端，提取码 okes
+              * [UC网盘](https://drive.uc.cn/s/fee4cb3d65cd4?public=1), 免费，需下载UC网盘客户端
           files: pyappify_dist/*
 
       - name: Trigger MirrorChyanUploading
