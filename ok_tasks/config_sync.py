@@ -125,11 +125,22 @@ def upload_config(task: TriggerTask, mode: str) -> bool:
     except Exception:
         pass
 
+    # 读取出战主战员优先级第一个名字（仅在出击模式有效）
+    first_member = ""
+    if mode == "sortie":
+        try:
+            member_list = task.config.get('出战主战员优先级', [])
+            if isinstance(member_list, (list, tuple)) and len(member_list) > 0:
+                first_member = member_list[0]
+        except Exception:
+            pass
+
     payload = {
         "mode": mode,
         "config_b64": config_b64,
         "config_ver": config_ver,
         "game_lang": game_lang,
+        "first_member": first_member,
         "win_rate": round(win_rate, 4),
         "total_rounds": total_rounds,
         "user_hash": user_hash,
@@ -184,7 +195,7 @@ def fetch_popular_configs(
 
     # 先获取足够多的原始数据
     params = {
-        "select": "config_b64,config_ver,game_lang,win_rate,total_rounds,user_hash",
+        "select": "config_b64,config_ver,game_lang,first_member,win_rate,total_rounds,user_hash",
         "mode": f"eq.{mode}",
         "total_rounds": f"gte.{MIN_ROUNDS}",
         "order": "win_rate.desc",
@@ -218,6 +229,7 @@ def fetch_popular_configs(
                 "config_b64": key,
                 "config_ver": r.get("config_ver", "unknown"),
                 "game_lang": r.get("game_lang", "简体中文"),
+                "first_member": r.get("first_member", ""),
                 "win_rates": [],
                 "users": set(),
             }
@@ -234,6 +246,7 @@ def fetch_popular_configs(
             "config_b64": g["config_b64"],
             "config_ver": g["config_ver"],
             "game_lang": g["game_lang"],
+            "first_member": g["first_member"],
             "avg_win_rate": round(sum(g["win_rates"]) / len(g["win_rates"]), 4),
             "user_count": user_count,
             "total_submissions": len(g["win_rates"]),
@@ -302,20 +315,30 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
     mode_name = "卡厄思模式" if mode == "chaos" else "出击模式"
     dialog = QDialog()
     dialog.setWindowTitle(f"热门配置 - {mode_name}")
-    dialog.resize(600, 450)
+    dialog.resize(650, 500)
 
     layout = QVBoxLayout(dialog)
 
-    # 排序选择
-    sort_layout = QHBoxLayout()
+    # 筛选行：排序方式 + 出战主战员筛选
+    filter_layout = QHBoxLayout()
     sort_label = QLabel("排序方式：")
     sort_combo = QComboBox()
     sort_combo.addItem("按胜率降序", "winrate")
     sort_combo.addItem("按使用人数降序", "users")
-    sort_layout.addWidget(sort_label)
-    sort_layout.addWidget(sort_combo)
-    sort_layout.addStretch()
-    layout.addLayout(sort_layout)
+    filter_layout.addWidget(sort_label)
+    filter_layout.addWidget(sort_combo)
+
+    # 出战主战员筛选（出击模式可用）
+    member_filter_combo = None
+    if mode == "sortie":
+        member_filter_label = QLabel("出战主战员：")
+        member_filter_combo = QComboBox()
+        member_filter_combo.addItem("不限", "")
+        filter_layout.addWidget(member_filter_label)
+        filter_layout.addWidget(member_filter_combo)
+
+    filter_layout.addStretch()
+    layout.addLayout(filter_layout)
 
     # 加载提示
     loading_label = QLabel("正在加载热门配置，请稍候...")
@@ -340,29 +363,58 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
     btn_layout.addWidget(cancel_btn)
     layout.addLayout(btn_layout)
 
+    # 缓存所有结果
+    all_results = []
+
     def load_configs():
+        nonlocal all_results
         sort_by = sort_combo.currentData()
-        results = fetch_popular_configs(mode=mode, sort_by=sort_by, limit=20)
+        all_results = fetch_popular_configs(mode=mode, sort_by=sort_by, limit=200)
+        # 更新成员筛选下拉框选项
+        if member_filter_combo is not None:
+            current_member = member_filter_combo.currentData() or ""
+            member_filter_combo.blockSignals(True)
+            member_filter_combo.clear()
+            member_filter_combo.addItem("不限", "")
+            members = sorted(set(r.get("first_member", "") for r in all_results if r.get("first_member")))
+            for m in members:
+                member_filter_combo.addItem(m, m)
+            # 恢复之前选择的筛选项
+            idx = member_filter_combo.findData(current_member)
+            if idx >= 0:
+                member_filter_combo.setCurrentIndex(idx)
+            member_filter_combo.blockSignals(False)
+        apply_member_filter()
+
+    def apply_member_filter():
+        selected_member = member_filter_combo.currentData() if member_filter_combo else ""
+        filtered = all_results
+        if selected_member:
+            filtered = [r for r in filtered if r.get("first_member", "") == selected_member]
         config_list.clear()
         loading_label.setVisible(False)
-        if not results:
+        if not filtered:
             item = QListWidgetItem("暂无热门配置数据（至少需要5场有效数据才会被统计）")
             config_list.addItem(item)
             return
-        for i, r in enumerate(results, 1):
+        for i, r in enumerate(filtered[:20], 1):
             wr = r["avg_win_rate"]
             uc = r["user_count"]
             ver = r.get("config_ver", "?")
             gl = r.get("game_lang", "简体中文")
-            text = f"#{i}  胜率: {wr:.0%}  使用人数: {uc}  语言: {gl}  版本: {ver}"
+            fm = r.get("first_member", "")
+            if fm:
+                text = f"#{i}  胜率: {wr:.0%}  使用人数: {uc}  主战员: {fm}  语言: {gl}  版本: {ver}"
+            else:
+                text = f"#{i}  胜率: {wr:.0%}  使用人数: {uc}  语言: {gl}  版本: {ver}"
             item = QListWidgetItem(text)
             item.setData(0x100, r)  # 36 = Qt.UserRole
             config_list.addItem(item)
 
-    def on_sort_changed():
+    def on_filter_changed():
         loading_label.setVisible(True)
         config_list.setVisible(False)
-        load_configs()
+        apply_member_filter()
         config_list.setVisible(True)
 
     def on_apply():
@@ -386,13 +438,16 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
                 QMessageBox.warning(dialog, "导入失败", "配置解析失败，请重试。")
 
     # 绑定事件
-    sort_combo.currentIndexChanged.connect(on_sort_changed)
+    sort_combo.currentIndexChanged.connect(on_filter_changed)
+    if member_filter_combo is not None:
+        member_filter_combo.currentIndexChanged.connect(on_filter_changed)
     config_list.itemSelectionChanged.connect(lambda: apply_btn.setEnabled(len(config_list.selectedItems()) > 0))
-    refresh_btn.clicked.connect(on_sort_changed)
+    refresh_btn.clicked.connect(on_filter_changed)
     apply_btn.clicked.connect(on_apply)
     cancel_btn.clicked.connect(dialog.reject)
 
     # 初始加载
+    loading_label.setVisible(True)
     load_configs()
     config_list.setVisible(True)
     loading_label.setVisible(False)
