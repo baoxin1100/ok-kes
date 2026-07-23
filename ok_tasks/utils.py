@@ -770,12 +770,28 @@ def handle_select_card(task: TriggerTask):
 def handle_copy_member(task: TriggerTask):
     """选择要复制卡牌的主战员页面。"""
     box = find_box_at_point(task, 0.502, 0.932)
-    if box and "选择要复制卡牌的主战员" in box.name:
-        task.log_info("检测到卡牌复制主战员选择事件，进行相应操作")
-        task.click(0.228, 0.510)
-        task.sleep(1)
-        return True
-    return False
+    if not (box and "选择要复制卡牌的主战员" in box.name):
+        return False
+
+    task.log_info("检测到卡牌复制主战员选择事件，进行相应操作")
+
+    confirm_box = task.box_of_screen(0.145, 0.044, 0.856, 0.214)
+    click_positions = [(0.228, 0.510), (0.504, 0.504), (0.755, 0.508)]
+
+    for i, (cx, cy) in enumerate(click_positions):
+        task.log_info(f"点击位置({cx}, {cy})")
+        task.click(cx, cy)
+        task.sleep(0.5)
+
+        feature = task.wait_feature("copymemberconfirm", box=confirm_box, time_out=2)
+        if feature:
+            task.log_info(f"点击位置({cx}, {cy})后成功找到copymemberconfirm")
+            return True
+        else:
+            task.log_info(f"点击位置({cx}, {cy})后未找到copymemberconfirm，继续尝试")
+
+    task.log_info("所有尝试均未找到copymemberconfirm")
+    return True
 
 
 def handle_convert_card(task: TriggerTask):
