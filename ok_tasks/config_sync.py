@@ -328,6 +328,13 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
     filter_layout.addWidget(sort_label)
     filter_layout.addWidget(sort_combo)
 
+    # 语言筛选
+    lang_filter_label = QLabel("语言：")
+    lang_filter_combo = QComboBox()
+    lang_filter_combo.addItem("不限", "")
+    filter_layout.addWidget(lang_filter_label)
+    filter_layout.addWidget(lang_filter_combo)
+
     # 出战主战员筛选（出击模式可用）
     member_filter_combo = None
     if mode == "sortie":
@@ -370,6 +377,18 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
         nonlocal all_results
         sort_by = sort_combo.currentData()
         all_results = fetch_popular_configs(mode=mode, sort_by=sort_by, limit=200)
+        # 更新语言筛选下拉框选项
+        current_lang = lang_filter_combo.currentData() or ""
+        lang_filter_combo.blockSignals(True)
+        lang_filter_combo.clear()
+        lang_filter_combo.addItem("不限", "")
+        langs = sorted(set(r.get("game_lang", "简体中文") for r in all_results if r.get("game_lang")))
+        for lang in langs:
+            lang_filter_combo.addItem(lang, lang)
+        idx = lang_filter_combo.findData(current_lang)
+        if idx >= 0:
+            lang_filter_combo.setCurrentIndex(idx)
+        lang_filter_combo.blockSignals(False)
         # 更新成员筛选下拉框选项
         if member_filter_combo is not None:
             current_member = member_filter_combo.currentData() or ""
@@ -384,11 +403,16 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
             if idx >= 0:
                 member_filter_combo.setCurrentIndex(idx)
             member_filter_combo.blockSignals(False)
-        apply_member_filter()
+        apply_filters()
 
-    def apply_member_filter():
-        selected_member = member_filter_combo.currentData() if member_filter_combo else ""
+    def apply_filters():
         filtered = all_results
+        # 语言筛选
+        selected_lang = lang_filter_combo.currentData()
+        if selected_lang:
+            filtered = [r for r in filtered if r.get("game_lang", "简体中文") == selected_lang]
+        # 成员筛选
+        selected_member = member_filter_combo.currentData() if member_filter_combo else ""
         if selected_member:
             filtered = [r for r in filtered if r.get("first_member", "") == selected_member]
         config_list.clear()
@@ -414,7 +438,7 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
     def on_filter_changed():
         loading_label.setVisible(True)
         config_list.setVisible(False)
-        apply_member_filter()
+        apply_filters()
         config_list.setVisible(True)
 
     def on_apply():
@@ -439,6 +463,7 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
 
     # 绑定事件
     sort_combo.currentIndexChanged.connect(on_filter_changed)
+    lang_filter_combo.currentIndexChanged.connect(on_filter_changed)
     if member_filter_combo is not None:
         member_filter_combo.currentIndexChanged.connect(on_filter_changed)
     config_list.itemSelectionChanged.connect(lambda: apply_btn.setEnabled(len(config_list.selectedItems()) > 0))
