@@ -248,6 +248,12 @@ def _confirm_battle_member_selection(task: TriggerTask):
     return True
 
 
+# 主战员名称 → 模板特征名映射字典（用于OCR识别不到时的模板匹配兜底）
+_MEMBER_FEATURE_MAP = {
+    "九": "nine",
+}
+
+
 def _select_battle_member(task: TriggerTask, max_scrolls=5):
     """按出战主战员优先级选择列表角色；找不到配置角色则随机选择。"""
     priority = _get_battle_member_priority(task)
@@ -270,7 +276,23 @@ def _select_battle_member(task: TriggerTask, max_scrolls=5):
                 task.sleep(0.5)
                 return _confirm_battle_member_selection(task)
             else:
-                task.log_info(f"出战主战员优先级匹配失败: 「{name}」未在当前列出的{len(boxes)}个主战员中")
+                # OCR 未匹配到，尝试用模板匹配兜底
+                feature_name = _MEMBER_FEATURE_MAP.get(name)
+                if feature_name and task.feature_exists(feature_name):
+                    task.log_info(f"出战主战员OCR未匹配到「{name}」，尝试模板匹配 feature=「{feature_name}」")
+                    search_box = task.box_of_screen(0.096, 0.097, 0.988, 0.896)
+                    feature_box = task.find_one(feature_name=feature_name, box=search_box, threshold=0.5)
+                    if feature_box:
+                        cx = (feature_box.x + feature_box.width / 2) / task.width
+                        cy = (feature_box.y + feature_box.height / 2) / task.height
+                        task.log_info(f"出战主战员模板匹配成功: 配置名「{name}」 feature=「{feature_name}」 cx={cx:.4f} cy={cy:.4f}, 相似度={feature_box.confidence:.4f}")
+                        task.click_box(feature_box)
+                        task.sleep(0.5)
+                        return _confirm_battle_member_selection(task)
+                    else:
+                        task.log_info(f"出战主战员模板匹配失败: 「{name}」(feature=「{feature_name}」) 未找到")
+                else:
+                    task.log_info(f"出战主战员优先级匹配失败: 「{name}」未在当前列出的{len(boxes)}个主战员中")
         if scroll_index < max_scrolls:
             task.log_info(f"第{scroll_index + 1}次未匹配到任何优先级角色, 向下滚动重试")
             task.scroll_relative(0.5, 0.7, -3)
