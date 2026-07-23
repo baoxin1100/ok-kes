@@ -438,7 +438,7 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
     def on_filter_changed():
         loading_label.setVisible(True)
         config_list.setVisible(False)
-        apply_filters()
+        load_configs()
         config_list.setVisible(True)
 
     def on_apply():
