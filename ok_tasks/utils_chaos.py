@@ -1,14 +1,14 @@
 from ok import TriggerTask
 
 from utils import (
-    _simplify_texts, _get_config_value, _get_card_list, _get_route_priority, _get_game_text,
+    _simplify_texts, _get_config_value, _get_card_list, _get_route_priority, _get_game_text, _get_region_text,
     find_box_at_point, find_text, find_exact_text,
     _card_has_type_below, select_card, identify_node_type,
     log_credit, log_node_status, handle_battle_crash, handle_close_page,
     handle_center_confirm, handle_settlement, handle_skip,
     handle_destiny_choice, handle_main_member_flash,
     handle_card_reward, handle_equipment,
-    handle_select_card, handle_copy_member,
+    handle_select_card, handle_three_choice_copy, handle_copy_member,
     handle_convert_card,
     handle_negotiation, handle_continue, handle_confirm, handle_enter,
     handle_event_task, handle_route_selection, handle_obtain_reward,
@@ -142,18 +142,6 @@ def handle_conquer_difficulty(task: TriggerTask):
 
 
 # ------------------------- 卡厄思模式独有页面处理函数（续） -------------------------
-
-def _get_region_text(task: TriggerTask, region):
-    """获取指定区域内所有OCR文本，去除空白后用"".join拼接返回。"""
-    x1, y1, x2, y2 = region
-    texts = [
-        b.name.strip() for b in task.all_texts
-        if x1 <= (b.x + b.width / 2) / task.width <= x2
-        and y1 <= (b.y + b.height / 2) / task.height <= y2
-        and b.name.strip()
-    ]
-    return "".join(texts)
-
 
 def handle_chaos_mask_engraving(task: TriggerTask):
     """面具卡牌刻印获取页面: 如果0.499,0.126处文本包含"面具卡牌刻印"，则为该页面。
@@ -594,6 +582,7 @@ PAGE_HANDLERS = [
     handle_memory_elimination,
     handle_chaos_craft,
     handle_conquer_difficulty,
+    handle_three_choice_copy,
     handle_skip,
     handle_event_task,
     handle_held_cards_page,

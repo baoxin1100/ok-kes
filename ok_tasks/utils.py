@@ -144,6 +144,18 @@ def _clean_match(name, target):
     return cleaned == target
 
 
+def _get_region_text(task: TriggerTask, region):
+    """获取指定区域内所有OCR文本，去除空白后用"".join拼接返回。"""
+    x1, y1, x2, y2 = region
+    texts = [
+        b.name.strip() for b in task.all_texts
+        if x1 <= (b.x + b.width / 2) / task.width <= x2
+        and y1 <= (b.y + b.height / 2) / task.height <= y2
+        and b.name.strip()
+    ]
+    return "".join(texts)
+
+
 def _is_valid_card_name(name):
     """过滤非卡牌名的文本：单个字母、单个符号、纯符号等都不是卡牌名。"""
     if len(name.strip()) <= 1:
@@ -765,6 +777,43 @@ def handle_select_card(task: TriggerTask):
 
     select_card(task, _get_card_list(task, config_key), fallback_delete=True, count=count, action=action)
     return True
+
+
+def handle_three_choice_copy(task: TriggerTask):
+    """三选一复制卡牌页面: 检测到"请选择要复制的卡牌"时，识别三张卡牌名称和描述，按复制卡牌列表优先级选择。"""
+    box = find_box_at_point(task, 0.498, 0.133)
+    if not (box and "请选择要复制的卡牌" in box.name):
+        return False
+
+    task.log_info("检测到三选一复制卡牌页面")
+
+    name_positions = [(0.221, 0.289), (0.473, 0.289), (0.727, 0.290)]
+    desc_regions = [
+        (0.156, 0.453, 0.355, 0.812),
+        (0.404, 0.442, 0.607, 0.818),
+        (0.661, 0.442, 0.855, 0.811),
+    ]
+
+    cards = []
+    for i, (nx, ny) in enumerate(name_positions):
+        name_box = find_box_at_point(task, nx, ny)
+        name = name_box.name if name_box else ""
+        desc = _get_region_text(task, desc_regions[i]) if name else ""
+        cards.append({"name": name, "x": nx, "y": ny, "desc": desc})
+        if name:
+            task.log_info(f"三选一复制卡牌 卡牌{i+1}: 名称=「{name}」 描述=「{desc}」")
+
+    priority = _get_config_value(task, '复制卡牌列表', [])
+    for pri_name in priority:
+        for card in cards:
+            if card["name"] and pri_name in card["name"]:
+                task.log_info(f"三选一复制卡牌选择: 按优先级选择「{card['name']}」(匹配「{pri_name}」)")
+                task.click(card["x"], card["y"])
+                task.sleep(0.5)
+                return True
+
+    task.log_info("三选一复制卡牌: 未命中任何优先级，return False")
+    return False
 
 
 def handle_copy_member(task: TriggerTask):
