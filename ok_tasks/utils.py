@@ -734,7 +734,16 @@ def handle_card_reward(task: TriggerTask):
         # 检查"跳过非优先级卡牌"配置
         if _get_config_value(task, '跳过非优先级卡牌', True):
             task.log_info("未命中优先级卡牌，跳过非优先级卡牌")
-            task.click(0.745, 0.933)
+            # 在区域(0.620,0.883,0.990,0.983)内查找包含"跳过"的box并点击
+            skip_box = next((b for b in task.all_texts
+                             if 0.620 <= (b.x + b.width / 2) / task.width <= 0.990
+                             and 0.883 <= (b.y + b.height / 2) / task.height <= 0.983
+                             and "跳过" in b.name), None)
+            if skip_box:
+                task.click_box(skip_box)
+            else:
+                task.log_info("未找到跳过按钮，点击固定位置")
+                task.click(0.745, 0.933)
             task.sleep(0.5)
             return True
         chosen_card = random.choice(cards)
