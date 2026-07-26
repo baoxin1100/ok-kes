@@ -4,6 +4,7 @@ import utils_sortie
 from opencc import OpenCC
 from config_io import make_export_callback, make_import_callback
 from config_sync import check_upload_if_needed, show_hot_configs_dialog
+from utils import reset_all_status, _migrate_route_boss_to_elite
 
 _cc = OpenCC('t2s')  # 繁转简，用于OCR文本统一转换
 
@@ -18,7 +19,7 @@ class SortieMode(TriggerTask):
         self.trigger_interval = 1
         self.all_texts = []
         self.default_config["_enabled"] = False
-        self.default_config["路线优先级"] = ["休息", "事件", "小怪", "boss"]
+        self.default_config["路线优先级"] = ["休息", "事件", "小怪", "精英"]
         self.default_config["主战员优先级"] = ["米卡", "尼娅", "蒂菲拉", "麦格纳", "卡修斯"]
         self.default_config["出战主战员优先级"] = ["海德玛丽", "九", "力", "绯"]
         self.default_config["获得卡牌优先级"] = ["展开极光", "剑雨", "一缕光芒","缕光芒","凝聚极光"]
@@ -37,22 +38,27 @@ class SortieMode(TriggerTask):
         self.default_config["优先移除基础牌"] = True
         self.default_config["生命值大于多少优先闪光(百分比)"] = "60"
         self.default_config["只打第一层"] = True
+        self.default_config["第几层boss前自动暂停"] = "不暂停"
         # self.default_config["从右往左出牌"] = True
-        self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, "total_rounds": 0, "success_rounds": 0}
+        self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, 
+                            "total_rounds": 0, "success_rounds": 0, "node_count": 0, "enter_new_node": False, "node_type": "未知", "is_escaped": False}
 
         self._last_upload_time = 0
         self.config_type = {
             'export_config': {'type': 'button', 'text': '导出配置', 'callback': make_export_callback(self)},
             'import_config': {'type': 'button', 'text': '导入配置', 'callback': make_import_callback(self)},
             'hottest_config': {'type': 'button', 'text': '热门配置', 'callback': self._show_hot_configs},
+            '第几层boss前自动暂停': {'type': 'drop_down', 'options': ['不暂停', '1', '2', '3']},
         }
 
     def enable(self):
-        """开启出击模式时自动禁用卡厄思模式。"""
+        """开启出击模式时自动禁用卡厄思模式，重置状态并迁移配置。"""
         from ChaosMode import ChaosMode
         chaos = og.executor.get_task_by_class(ChaosMode)
         if chaos and chaos.enabled:
             chaos.disable()
+        reset_all_status(self)
+        _migrate_route_boss_to_elite(self)
         super().enable()
 
     def _ocr_and_simplify(self):

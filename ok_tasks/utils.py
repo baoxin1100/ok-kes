@@ -100,10 +100,26 @@ def _get_game_text(task: TriggerTask, default_text):
     return mapping.get(default_text, default_text)
 
 
+def _migrate_route_boss_to_elite(task: TriggerTask):
+    """迁移用户配置中"路线优先级"的"boss"为"精英"（兼容旧配置）。"""
+    try:
+        if hasattr(task, 'config') and '路线优先级' in task.config:
+            priority = task.config['路线优先级']
+            if isinstance(priority, (list, tuple)):
+                new_priority = ["精英" if v == "boss" else v for v in priority]
+                if new_priority != list(priority):
+                    task.config['路线优先级'] = new_priority
+                    from ok.gui.Communicate import communicate
+                    communicate.task_list_updated.emit()
+                    task.log_info(f"迁移路线优先级配置: boss→精英 {new_priority}")
+    except Exception:
+        pass
+
+
 def _get_route_priority(task: TriggerTask):
     """读取路线节点优先级配置，返回列表；解析失败使用默认顺序。"""
-    value = _get_config_value(task, '路线优先级', ["休息", "事件", "小怪", "boss"])
-    return list(value) if isinstance(value, (list, tuple)) else ["休息", "事件", "小怪", "boss"]
+    value = _get_config_value(task, '路线优先级', ["休息", "事件", "小怪", "精英"])
+    return list(value) if isinstance(value, (list, tuple)) else ["休息", "事件", "小怪", "精英"]
 
 
 # ------------------------- 通用工具 -------------------------
@@ -453,7 +469,7 @@ def identify_node_type(task: TriggerTask, region, name=""):
     elif 90 <= dominant_hue <= 100:
         result = "事件"
     elif 120 <= dominant_hue <= 145:
-        result = "boss"
+        result = "精英"
     elif dominant_hue >= 150:
         result = "小怪"
     else:
@@ -558,18 +574,31 @@ def log_credit(task: TriggerTask):
     return False
 
 
+# def handle_stage_clear(task: TriggerTask):
+#     """成功通关页面: 检测(0.142,0.806)处文本是否包含'战斗结束'，成功次数+1。"""
+#     box = find_box_at_point(task, 0.142, 0.806)
+#     if box and "战斗结束" in box.name:
+#         task.log_info("检测到成功通关页面，success_rounds + 1")
+#         if hasattr(task, 'node_status'):
+#             task.node_status['success_rounds'] += 1
+#     return False
+
+
 def log_node_status(task: TriggerTask):
     """记录当前胜率（仅记录, 不拦截后续处理）。"""
     ns = getattr(task, 'node_status', None)
     if ns:
         total = ns.get('total_rounds', 0)
-        task.info_set("所处层数", f"第{ns['pass_final_boss_count']+1}层")
+        node_count = ns.get('node_count', 0)
+        node_type = ns.get('node_type', "未知")
+        task.info_set("所处层数，节点，类型", f"第{ns['pass_final_boss_count']+1}层，第{node_count}节点，{node_type}")
         task.info_set("是否到达关底boss", f"{ns['reach_final_boss']}")
         task.info_set("是否进入关底boss战斗", f"{ns['final_boss_battle']}")
+        task.info_set("是否已逃脱", f"{ns['is_escaped']}")
         if total > 0:
             task.info_set("当前胜率", f"{ns['success_rounds']}/{total} ({ns['success_rounds']*100//total}%)")
         else:
-            task.info_set("当前胜率","NaN")
+            task.info_set("当前胜率",f"{ns['success_rounds']}/{total} NaN")
         task.log_info("")
     return False
 
@@ -608,6 +637,11 @@ def handle_settlement(task: TriggerTask):
     box = find_box_at_point(task, 0.941, 0.917)
     if box and _clean_match(box.name, "结算"):
         task.click(0.941, 0.917)
+        if hasattr(task, 'node_status') and task.node_status.get('reach_final_boss', False):
+            task.node_status['pass_final_boss_count'] += 1
+            passed = task.node_status['pass_final_boss_count']
+            task.log_info(f"检测到boss结算页面且 reach_final_boss=True，通关层数+1 (当前: {passed})")
+            reset_layer_status(task)
         task.sleep(1)
         return True
     return False
@@ -988,6 +1022,7 @@ def handle_enter(task: TriggerTask):
     if box:
         task.log_info("检测到进入按钮，点击进入")
         task.click_box(box)
+        reset_layer_status(task)
         task.sleep(1)
         return True
     return False
@@ -1138,12 +1173,24 @@ def handle_event_task(task: TriggerTask):
 
 
 def handle_route_selection(task: TriggerTask):
-    """路线选择页面: 识别节点类型，按优先级排序后依次点击所有节点，每次间隔1秒。"""
+    """路线选择页面: 识别节点类型，按优先级排序后依次点击所有节点，每次间隔1秒。
+    同时负责节点计数：离开路线页面时 node_count +1。"""
     position_feature = task.find_feature(feature_name="position")
     cant_receive = find_box_at_point(task, 0.186, 0.850)
     is_route_page = position_feature or (cant_receive and "无法接收到梦境号" in cant_receive.name)
+
+    # 如果当前页面不是路线选择页面，但 enter_new_node 为 True（刚离开路线页面），计数+1
     if not is_route_page:
+        if hasattr(task, 'node_status') and task.node_status.get('enter_new_node', False):
+            task.node_status['enter_new_node'] = False
+            task.node_status['node_count'] += 1
+            task.log_info(f"离开路线选择页面，当前节点计数: {task.node_status['node_count']}")
         return False
+
+    # 是路线选择页面，标记进入新节点
+    if hasattr(task, 'node_status'):
+        task.node_status['enter_new_node'] = True
+
     task.log_info("检测到路线选择页面，按优先级依次点击节点")
 
     # 更新节点状态：进入路线选择页面时 flash_or_rest 置为 True
@@ -1156,30 +1203,62 @@ def handle_route_selection(task: TriggerTask):
             task.log_info(f"进入商店配置为True，更新 node_status['shop']=True")
     task.sleep(1)
 
-    # 检测最终boss节点：在(0.202,0.656,0.245,0.963)区域内同时检测currentpos和finalboss特征
+    # 检测最终boss节点：综合currentpos特征、finalboss特征和RGB颜色判断
     boss_check_box = task.box_of_screen(0.202, 0.656, 0.245, 0.963)
     currentpos_features = task.find_feature(feature_name="currentpos", box=boss_check_box)
     finalboss_features = task.find_feature(feature_name="finalboss")
-    if currentpos_features and finalboss_features:
+
+    if not currentpos_features:
+        task.log_info("handle_route_selection: 未找到currentpos特征")
+    if not finalboss_features:
+        task.log_info("handle_route_selection: 未找到finalboss特征")
+
+    # RGB颜色判断最终boss：检测(0.892,0.327)和(0.891,0.467)两点的RGB值
+    is_final_boss_rgb = False
+    if task.frame is not None:
+        try:
+            px1, py1 = int(0.892 * task.width), int(0.327 * task.height)
+            px2, py2 = int(0.891 * task.width), int(0.467 * task.height)
+            if 0 <= px1 < task.width and 0 <= py1 < task.height and 0 <= px2 < task.width and 0 <= py2 < task.height:
+                pixel1 = task.frame[py1, px1, :3]  # BGR
+                pixel2 = task.frame[py2, px2, :3]
+                b1, g1, r1 = int(pixel1[0]), int(pixel1[1]), int(pixel1[2])
+                b2, g2, r2 = int(pixel2[0]), int(pixel2[1]), int(pixel2[2])
+                task.log_info(f"handle_route_selection: boss颜色点1 B={b1} G={g1} R={r1} (期望RGB≈(142,26,78), 即B≈78 G≈26 R≈142)")
+                task.log_info(f"handle_route_selection: boss颜色点2 B={b2} G={g2} R={r2} (期望RGB≈(163,45,97), 即B≈97 G≈45 R≈163)")
+                # RGB(142,26,78) → BGR(78,26,142)；RGB(163,45,97) → BGR(97,45,163)
+                if (abs(b1 - 78) <= 15 and abs(g1 - 26) <= 15 and abs(r1 - 142) <= 15 and
+                    abs(b2 - 97) <= 15 and abs(g2 - 45) <= 15 and abs(r2 - 163) <= 15):
+                    is_final_boss_rgb = True
+                    task.log_info("handle_route_selection: RGB颜色判定为最终boss节点")
+        except Exception:
+            pass
+
+    is_boss = (currentpos_features and finalboss_features) or is_final_boss_rgb
+
+    if is_boss:
         task.log_info("检测到最终boss节点，点击进入")
         if hasattr(task, 'node_status'):
             task.node_status['reach_final_boss'] = True
+            task.node_status['node_type'] = "boss"
+
+        # 检查"第几层boss前自动暂停"配置
+        pause_config = _get_config_value(task, '第几层boss前自动暂停', "不暂停")
+        if pause_config != "不暂停":
+            try:
+                pause_layer = int(pause_config)
+                current_layer = task.node_status.get('pass_final_boss_count', 0)
+                if pause_layer - 1 == current_layer:
+                    task.log_info(f"配置在第{pause_layer}层boss前暂停（当前已通过{current_layer}层），暂停工具")
+                    from ok import og
+                    og.executor.pause()
+                    task.sleep(5)
+                    return True
+            except (ValueError, TypeError):
+                pass
+
         task.click(0.815, 0.492)
         task.sleep(4)
-        return True
-    else:
-        if hasattr(task, 'node_status'):
-            if task.node_status.get('reach_final_boss', False) and task.node_status.get('final_boss_battle', False):
-                task.node_status['pass_final_boss_count'] += 1
-                task.log_info(f"最终boss战斗结束，pass_final_boss_count={task.node_status['pass_final_boss_count']}")
-            task.node_status['reach_final_boss'] = False
-            task.node_status['final_boss_battle'] = False
-
-    # 只打第一层：如果配置为True且已通过一次最终boss，则点击退出
-    if hasattr(task, 'node_status') and _get_config_value(task, '只打第一层', False) and task.node_status.get('pass_final_boss_count', 0) >= 1:
-        task.log_info("只打第一层配置为True且已通过最终boss，点击退出")
-        task.click(0.959, 0.053)
-        task.sleep(1)
         return True
 
     node_regions = {
@@ -1207,6 +1286,11 @@ def handle_route_selection(task: TriggerTask):
 
     sorted_nodes = sorted(node_types.items(), key=sort_key)
 
+    # 更新 node_type 为最优先的节点类型
+    if hasattr(task, 'node_status') and sorted_nodes:
+        task.node_status['node_type'] = sorted_nodes[0][1]
+        task.log_info(f"更新 node_type 为「{sorted_nodes[0][1]}」")
+
     for node_key, node_type in sorted_nodes:
         task.log_info(f"点击节点{node_key[-1]} (类型: {node_type})")
         task.click(*click_points[node_key])
@@ -1218,7 +1302,7 @@ def handle_route_selection(task: TriggerTask):
 
 
 def handle_obtain_reward(task: TriggerTask):
-    """获得奖励页面: 点击领取。"""
+    """获得奖励页面: 点击领取。若此时 reach_final_boss 为 True，说明已通关关底boss，过层+1并重置层状态。"""
     box = find_box_at_point(task, 0.924, 0.922)
     if box and _clean_match(box.name, "获得"):
         task.log_info("检测到获得奖励页面，点击领取")
@@ -1412,6 +1496,7 @@ def handle_escape(task: TriggerTask):
     if escape_box and _get_game_text(task, '逃脱') in escape_box.name:
         task.log_info("检测到逃脱页面，点击逃脱")
         task.click_box(escape_box)
+        task.node_status["is_escaped"] = True
         task.sleep(0.5)
         return True
     return False
@@ -1444,33 +1529,79 @@ def handle_expedition_result(task: TriggerTask):
 
     task.log_info("检测到探险结果页面")
     complete_box = find_box_at_point(task, 0.928, 0.122)
+    failed_box = find_box_at_point(task, 0.296, 0.719)
     if hasattr(task, 'node_status'):
         task.node_status['total_rounds'] += 1
     if complete_box and "完成" in complete_box.name:
         if hasattr(task, 'node_status'):
             task.node_status['success_rounds'] += 1
-            task.log_info(f"出击模式探险完成，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
+            task.log_info("出击模式探险结果: 成功")
     elif complete_box and "失败" in complete_box.name:
-        if hasattr(task, 'node_status'):
-            if _get_config_value(task, '只打第一层', False) and task.node_status.get('pass_final_boss_count', 0) >= 1:
-                task.node_status['success_rounds'] += 1
-                task.log_info(f"出击模式成功通关第一层，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
-            else:
-                task.log_info(f"出击模式探险失败，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
+        if not _get_config_value(task, '只打第一层', False):
+            task.log_info("出击模式探险结果: 失败")
+        elif task.node_status.get('pass_final_boss_count', 0) == 0:
+            task.log_info("出击模式探险结果: 失败")
+    elif not complete_box and not failed_box:
+        if _get_config_value(task, '只打第一层', False) and task.node_status.get('pass_final_boss_count', 0) >= 1: # 完成第一层任务
+            task.log_info("卡厄思模式探险结果: 成功")
+        elif not _get_config_value(task, '只打第一层', False) and not task.node_status.get('is_escaped', 0): # 完成了任务且没有逃脱
+            task.node_status['success_rounds'] += 1
+            task.log_info("卡厄思模式探险结果: 成功")
+        else:
+            task.log_info("卡厄思模式探险结果: 失败")
     else:
-        task.log_info("探险结果页面未检测到完成或失败按钮, 当前为卡厄思模式探险结果")
-        if hasattr(task, 'node_status'):
-            complete_box = find_box_at_point(task, 0.323, 0.714)
-            if complete_box and "失败" in complete_box.name:
-                task.log_info(f"卡厄思模式探险失败，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
-            elif _get_config_value(task, '只打第一层', False) and task.node_status.get('pass_final_boss_count', 0) >= 1:
-                task.node_status['success_rounds'] += 1
-                task.log_info(f"卡厄思模式成功通关第一层，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
+        task.log_info("卡厄思模式探险结果: 失败")
+    task.log_info(f"探险完成，成功次数/总次数={task.node_status['success_rounds']}/{task.node_status['total_rounds']}")
     if hasattr(task, 'node_status'):
-        task.node_status['pass_final_boss_count'] = 0
-        task.node_status['reach_final_boss'] = False
-        task.node_status['final_boss_battle'] = False
+        reset_mission_status(task)
     return False
+
+
+def _initial_node_status():
+    """返回 node_status 的初始副本。"""
+    return {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False,
+            "pass_final_boss_count": 0, "total_rounds": 0, "success_rounds": 0,
+            "node_count": 0, "enter_new_node": False, "node_type": "未知", "is_escaped": False}
+
+
+def _finish_only_first_layer(task: TriggerTask) -> bool:
+    """检查并完成只打第一层的退出操作：如果 pass_final_boss_count >= 1 且配置'只打第一层'为 True，则成功次数+1、点击退出并返回 True。"""
+    if hasattr(task, 'node_status') and task.node_status.get('pass_final_boss_count', 0) >= 1 and _get_config_value(task, '只打第一层', False):
+        task.node_status['success_rounds'] += 1
+        task.log_info(f"只打第一层任务已完成，success_rounds + 1 (当前: {task.node_status['success_rounds']}), 退出结算页面")
+        task.click(0.959, 0.051)
+        task.sleep(1)
+        return True
+    return False
+
+
+def reset_all_status(task: TriggerTask):
+    """重置所有状态：将 node_status 恢复为初始值。"""
+    if getattr(task, 'node_status', None) is not None:
+        task.node_status = _initial_node_status()
+
+
+def reset_mission_status(task: TriggerTask):
+    """重置关卡状态：保留 total_rounds 和 success_rounds，其余 node_status 恢复为初始值。"""
+    ns = getattr(task, 'node_status', None)
+    if ns is not None:
+        keep = {'total_rounds': ns.get('total_rounds', 0), 'success_rounds': ns.get('success_rounds', 0)}
+        task.node_status = _initial_node_status()
+        task.node_status['total_rounds'] = keep['total_rounds']
+        task.node_status['success_rounds'] = keep['success_rounds']
+
+
+def reset_layer_status(task: TriggerTask):
+    """重置层状态：保留 pass_final_boss_count、total_rounds 和 success_rounds，其余 node_status 恢复为初始值。"""
+    ns = getattr(task, 'node_status', None)
+    if ns is not None:
+        keep = {'pass_final_boss_count': ns.get('pass_final_boss_count', 0),
+                'total_rounds': ns.get('total_rounds', 0),
+                'success_rounds': ns.get('success_rounds', 0)}
+        task.node_status = _initial_node_status()
+        task.node_status['pass_final_boss_count'] = keep['pass_final_boss_count']
+        task.node_status['total_rounds'] = keep['total_rounds']
+        task.node_status['success_rounds'] = keep['success_rounds']
 
 
 def handle_close_button(task: TriggerTask):

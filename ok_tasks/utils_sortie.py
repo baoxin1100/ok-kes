@@ -20,7 +20,9 @@ from utils import (
     is_frame_stuck, handle_stuck_log, is_button_active, _clean_match,
     handle_shop, handle_expedition_result,
     handle_escape,
-    _get_current_credit
+    _get_current_credit,
+    # handle_stage_clear,
+    _finish_only_first_layer,
 )
 
 import re
@@ -174,9 +176,20 @@ def _hand_cards(task: TriggerTask):
 
 
 def _try_all_card_keys(task: TriggerTask, count):
-    """从当前手牌数向下尝试所有手牌按键，兜底处理按键漏识别或识别错误。"""
-    task.log_info(f"_try_all_card_keys: 手牌数={count}，发送按键 {min(count, 9)} 到 1")
-    for index in range(min(count, 9), 0, -1):
+    """从当前手牌数向下尝试所有手牌按键，兜底处理按键漏识别或识别错误。
+    手牌数为10时先发送0（对应第10张牌），再从9发送到1。"""
+    task.log_info(f"_try_all_card_keys: 手牌数={count}")
+    if count == 10:
+        task.log_info("手牌数为10，先发送按键0")
+        task.send_key("0")
+        task.sleep(0.5)
+        task.send_key("enter")
+        task.sleep(1)
+        start = 9
+    else:
+        start = min(count, 9)
+    task.log_info(f"_try_all_card_keys: 发送按键 {start} 到 1")
+    for index in range(start, 0, -1):
         task.send_key(str(index))
         task.sleep(0.5)
         task.send_key("enter")
@@ -533,9 +546,7 @@ def handle_sortie_reward_settlement(task: TriggerTask):
         task.sleep(1)
         return True
     task.log_info("检测到出击模式奖励结算页面，关闭页面")
-    # task.click(0.959, 0.057)
-    # task.sleep(1)
-    return False
+    return _finish_only_first_layer(task) if not task.node_status.get('is_escaped', False) else False
 
 
 def handle_sortie_reward_claim(task: TriggerTask):
@@ -907,6 +918,8 @@ def handle_rest_sortie(task: TriggerTask):
 
 # 出击模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
+    handle_route_selection,
+    # handle_stage_clear,
     log_credit,
     log_node_status,
     handle_stuck_log,
@@ -963,7 +976,6 @@ PAGE_HANDLERS = [
     handle_member_selection,
     handle_battle_member_config,
     handle_enter,
-    handle_route_selection,
     handle_obtain_reward,
     handle_view_original,
     handle_skip,

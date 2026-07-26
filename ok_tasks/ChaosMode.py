@@ -4,6 +4,7 @@ import utils_chaos
 from opencc import OpenCC
 from config_io import make_export_callback, make_import_callback
 from config_sync import check_upload_if_needed, show_hot_configs_dialog
+from utils import reset_all_status, _migrate_route_boss_to_elite
 
 _cc = OpenCC('t2s')  # 繁转简，用于OCR文本统一转换
 
@@ -39,22 +40,27 @@ class ChaosMode(TriggerTask):
         self.default_config['只打第一层'] = False
         self.default_config['卡牌奖励优先级'] = ["梦之边境"]
         self.default_config['跳过非优先级卡牌'] = True
-        self.default_config['路线优先级'] = ["休息", "事件", "小怪", "boss"]
-        self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, "total_rounds": 0, "success_rounds": 0}
+        self.default_config['路线优先级'] = ["休息", "事件", "小怪", "精英"]
+        self.default_config['第几层boss前自动暂停'] = "不暂停"
+        self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, 
+                            "total_rounds": 0, "success_rounds": 0, "node_count": 0, "enter_new_node": False, "node_type": "未知", "is_escaped": False}
 
         self._last_upload_time = 0
         self.config_type = {
             'export_config': {'type': 'button', 'text': '导出配置', 'callback': make_export_callback(self)},
             'import_config': {'type': 'button', 'text': '导入配置', 'callback': make_import_callback(self)},
             'hottest_config': {'type': 'button', 'text': '热门配置', 'callback': self._show_hot_configs},
+            '第几层boss前自动暂停': {'type': 'drop_down', 'options': ['不暂停', '1', '2']},
         }
 
     def enable(self):
-        """开启卡厄思模式时自动禁用出击模式。"""
+        """开启卡厄思模式时自动禁用出击模式，重置状态并迁移配置。"""
         from SortieMode import SortieMode
         sortie = og.executor.get_task_by_class(SortieMode)
         if sortie and sortie.enabled:
             sortie.disable()
+        reset_all_status(self)
+        _migrate_route_boss_to_elite(self)
         super().enable()
 
     def _ocr_and_simplify(self):

@@ -1,7 +1,7 @@
 from ok import TriggerTask
 
 from utils import (
-    _simplify_texts, _get_config_value, _get_card_list, _get_route_priority, _get_game_text, _get_region_text,
+    _simplify_texts, _get_config_value, _get_card_list, _get_route_priority, _get_game_text, _get_region_text, _finish_only_first_layer,
     find_box_at_point, find_text, find_exact_text,
     _card_has_type_below, select_card, identify_node_type,
     log_credit, log_node_status, handle_battle_crash, handle_close_page,
@@ -21,6 +21,7 @@ from utils import (
     is_button_active, _clean_match,
     handle_shop,
     handle_escape,
+    # handle_stage_clear,
 )
 
 import re
@@ -495,7 +496,8 @@ def handle_chaos_reward_claim(task: TriggerTask):
 
 def handle_chaos_reward_settlement(task: TriggerTask):
     """卡厄思奖励结算页面: 如果0.552,0.067处包含"结算"，则为卡厄思奖励结算页面。
-    如果0.851,0.389处包含"获得"且当前战利品验证卡>0，则点击获得按钮。"""
+    如果0.851,0.389处包含"获得"且当前战利品验证卡>0，则点击获得按钮。
+    如果领取奖励关闭且只打第一层完成，则退出结算页面。"""
     title_box = find_box_at_point(task, 0.552, 0.067)
     if not (title_box and "结算" in title_box.name):
         return False
@@ -503,14 +505,14 @@ def handle_chaos_reward_settlement(task: TriggerTask):
     task.log_info("检测到卡厄思奖励结算页面")
 
     if not _get_config_value(task, '领取奖励(只使用验证卡)', False):
-        task.log_info("领取奖励(只使用验证卡)配置为False，跳过")
-        return False
+        task.log_info("领取奖励(只使用验证卡)配置为False")
+        return False if task.node_status.get('is_escaped', False) else _finish_only_first_layer(task)
 
     # 检查0.851,0.389处是否有"获得"按钮
     reward_box = find_box_at_point(task, 0.851, 0.389)
     if not (reward_box and "获得" in reward_box.name):
-        task.log_info("未检测到获得按钮，跳过")
-        return False
+        task.log_info("未检测到获得按钮")
+        return False if task.node_status.get('is_escaped', False) else _finish_only_first_layer(task)
 
     task.log_info("检测到获得按钮，点击获得")
     task.click_box(reward_box)
@@ -520,6 +522,8 @@ def handle_chaos_reward_settlement(task: TriggerTask):
 
 # 卡厄思模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
+    handle_route_selection,
+    # handle_stage_clear,
     log_credit,
     log_node_status,
     handle_stuck_log, #画面卡住检测，仅输出日志
@@ -569,7 +573,6 @@ PAGE_HANDLERS = [
     handle_chaos_reward_claim, #卡厄思模式奖励领取页面
     handle_continue,
     handle_enter,
-    handle_route_selection,
     handle_obtain_reward,
     handle_view_original,
     handle_trauma_center,
