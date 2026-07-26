@@ -37,6 +37,8 @@ class ChaosMode(TriggerTask):
         self.default_config['指定面具卡牌'] = "丢弃最多2张卡牌"
         self.default_config['面具卡牌刻印'] = "自身攻击卡牌伤害总量提升30%"
         self.default_config['只打第一层'] = False
+        self.default_config['卡牌奖励优先级'] = ["梦之边境"]
+        self.default_config['跳过非优先级卡牌'] = True
         self.default_config['路线优先级'] = ["休息", "事件", "小怪", "boss"]
         self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, "total_rounds": 0, "success_rounds": 0}
 

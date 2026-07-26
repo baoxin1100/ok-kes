@@ -697,6 +697,12 @@ def handle_card_reward(task: TriggerTask):
             break
 
     if chosen_card is None and cards:
+        # 检查"跳过非优先级卡牌"配置
+        if _get_config_value(task, '跳过非优先级卡牌', True):
+            task.log_info("未命中优先级卡牌，跳过非优先级卡牌")
+            task.click(0.745, 0.933)
+            task.sleep(0.5)
+            return True
         chosen_card = random.choice(cards)
         task.log_info(f"未命中优先级，随机选择卡牌: {chosen_card.name}")
 
