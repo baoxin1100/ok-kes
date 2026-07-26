@@ -23,6 +23,7 @@ from utils import (
     _get_current_credit,
     # handle_stage_clear,
     _finish_only_first_layer,
+    handle_auto_stop,
 )
 
 import re
@@ -918,6 +919,7 @@ def handle_rest_sortie(task: TriggerTask):
 
 # 出击模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
+    handle_auto_stop,
     handle_route_selection,
     # handle_stage_clear,
     log_credit,

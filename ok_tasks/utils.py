@@ -566,6 +566,19 @@ def handle_stuck_log(task: TriggerTask):
 # ------------------------- 页面处理函数（通用） -------------------------
 # 约定: 每个函数处理一种页面, 处理成功返回 True, 未命中返回 False。
 
+def handle_auto_stop(task: TriggerTask):
+    """自动停止功能: 如果配置"几轮后停止(0为不停止)"不为0，
+    且 node_status 中的 total_rounds 达到配置轮数，则自动 disable 当前任务。"""
+    stop_rounds = _get_config_value(task, '几轮后停止(0为不停止)', 0)
+    if stop_rounds and stop_rounds != 0:
+        ns = getattr(task, 'node_status', None)
+        if ns and ns.get('total_rounds', 0) >= stop_rounds:
+            task.log_info(f"已达到配置的停止轮数 {stop_rounds}，当前 total_rounds={ns['total_rounds']}，自动停止任务")
+            task.disable()
+            return True
+    return False
+
+
 def log_credit(task: TriggerTask):
     """记录当前信用点数量（仅记录, 不拦截后续处理）。"""
     credit = _get_current_credit(task)

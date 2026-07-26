@@ -22,6 +22,7 @@ from utils import (
     handle_shop,
     handle_escape,
     # handle_stage_clear,
+    handle_auto_stop,
 )
 
 import re
@@ -522,6 +523,7 @@ def handle_chaos_reward_settlement(task: TriggerTask):
 
 # 卡厄思模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
+    handle_auto_stop,
     handle_route_selection,
     # handle_stage_clear,
     log_credit,

@@ -38,6 +38,7 @@ class SortieMode(TriggerTask):
         self.default_config["优先移除基础牌"] = True
         self.default_config["生命值大于多少优先闪光(百分比)"] = "60"
         self.default_config["只打第一层"] = True
+        self.default_config["几轮后停止(0为不停止)"] = 0
         self.default_config["第几层boss前自动暂停"] = "不暂停"
         # self.default_config["从右往左出牌"] = True
         self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, 
