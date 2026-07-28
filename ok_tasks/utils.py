@@ -1044,7 +1044,7 @@ def handle_enter(task: TriggerTask):
     if box:
         task.log_info("检测到进入按钮，点击进入")
         task.click_box(box)
-        reset_layer_status(task)
+        reset_mission_status(task)
         task.sleep(1)
         return True
     return False
