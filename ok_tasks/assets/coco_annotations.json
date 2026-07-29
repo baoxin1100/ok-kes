@@ -83,6 +83,12 @@
             "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 70,
+            "file_name": "images/1.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -319,6 +325,32 @@
             ],
             "area": 5609,
             "iscrowd": 0
+        },
+        {
+            "id": 19,
+            "image_id": 9,
+            "category_id": 20,
+            "bbox": [
+                1671,
+                41,
+                36,
+                35
+            ],
+            "area": 1260,
+            "iscrowd": 0
+        },
+        {
+            "id": 20,
+            "image_id": 70,
+            "category_id": 19,
+            "bbox": [
+                1051,
+                477,
+                59,
+                63
+            ],
+            "area": 3717,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -410,6 +442,16 @@
         {
             "id": 18,
             "name": "copymemberconfirm",
+            "supercategory": ""
+        },
+        {
+            "id": 19,
+            "name": "check",
+            "supercategory": ""
+        },
+        {
+            "id": 20,
+            "name": "autochatenable",
             "supercategory": ""
         }
     ]

@@ -12,6 +12,29 @@ from utils_chaos import handle_battle_auto_check
 
 # ------------------------- 页面处理函数 -------------------------
 
+def handle_auto_chat(task: TriggerTask):
+    """自动对话检查: autochatenable置信度低于0.96时点击开启。"""
+    search_box = task.box_of_screen(0.655, 0.007, 0.996, 0.097)
+    auto_chat = task.find_one(feature_name="autochatenable", box=search_box)
+    if auto_chat and auto_chat.confidence < 0.96:
+        task.log_info(f"自动对话未开启，当前匹配置信度: {auto_chat.confidence:.2%}，点击开启")
+        task.click_box(auto_chat)
+        return True
+    return False
+
+
+def handle_view_event(task: TriggerTask):
+    """查看事件页面: 在指定区域检测check特征并点击。"""
+    search_box = task.box_of_screen(0.084, 0.125, 0.995, 0.875)
+    check_box = task.find_one(feature_name="check", box=search_box)
+    if check_box:
+        task.log_info("检测到查看事件，点击check特征")
+        task.click_box(check_box)
+        task.sleep(0.5)
+        return True
+    return False
+
+
 # def handle_team_config(task: TriggerTask):
 #     """队伍配置页面: 检测(0.122,0.047)处'配置队伍'文本，选择空槽位补充角色。"""
 #     title_box = find_box_at_point(task, 0.122, 0.047)
@@ -45,30 +68,24 @@ def handle_enter_stage(task: TriggerTask):
     return False
 
 
-def handle_enter_story(task: TriggerTask):
-    """可进入故事模式页面: 在指定区域内检测enterstory特征。"""
-    box = task.box_of_screen(0.085, 0.124, 0.995, 0.874)
-    boxes = task.find_feature(feature_name="enterstory", box=box)
-    if boxes:
-        task.log_info("检测到可进入故事模式，点击进入")
-        task.click_box(boxes[0])
+def handle_enter_story_or_battle(task: TriggerTask):
+    """故事/战斗入口页面: 点击最左侧的enterstory或enterbattle特征。"""
+    search_box = task.box_of_screen(0.085, 0.124, 0.995, 0.874)
+    story_boxes = task.find_feature(feature_name="enterstory", box=search_box)
+    battle_boxes = task.find_feature(feature_name="enterbattle", box=search_box, threshold=0.85)
+    candidates = [
+        *((box, "故事") for box in story_boxes),
+        *((box, "战斗") for box in battle_boxes),
+    ]
+    if candidates:
+        chosen_box, entrance_type = min(candidates, key=lambda item: item[0].x)
+        task.log_info(
+            f"检测到{entrance_type}入口，点击最左侧特征"
+            f"（x={chosen_box.x}, confidence={chosen_box.confidence:.2f}）"
+        )
+        task.click_box(chosen_box)
         task.sleep(2)
         return True
-    return False
-
-
-def handle_enter_battle(task: TriggerTask):
-    """可进入战斗模式页面: 在指定区域内检测enterbattle特征。"""
-    box = task.box_of_screen(0.085, 0.124, 0.995, 0.874)
-    boxes = task.find_feature(feature_name="enterbattle", box=box, threshold=0.85)
-    if boxes:
-        for i, b in enumerate(boxes):
-            task.log_info(f"  enterbattle匹配[{i}]: confidence={b.confidence:.4f}")
-        task.log_info(f"检测到可进入战斗模式，点击进入（最高置信度={boxes[0].confidence:.2f}）")
-        task.click_box(boxes[0])
-        task.sleep(2)
-        return True
-    task.log_info("未检测到enterbattle特征")
     return False
 
 
@@ -100,13 +117,14 @@ def handle_observe(task: TriggerTask):
 # 剧情模式页面处理函数列表（按优先级排序）
 PAGE_HANDLERS = [
     # handle_team_config,  #队伍配置（最高优先级）
+    handle_skip_story,  #跳过剧情（最高优先级）
+    handle_auto_chat,  #自动对话检查
+    handle_view_event,  #查看事件
     handle_confirm,  #确认按钮
     handle_enter,  #进入按钮
     handle_enter_stage,  #入场按钮
     handle_close_page,  #点击屏幕关闭页面
-    handle_enter_story,
-    handle_enter_battle,
-    handle_skip_story,
+    handle_enter_story_or_battle,
     handle_observe,  #观测卡厄思关卡
     handle_next_step,
     handle_battle_auto_check,  #自动战斗检测
