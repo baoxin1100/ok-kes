@@ -1260,12 +1260,6 @@ def handle_equipment_recast(task: TriggerTask):
 
 def handle_event_task(task: TriggerTask):
     """事件任务页面: 识别标题+描述区域，按任务优先级匹配描述选择推进。"""
-    esc_box = task.box_of_screen(0.909, 0.003, 0.998, 0.139)
-    esc_feature = task.find_one(feature_name="esc", box=esc_box)
-    if not esc_feature:
-        return False
-    task.log_info(f"检测到esc特征，匹配相似度: {esc_feature.confidence:.2%}")
-
     rewards = task.find_feature(feature_name="taskreward")
     if rewards:
         reward = rewards[0]
@@ -1275,6 +1269,10 @@ def handle_event_task(task: TriggerTask):
             task.log_info("检测到任务奖励图标，优先点击")
             task.click_box(reward)
             return True
+
+    bottom_box = find_box_at_point(task, 0.516, 0.971)
+    if bottom_box and re.search(r'\d+/\d+', bottom_box.name):
+        return False
 
     task_open_box = task.box_of_screen(0.116, 0.899, 0.888, 0.994)
     task_open_boxes = task.find_feature(feature_name="taskopen", box=task_open_box)
