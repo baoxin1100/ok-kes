@@ -28,6 +28,9 @@ class ChaosMode(TriggerTask):
         self.default_config['移除卡牌列表'] = ["剑幕", "剑光", "水之伞", "海潮的庇护", "作战分析"]
         self.default_config['闪光卡牌列表'] = ["展开极光", "剑雨", "缕光芒", "一缕光芒", "万众英雄"]
         self.default_config['复制卡牌列表'] = ["展开极光", "剑雨", "缕光芒", "一缕光芒", "万众英雄"]
+        self.default_config['装备1号位优先级'] = ["蚀化臂铠"]
+        self.default_config['装备2号位优先级'] = ["拷问工具箱"]
+        self.default_config['装备3号位优先级'] = ["异象石碑"]
         # 路线节点优先级 (列表), 越靠前优先级越高
         self.default_config['优先使用金币治疗'] = True
         self.default_config['治疗崩溃'] = True
@@ -44,7 +47,9 @@ class ChaosMode(TriggerTask):
         self.default_config['几轮后停止(0为不停止)'] = 0
         self.default_config['第几层boss前自动暂停'] = "不暂停"
         self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, 
-                            "total_rounds": 0, "success_rounds": 0, "node_count": 0, "enter_new_node": False, "node_type": "未知", "is_escaped": False}
+                            "total_rounds": 0, "success_rounds": 0, "node_count": 0, "enter_new_node": False, "node_type": "未知",
+                            "is_escaped": False}
+        self.member_status = {"equipment": {}, "deck": {}}
 
         self._last_upload_time = 0
         self.config_type = {

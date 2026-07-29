@@ -29,6 +29,12 @@ def _edit_distance(s1, s2, max_dist=1):
     return prev[n] <= max_dist
 
 
+def is_subsequence(first: str, second: str) -> bool:
+    """判断第一个字符串是否为第二个字符串的子序列。"""
+    second_iter = iter(second)
+    return all(char in second_iter for char in first)
+
+
 def _simplify_texts(texts):
     """将OCR结果的文本批量转换为简体（原地修改）。"""
     for b in texts:
@@ -134,6 +140,23 @@ def _get_current_credit(task: TriggerTask):
             if val > credit:
                 credit = val
     return credit
+
+
+def _get_current_hp_percent(task: TriggerTask):
+    """读取当前生命值百分比，无法识别时返回 False。"""
+    hp_box = find_box_at_point(task, 0.209, 0.040)
+    if not hp_box:
+        return False
+    hp_match = re.search(r'(\d+)/(\d+)', hp_box.name)
+    if not hp_match:
+        return False
+    current_hp = int(hp_match.group(1))
+    max_hp = int(hp_match.group(2))
+    if max_hp <= 0:
+        return False
+    hp_percent = int(current_hp * 100 / max_hp)
+    task.log_info(f"当前生命值: {current_hp}/{max_hp} = {hp_percent}%")
+    return hp_percent
 
 
 def find_box_at_point(task: TriggerTask, rel_x, rel_y):
@@ -635,6 +658,17 @@ def handle_close_page(task: TriggerTask):
     return False
 
 
+def handle_refine_equipment_credit(task: TriggerTask):
+    """提炼装备信用点页面：点击“以信用点接收”。"""
+    box = find_box_at_point(task, 0.598, 0.635)
+    if box and "以信用点接收" in box.name:
+        task.log_info("检测到提炼装备信用点页面，点击以信用点接收")
+        task.click_box(box)
+        task.sleep(0.5)
+        return True
+    return False
+
+
 def handle_center_confirm(task: TriggerTask):
     """页面中央的"确认"按钮。"""
     box = find_box_at_point(task, 0.667, 0.632)
@@ -769,41 +803,205 @@ def handle_card_reward(task: TriggerTask):
     return False
 
 
+_EQUIPMENT_TYPE_SLOTS = {"攻击力": 0, "防御力": 1, "生命值": 2}
+
+
+def _equipment_slot(type_text):
+    """根据装备类型文本返回 equipment 下标，无法识别时返回 None。"""
+    return next((slot for equipment_type, slot in _EQUIPMENT_TYPE_SLOTS.items()
+                 if equipment_type in type_text), None)
+
+
+def _equipment_priority(task: TriggerTask, slot):
+    """读取指定装备位的优先级配置。"""
+    priority = _get_config_value(task, f"装备{slot + 1}号位优先级", [])
+    return list(priority) if isinstance(priority, (list, tuple)) else []
+
+
+def _match_equipment_name(ocr_name, priority):
+    """用双向包含匹配装备名，返回配置中的标准名称及优先级下标。"""
+    for index, config_name in enumerate(priority):
+        if ocr_name in config_name or config_name in ocr_name:
+            return config_name, index
+    return None, None
+
+
+def _equipment_rank(name, priority):
+    """返回已记录装备的优先级下标，未命中配置时排在配置装备之后。"""
+    _, rank = _match_equipment_name(name, priority)
+    return rank if rank is not None else len(priority)
+
+
+def _equipment_state(task: TriggerTask):
+    """获取并修正第一主战员的装备状态字典。"""
+    member_status = getattr(task, "member_status", None)
+    if not isinstance(member_status, dict):
+        member_status = _initial_member_status()
+        task.member_status = member_status
+    equipment = member_status.setdefault("equipment", {})
+    if not isinstance(equipment, dict):
+        equipment = {}
+        member_status["equipment"] = equipment
+    if not isinstance(member_status.get("deck"), dict):
+        member_status["deck"] = {}
+    return equipment
+
+
+def _current_equipment_for_slot(task: TriggerTask, equipment, slot):
+    """按指定槽位优先级，从装备字典中找出当前装备名称及优先级。"""
+    priority = _equipment_priority(task, slot)
+    matches = []
+    for equipment_name in equipment:
+        canonical_name, rank = _match_equipment_name(equipment_name, priority)
+        if rank is not None:
+            matches.append((rank, canonical_name))
+    if not matches:
+        return "", len(priority)
+    rank, equipment_name = min(matches, key=lambda item: item[0])
+    return equipment_name, rank
+
+
+def _equipment_info(task: TriggerTask, name_point, type_point):
+    """从指定坐标读取装备名称、槽位和配置中的标准名称。"""
+    name_box = find_box_at_point(task, *name_point)
+    type_box = find_box_at_point(task, *type_point)
+    if not name_box or not type_box:
+        return None
+    slot = _equipment_slot(type_box.name)
+    if slot is None:
+        return None
+    priority = _equipment_priority(task, slot)
+    canonical_name, rank = _match_equipment_name(name_box.name, priority)
+    return {
+        "ocr_name": name_box.name,
+        "name": canonical_name or name_box.name,
+        "slot": slot,
+        "priority": priority,
+        "rank": rank,
+    }
+
+
 def handle_equipment(task: TriggerTask):
-    """装备选择/安装界面: 区分安装装备和选择装备。"""
-    box = find_box_at_point(task, 0.499, 0.126)
-    if box and box.name == "装备":
-        task.log_info("检测到装备页面")
-        # 判断是否为安装装备界面（选择主战员）
-        equip_hint = find_box_at_point(task, 0.921, 0.135)
-        if equip_hint and _get_game_text(task, '请选择主战员') in equip_hint.name:
-            task.log_info("检测到安装装备界面，随机选择主战员")
-            px1, py1 = int(0.609 * task.width), int(0.290 * task.height)
-            px2, py2 = int(0.652 * task.width), int(0.789 * task.height)
-            lv_texts = sorted(
-                [b for b in task.all_texts
-                 if b.x >= px1 and b.y >= py1 and b.x + b.width <= px2 and b.y + b.height <= py2
-                 and b.name in "等级"],
-                key=lambda b: b.y
+    """装备选择/安装界面: 按装备位优先级选择，并维护第一主战员的装备状态。"""
+    title = find_box_at_point(task, 0.499, 0.126)
+    if not (title and title.name == "装备"):
+        return False
+
+    task.log_info("检测到装备页面")
+    equipment = _equipment_state(task)
+    equip_hint = find_box_at_point(task, 0.921, 0.135)
+
+    if equip_hint and _get_game_text(task, '请选择主战员') in equip_hint.name:
+        task.log_info("检测到安装装备界面")
+        new_equipment = _equipment_info(task, (0.245, 0.412), (0.217, 0.464))
+        if not new_equipment:
+            task.log_info("未能识别待安装装备的名称或类型")
+            return False
+        equipment_desc = _get_region_text(task, (0.179, 0.492, 0.542, 0.668))
+        task.log_info(f"待安装装备描述: 「{equipment_desc}」")
+
+        slot = new_equipment["slot"]
+        current_name, current_rank = _current_equipment_for_slot(task, equipment, slot)
+        new_rank = new_equipment["rank"]
+        should_install_first = not current_name or (
+            new_rank is not None and new_rank < current_rank
+        )
+
+        px1, py1 = int(0.609 * task.width), int(0.290 * task.height)
+        px2, py2 = int(0.652 * task.width), int(0.789 * task.height)
+        lv_texts = sorted(
+            [b for b in task.all_texts
+             if b.x >= px1 and b.y >= py1 and b.x + b.width <= px2 and b.y + b.height <= py2
+             and "等级" in b.name],
+            key=lambda b: b.y
+        )
+
+        if should_install_first and lv_texts:
+            chosen = lv_texts[0]
+            if current_name:
+                equipment.pop(current_name, None)
+            equipment[new_equipment["name"]] = equipment_desc
+            task.log_info(
+                f"{slot + 1}号位装备「{new_equipment['name']}」优于当前装备「{current_name}」，安装给第一主战员"
             )
-            if lv_texts:
-                chosen = random.choice(lv_texts)
-                task.log_info(f"随机选择主战员: 位置 y={chosen.y}")
-                task.click(0.756, (chosen.y + chosen.height / 2) / task.height)
-                task.sleep(1)
-                # task.click(0.884, 0.931)
-                # task.sleep(2)
-                return False
-            task.log_info("未找到主战员等级信息")
-            return False
-        else:
-            task.log_info("检测到选择装备界面，随机点击装备")
-            chosen = random.choice([(0.518, 0.454), (0.521, 0.600)])
-            task.click(*chosen)
+            task.click(0.756, (chosen.y + chosen.height / 2) / task.height)
             task.sleep(1)
-            # task.click(0.919, 0.931)
-            # task.sleep(1)
             return False
+
+        if len(lv_texts) > 1:
+            chosen = random.choice(lv_texts[1:])
+            task.log_info(
+                f"{slot + 1}号位已有更高或相同优先级装备「{current_name}」，随机安装给其他主战员"
+            )
+            task.click(0.756, (chosen.y + chosen.height / 2) / task.height)
+            task.sleep(1)
+            return False
+
+        refine_box = next(
+            (b for b in task.all_texts
+             if 0.522 <= (b.x + b.width / 2) / task.width <= 0.999
+             and 0.879 <= (b.y + b.height / 2) / task.height <= 0.996
+             and "提炼" in b.name),
+            None
+        )
+        if refine_box:
+            task.log_info(f"{slot + 1}号位无需替换且没有其他主战员可选，点击提炼")
+            task.click_box(refine_box)
+            task.sleep(1)
+            return True
+
+        task.log_info("未找到可选择的主战员或提炼按钮")
+        return False
+
+    candidates = []
+    candidate_specs = [
+        ((0.452, 0.246), (0.412, 0.297), (0.518, 0.454)),
+        ((0.448, 0.578), (0.412, 0.633), (0.521, 0.600)),
+    ]
+    for name_point, type_point, click_position in candidate_specs:
+        candidate = _equipment_info(task, name_point, type_point)
+        if candidate:
+            candidate["click_position"] = click_position
+            candidates.append(candidate)
+    task.log_info(
+        f"检测到选择装备界面，候选装备: "
+        f"{[(candidate['ocr_name'], candidate['slot'] + 1) for candidate in candidates]}"
+    )
+
+    chosen_index = None
+    for slot in range(3):
+        current_name, current_rank = _current_equipment_for_slot(task, equipment, slot)
+        for index, candidate in enumerate(candidates):
+            if candidate["slot"] != slot or candidate["rank"] is None:
+                continue
+            if not current_name or candidate["rank"] < current_rank:
+                chosen_index = index
+                task.log_info(
+                    f"优先选择{slot + 1}号位装备「{candidate['name']}」，当前装备「{current_name}」"
+                )
+                break
+        if chosen_index is not None:
+            break
+
+    if chosen_index is None:
+        empty_slot_candidates = [
+            candidate for candidate in candidates
+            if not _current_equipment_for_slot(task, equipment, candidate["slot"])[0]
+        ]
+        if empty_slot_candidates:
+            chosen_candidate = random.choice(empty_slot_candidates)
+            click_position = chosen_candidate["click_position"]
+            task.log_info(
+                f"候选装备均未命中升级条件，优先选择空缺的"
+                f"{chosen_candidate['slot'] + 1}号位装备「{chosen_candidate['ocr_name']}」"
+            )
+        else:
+            task.log_info("候选装备均未命中升级条件且对应位置均非空，随机选择一个装备")
+            click_position = random.choice([spec[2] for spec in candidate_specs])
+    else:
+        click_position = candidates[chosen_index]["click_position"]
+    task.click(*click_position)
+    task.sleep(1)
     return False
 
 
@@ -1062,6 +1260,12 @@ def handle_equipment_recast(task: TriggerTask):
 
 def handle_event_task(task: TriggerTask):
     """事件任务页面: 识别标题+描述区域，按任务优先级匹配描述选择推进。"""
+    esc_box = task.box_of_screen(0.909, 0.003, 0.998, 0.139)
+    esc_feature = task.find_one(feature_name="esc", box=esc_box)
+    if not esc_feature:
+        return False
+    task.log_info(f"检测到esc特征，匹配相似度: {esc_feature.confidence:.2%}")
+
     rewards = task.find_feature(feature_name="taskreward")
     if rewards:
         reward = rewards[0]
@@ -1072,11 +1276,8 @@ def handle_event_task(task: TriggerTask):
             task.click_box(reward)
             return True
 
-    bottom_box = find_box_at_point(task, 0.516, 0.971)
-    if bottom_box and re.search(r'\d+/\d+', bottom_box.name):
-        return False
-
-    task_open_boxes = task.find_feature(feature_name="taskopen")
+    task_open_box = task.box_of_screen(0.116, 0.899, 0.888, 0.994)
+    task_open_boxes = task.find_feature(feature_name="taskopen", box=task_open_box)
     if task_open_boxes:
         task.log_info("检测到taskopen特征，点击打开任务")
         task.click_box(task_open_boxes[0])
@@ -1495,7 +1696,7 @@ def handle_view_original(task: TriggerTask):
             if card_name not in card['name']:
                 continue
             for desc_keyword in priority_descs:
-                if any(desc_keyword in d for d in card['descs']):
+                if any(is_subsequence(desc_keyword, d) for d in card['descs']):
                     chosen_card = card
                     task.log_info(f"优先选择「{card['name']}」({desc_keyword})")
                     break
@@ -1586,6 +1787,11 @@ def _initial_node_status():
             "node_count": 0, "enter_new_node": False, "node_type": "未知", "is_escaped": False}
 
 
+def _initial_member_status():
+    """返回第一主战员状态的初始副本。"""
+    return {"equipment": {}, "deck": {}}
+
+
 def _finish_only_first_layer(task: TriggerTask) -> bool:
     """检查并完成只打第一层的退出操作：如果 pass_final_boss_count >= 1 且配置'只打第一层'为 True，则成功次数+1、点击退出并返回 True。"""
     if hasattr(task, 'node_status') and task.node_status.get('pass_final_boss_count', 0) >= 1 and _get_config_value(task, '只打第一层', False):
@@ -1598,23 +1804,25 @@ def _finish_only_first_layer(task: TriggerTask) -> bool:
 
 
 def reset_all_status(task: TriggerTask):
-    """重置所有状态：将 node_status 恢复为初始值。"""
+    """重置所有状态：恢复节点状态和第一主战员状态。"""
     if getattr(task, 'node_status', None) is not None:
         task.node_status = _initial_node_status()
+    task.member_status = _initial_member_status()
 
 
 def reset_mission_status(task: TriggerTask):
-    """重置关卡状态：保留 total_rounds 和 success_rounds，其余 node_status 恢复为初始值。"""
+    """重置任务状态：保留任务统计，重置节点状态和第一主战员状态。"""
     ns = getattr(task, 'node_status', None)
     if ns is not None:
         keep = {'total_rounds': ns.get('total_rounds', 0), 'success_rounds': ns.get('success_rounds', 0)}
         task.node_status = _initial_node_status()
         task.node_status['total_rounds'] = keep['total_rounds']
         task.node_status['success_rounds'] = keep['success_rounds']
+    task.member_status = _initial_member_status()
 
 
 def reset_layer_status(task: TriggerTask):
-    """重置层状态：保留 pass_final_boss_count、total_rounds 和 success_rounds，其余 node_status 恢复为初始值。"""
+    """重置层状态：保留通关计数和任务统计，第一主战员状态不受影响。"""
     ns = getattr(task, 'node_status', None)
     if ns is not None:
         keep = {'pass_final_boss_count': ns.get('pass_final_boss_count', 0),

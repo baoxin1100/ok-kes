@@ -4,7 +4,7 @@ from utils import (
     _simplify_texts, _get_config_value, _get_card_list, _get_route_priority, _get_game_text, _get_region_text, _finish_only_first_layer,
     find_box_at_point, find_text, find_exact_text,
     _card_has_type_below, select_card, identify_node_type,
-    log_credit, log_node_status, handle_battle_crash, handle_close_page,
+    log_credit, log_node_status, handle_battle_crash, handle_close_page, handle_refine_equipment_credit,
     handle_center_confirm, handle_settlement, handle_skip,
     handle_destiny_choice, handle_main_member_flash,
     handle_card_reward, handle_equipment,
@@ -530,6 +530,7 @@ PAGE_HANDLERS = [
     log_node_status,
     handle_stuck_log, #画面卡住检测，仅输出日志
 
+    handle_refine_equipment_credit, #提炼装备信用点页面，优先于确认按钮
     handle_center_confirm, #页面中央确认按钮
     handle_chaos_mask_engraving, #面具卡牌刻印获取页面
     handle_equipment, #装备选择

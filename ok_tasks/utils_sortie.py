@@ -4,7 +4,7 @@ from utils import (
     _simplify_texts, _edit_distance, _get_config_value, _get_card_list, _get_route_priority, _get_game_text,
     find_box_at_point, find_text, find_exact_text,
     _card_has_type_below, select_card, identify_node_type, calculate_dominant_hue,
-    log_credit, log_node_status, handle_battle_crash, handle_close_page,
+    log_credit, log_node_status, handle_battle_crash, handle_close_page, handle_refine_equipment_credit,
     handle_center_confirm, handle_settlement, handle_skip,
     handle_destiny_choice, handle_main_member_flash,
     handle_card_reward, handle_equipment,
@@ -20,7 +20,7 @@ from utils import (
     is_frame_stuck, handle_stuck_log, is_button_active, _clean_match,
     handle_shop, handle_expedition_result,
     handle_escape,
-    _get_current_credit,
+    _get_current_credit, _get_current_hp_percent,
     # handle_stage_clear,
     _finish_only_first_layer,
     handle_auto_stop,
@@ -858,17 +858,10 @@ def handle_rest_sortie(task: TriggerTask):
         credit = _get_current_credit(task)
         task.log_info(f"当前信用点: {credit}")
 
-        # 获取当前生命值百分比
-        hp_percent = 100
-        hp_box = find_box_at_point(task, 0.209, 0.040)
-        if hp_box:
-            hp_match = re.search(r'(\d+)/(\d+)', hp_box.name)
-            if hp_match:
-                current_hp = int(hp_match.group(1))
-                max_hp = int(hp_match.group(2))
-                if max_hp > 0:
-                    hp_percent = int(current_hp * 100 / max_hp)
-                    task.log_info(f"当前生命值: {current_hp}/{max_hp} = {hp_percent}%")
+        # 获取当前生命值百分比，识别失败时维持原有的满生命值兜底
+        hp_percent = _get_current_hp_percent(task)
+        if hp_percent is False:
+            hp_percent = 100
 
         flash_threshold_str = _get_config_value(task, '生命值大于多少优先闪光(百分比)', "60")
         try:
@@ -927,6 +920,7 @@ PAGE_HANDLERS = [
     handle_stuck_log,
 
     handle_ether_supply,
+    handle_refine_equipment_credit, #提炼装备信用点页面，优先于确认按钮
     handle_center_confirm,
     handle_equipment, #装备选择
     handle_card_assign,

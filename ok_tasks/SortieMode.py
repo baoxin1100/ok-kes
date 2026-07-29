@@ -26,6 +26,9 @@ class SortieMode(TriggerTask):
         self.default_config["移除卡牌列表"] = ["剑幕"]
         self.default_config["复制卡牌列表"] = ["剑雨", "展开极光", "一缕光芒","缕光芒"]
         self.default_config["闪光卡牌列表"] = ["剑雨", "展开极光", "一缕光芒","缕光芒"]
+        self.default_config["装备1号位优先级"] = ["蚀化臂铠"]
+        self.default_config["装备2号位优先级"] = ["拷问工具箱"]
+        self.default_config["装备3号位优先级"] = ["异象石碑"]
         self.default_config["领取奖励"] = False
         self.default_config["出牌优先级"] = ["剑雨", "水之源", "一缕光芒", "万众英雄","极光剑", "展开极光","解放极光"]
         self.default_config["丢弃卡牌优先级"] = ["展开极光", "极光剑", "凝聚极光"]
@@ -42,7 +45,9 @@ class SortieMode(TriggerTask):
         self.default_config["第几层boss前自动暂停"] = "不暂停"
         # self.default_config["从右往左出牌"] = True
         self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, 
-                            "total_rounds": 0, "success_rounds": 0, "node_count": 0, "enter_new_node": False, "node_type": "未知", "is_escaped": False}
+                            "total_rounds": 0, "success_rounds": 0, "node_count": 0, "enter_new_node": False, "node_type": "未知",
+                            "is_escaped": False}
+        self.member_status = {"equipment": {}, "deck": {}}
 
         self._last_upload_time = 0
         self.config_type = {

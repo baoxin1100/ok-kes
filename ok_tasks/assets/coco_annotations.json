@@ -351,6 +351,19 @@
             ],
             "area": 3717,
             "iscrowd": 0
+        },
+        {
+            "id": 21,
+            "image_id": 39,
+            "category_id": 21,
+            "bbox": [
+                1816,
+                33,
+                56,
+                50
+            ],
+            "area": 2800,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -452,6 +465,11 @@
         {
             "id": 20,
             "name": "autochatenable",
+            "supercategory": ""
+        },
+        {
+            "id": 21,
+            "name": "esc",
             "supercategory": ""
         }
     ]
