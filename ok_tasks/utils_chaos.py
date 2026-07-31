@@ -1,14 +1,14 @@
 from ok import TriggerTask
 
 from utils import (
-    _simplify_texts, _get_config_value, _get_card_list, _get_route_priority, _get_game_text, _get_region_text, _finish_only_first_layer,
+    _simplify_texts, _get_config_value, _get_card_list, _get_card_reward_priority, _get_route_priority, _get_game_text, _get_region_text, _finish_only_first_layer,
     find_box_at_point, find_text, find_exact_text,
-    _card_has_type_below, select_card, identify_node_type,
+    _card_has_type_below, select_card,
     log_credit, log_node_status, handle_battle_crash, handle_close_page, handle_refine_equipment_credit,
     handle_center_confirm, handle_settlement, handle_skip,
     handle_destiny_choice, handle_main_member_flash,
     handle_card_reward, handle_equipment,
-    handle_select_card, handle_three_choice_copy, handle_copy_member,
+    handle_select_card, handle_copy_card_choice, handle_copy_member,
     handle_convert_card,
     handle_negotiation, handle_continue, handle_confirm, handle_enter,
     handle_event_task, handle_route_selection, handle_obtain_reward,
@@ -78,6 +78,48 @@ def handle_discovery_select(task: TriggerTask): #忘了按个页面要用
     task.sleep(1)
     # task.click_box(confirm)
     # task.sleep(1)
+    return True
+
+
+def handle_desire_card_inheritance(task: TriggerTask):
+    """欲望卡牌继承页面: 优先选择命中奖励优先级的卡牌，否则随机选择。"""
+    title_box = find_box_at_point(task, 0.500, 0.086)
+    prompt_box = find_box_at_point(task, 0.524, 0.143)
+    if not (
+        title_box
+        and title_box.name == "卡牌奖励"
+        and prompt_box
+        and "请选择要继承的欲望卡牌" in prompt_box.name
+    ):
+        return False
+
+    task.log_info("检测到欲望卡牌继承页面")
+    card_positions = [(0.290, 0.277), (0.666, 0.277)]
+    cards = [
+        (find_box_at_point(task, x, y), (x, y))
+        for x, y in card_positions
+    ]
+    priority = _get_card_reward_priority(task)
+
+    for config_name in priority:
+        for card_box, position in cards:
+            card_name = card_box.name.strip() if card_box else ""
+            if card_name and config_name and (
+                config_name in card_name or card_name in config_name
+            ):
+                task.log_info(
+                    f"欲望卡牌「{card_name}」命中奖励优先级「{config_name}」，点击该卡牌"
+                )
+                task.click_box(card_box)
+                return True
+
+    card_box, position = random.choice(cards)
+    card_name = card_box.name.strip() if card_box else ""
+    task.log_info(f"欲望卡牌未命中奖励优先级，随机选择「{card_name}」")
+    if card_box:
+        task.click_box(card_box)
+    else:
+        task.click(*position)
     return True
 
 
@@ -536,6 +578,7 @@ PAGE_HANDLERS = [
     handle_equipment, #装备选择
     handle_card_assign,
     handle_confirm, #确认按钮
+    handle_desire_card_inheritance, #欲望卡牌继承页面，优先级低于确认按钮
     handle_mask_card, #面具卡牌获得页面
     handle_convert, #转换按钮
     handle_shop, #德朗商店
@@ -588,7 +631,7 @@ PAGE_HANDLERS = [
     handle_memory_elimination,
     handle_chaos_craft,
     handle_conquer_difficulty,
-    handle_three_choice_copy,
+    handle_copy_card_choice,
     handle_skip,
     handle_event_task,
     handle_held_cards_page,

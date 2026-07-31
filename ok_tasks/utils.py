@@ -61,6 +61,19 @@ def _get_card_list(task: TriggerTask, key):
     return list(value) if isinstance(value, (list, tuple)) else []
 
 
+def _get_card_reward_priority(task: TriggerTask):
+    """读取卡牌奖励优先级，并将刷初始卡牌配置置于最高优先级。"""
+    priority = _get_card_list(task, "卡牌奖励优先级")
+    initial_card_name = _get_config_value(task, "刷初始卡牌", "")
+    initial_card_name = initial_card_name.strip() if isinstance(initial_card_name, str) else ""
+    if initial_card_name:
+        priority = [
+            initial_card_name,
+            *(name for name in priority if name != initial_card_name),
+        ]
+    return priority
+
+
 # 游戏语言 → 映射文件路径
 _GAME_LANG_FILE_MAP = {
     "繁体中文": os.path.join(os.path.dirname(__file__), 'assets', 'game_text_map', 'zh_tw.py'),
@@ -167,6 +180,21 @@ def find_box_at_point(task: TriggerTask, rel_x, rel_y):
     return min(hits, key=lambda b: b.area()) if hits else None
 
 
+def find_target_card(task: TriggerTask):
+    """查找target卡牌特征，返回特征框列表及其对应的相对点击位置。"""
+    search_box = task.box_of_screen(0.090, 0.179, 0.927, 0.342)
+    target_boxes = task.find_feature(feature_name="target", box=search_box) or []
+    click_positions = []
+    for target_box in target_boxes:
+        center_x = (target_box.x + target_box.width / 2) / task.width
+        center_y = (target_box.y + target_box.height / 2) / task.height
+        click_positions.append((
+            min(1.0, max(0.0, center_x - 0.0975)),
+            min(1.0, max(0.0, center_y + 0.2460)),
+        ))
+    return target_boxes, click_positions
+
+
 def find_text(task: TriggerTask, pattern):
     """按正则在所有识别文本中查找第一个匹配的 box。"""
     return next((b for b in task.all_texts if re.search(pattern, b.name)), None)
@@ -205,10 +233,14 @@ def _is_valid_card_name(name):
     return True
 
 
+_CARD_TYPE_KEYWORDS = {
+    "攻击", "强化", "技能", "技", "咒术", "诅咒",
+    "攻", "击", "基础", "基本", "状态", "异常",
+}
+
+
 def _card_has_type_below(task: TriggerTask, box):
-    """判断文本框下方是否有'攻击/强化/技能/咒术'类型标签（卡牌名特征）。"""
-    TYPE_KEYWORDS = {"攻击", "强化", "技能", "技", "咒术", "诅咒",
-                     "攻", "击", "基础", "基本", "状态", "异常"}
+    """判断文本框下方是否有卡牌类型标签（卡牌名特征）。"""
     box_bottom_y = (box.y + box.height) / task.height
     box_cx = (box.x + box.width / 2) / task.width
     for b in task.all_texts:
@@ -217,7 +249,7 @@ def _card_has_type_below(task: TriggerTask, box):
         dy = cy - box_bottom_y
         dx = abs(cx - box_cx)
         if -0.005 <= dy <= 0.040 and dx <= 0.045 and len(b.name) <= 4:
-            for kw in TYPE_KEYWORDS:
+            for kw in _CARD_TYPE_KEYWORDS:
                 if kw in b.name:
                     return True
     return False
@@ -262,46 +294,13 @@ def select_card(task: TriggerTask, card_names, max_scrolls=5, fallback_delete=Fa
             found_names = [b.name for b in found_cards]
             task.log_info(f"select_card 第{i+1}次查找, 目标: {card_names}, 区域内发现卡牌: {found_names}")
 
-        # 合并分离的单字卡牌名（如 "剑" + "雨" → "剑雨"）
-        # 查找所有名为"剑"的 box，在紧邻右边找"雨"的 box，合成一张名称为"剑雨"的 Box
-        from ok.feature.Box import Box
-        sword_boxes = [b for b in task.all_texts
-                       if b.name.strip() == "剑"
-                       and 0.274 <= (b.x + b.width / 2) / task.width <= 0.931
-                       and 0.106 <= (b.y + b.height / 2) / task.height <= 0.878
-                       and _card_has_type_below(task, b)]
-        if sword_boxes:
-            for sword_box in sword_boxes:
-                sword_right = sword_box.x + sword_box.width
-                sword_cy = (sword_box.y + sword_box.height / 2) / task.height
-                # 在同一行找紧邻右边的"雨"box（水平距离不超过 20px，垂直中心偏差不超过 15px）
-                rain_box = next((b for b in task.all_texts
-                                 if b.name.strip() == "雨"
-                                 and b.x >= sword_right - 2
-                                 and b.x <= sword_right + 20
-                                 and abs((b.y + b.height / 2) / task.height - sword_cy) * task.height <= 15
-                                 and _card_has_type_below(task, b)), None)
-                if rain_box:
-                    task.log_info(f"select_card: 发现分离单字「剑」+「雨」，合并为卡牌「剑雨」")
-                    # 创建一个新的 Box，名称设为"剑雨"，覆盖两个单字的范围
-                    merged_box = Box(
-                        x=sword_box.x,
-                        y=sword_box.y,
-                        width=rain_box.x + rain_box.width - sword_box.x,
-                        height=max(sword_box.height, rain_box.height),
-                        confidence=1.0,
-                        name="剑雨"
-                    )
-                    task.all_texts.append(merged_box)
-                    # 删除旧的"剑"和"雨"box，避免重复匹配
-                    if sword_box in task.all_texts:
-                        task.all_texts.remove(sword_box)
-                    if rain_box in task.all_texts:
-                        task.all_texts.remove(rain_box)
-
         for name in card_names:
             card = next((b for b in task.all_texts
-                         if (name in b.name or b.name in name)
+                         if (
+                             b.name == name
+                             if action == "移除" and is_remove_priority_base
+                             else name in b.name or b.name in name
+                         )
                      and 0.274 <= (b.x + b.width / 2) / task.width <= 0.931
                      and 0.106 <= (b.y + b.height / 2) / task.height <= 0.878
                      and not any(abs(ux - b.x) <= 10 and abs(uy - b.y) <= 10 for ux, uy, _, _ in used_positions)
@@ -480,27 +479,6 @@ def is_button_active(task: TriggerTask, button_box):
     return not is_disabled_gray
 
 
-def identify_node_type(task: TriggerTask, region, name=""):
-    """根据主色相识别路线节点类型，返回节点类型字符串名称。"""
-    dominant_hue = calculate_dominant_hue(task, region)
-    if dominant_hue == -1:
-        task.log_info(f"节点{name}识别: 无有效色相，判为未知")
-        return "未知"
-
-    if dominant_hue <= 35:
-        result = "休息"
-    elif 90 <= dominant_hue <= 100:
-        result = "事件"
-    elif 120 <= dominant_hue <= 145:
-        result = "精英"
-    elif dominant_hue >= 150:
-        result = "小怪"
-    else:
-        result = "未知"
-    task.log_info(f"节点{name}识别: 主导色相={dominant_hue}, 判为{result}")
-    return result
-
-
 def _cluster_region_boxes(task: TriggerTask, region):
     """将区域内文本框按 x 坐标聚类为列（用于卡牌名/效果描述区域），返回 [{'x': 中心x, 'texts': [...]}, ...]"""
     x1, y1, x2, y2 = region
@@ -626,11 +604,23 @@ def log_node_status(task: TriggerTask):
     if ns:
         total = ns.get('total_rounds', 0)
         node_count = ns.get('node_count', 0)
-        node_type = ns.get('node_type', "未知")
+        node_type = ns.get('node_type', "")
         task.info_set("所处层数，节点，类型", f"第{ns['pass_final_boss_count']+1}层，第{node_count}节点，{node_type}")
         task.info_set("是否到达关底boss", f"{ns['reach_final_boss']}")
         task.info_set("是否进入关底boss战斗", f"{ns['final_boss_battle']}")
         task.info_set("是否已逃脱", f"{ns['is_escaped']}")
+        equipment = _equipment_state(task)
+        equipment_names = [
+            _current_equipment_for_slot(task, equipment, slot)[0]
+            for slot in range(3)
+        ]
+        task.info_set(
+            "装备信息",
+            "，".join(
+                f"{slot + 1}号位：{name or '空'}"
+                for slot, name in enumerate(equipment_names)
+            ),
+        )
         if total > 0:
             task.info_set("当前胜率", f"{ns['success_rounds']}/{total} ({ns['success_rounds']*100//total}%)")
         else:
@@ -757,7 +747,16 @@ def handle_card_reward(task: TriggerTask):
         return False
 
     task.log_info("检测到卡牌奖励页面")
-    priority = _get_card_list(task, "卡牌奖励优先级")
+    target_boxes, target_click_positions = find_target_card(task)
+    if target_boxes:
+        click_position = target_click_positions[0]
+        task.log_info(
+            f"卡牌奖励页面: 检测到target卡牌，点击位置{click_position}"
+        )
+        task.click(*click_position)
+        return True
+
+    priority = _get_card_reward_priority(task)
 
     # 在指定区域内查找所有满足卡牌特征的文本框
     x1, y1, x2, y2 = 0.094, 0.231, 0.973, 0.875
@@ -769,6 +768,32 @@ def handle_card_reward(task: TriggerTask):
         and len(b.name.strip()) > 1
     ]
     task.log_info(f"卡牌奖励区域识别到{len(cards)}张卡牌: {[b.name for b in cards]}")
+
+    initial_card_name = _get_config_value(task, "刷初始卡牌", "")
+    initial_card_name = initial_card_name.strip() if isinstance(initial_card_name, str) else ""
+    node_status = getattr(task, "node_status", {})
+    is_initial_node = (
+        node_status.get("pass_final_boss_count", 0) == 0
+        and node_status.get("node_count", 0) == 0
+    )
+    if initial_card_name and is_initial_node:
+        initial_card = next(
+            (card for card in cards if initial_card_name in card.name.strip()),
+            None,
+        )
+        if initial_card:
+            task.log_info(
+                f"刷初始卡牌命中「{initial_card_name}」，点击该卡牌"
+            )
+            task.click_box(initial_card)
+            task.sleep(1)
+            return True
+        task.log_info(
+            f"刷初始卡牌未找到「{initial_card_name}」，点击ESC重新开始"
+        )
+        task.click(0.960, 0.053)
+        task.sleep(1)
+        return True
 
     chosen_card = None
     for pri_name in priority:
@@ -840,25 +865,52 @@ def _equipment_state(task: TriggerTask):
         task.member_status = member_status
     equipment = member_status.setdefault("equipment", {})
     if not isinstance(equipment, dict):
-        equipment = {}
+        equipment = {"names": ["", "", ""], "descriptions": ["", "", ""]}
         member_status["equipment"] = equipment
+    elif "names" not in equipment or "descriptions" not in equipment:
+        old_equipment = equipment
+        equipment = {"names": ["", "", ""], "descriptions": ["", "", ""]}
+        for equipment_name, description in old_equipment.items():
+            for slot in range(3):
+                if _match_equipment_name(
+                    equipment_name,
+                    _equipment_priority(task, slot),
+                )[0]:
+                    equipment["names"][slot] = equipment_name
+                    equipment["descriptions"][slot] = description
+                    break
+        member_status["equipment"] = equipment
+    for key in ("names", "descriptions"):
+        values = equipment.get(key)
+        if not isinstance(values, list):
+            values = []
+        equipment[key] = (values + ["", "", ""])[:3]
     if not isinstance(member_status.get("deck"), dict):
         member_status["deck"] = {}
     return equipment
 
 
+def _member_deck_state(task: TriggerTask):
+    """获取并修正第一主战员的卡组状态字典。"""
+    member_status = getattr(task, "member_status", None)
+    if not isinstance(member_status, dict):
+        member_status = _initial_member_status()
+        task.member_status = member_status
+    deck = member_status.setdefault("deck", {})
+    if not isinstance(deck, dict):
+        deck = {}
+        member_status["deck"] = deck
+    return deck
+
+
 def _current_equipment_for_slot(task: TriggerTask, equipment, slot):
-    """按指定槽位优先级，从装备字典中找出当前装备名称及优先级。"""
+    """按槽位读取当前装备名称及其优先级。"""
     priority = _equipment_priority(task, slot)
-    matches = []
-    for equipment_name in equipment:
-        canonical_name, rank = _match_equipment_name(equipment_name, priority)
-        if rank is not None:
-            matches.append((rank, canonical_name))
-    if not matches:
+    names = equipment.get("names", [])
+    equipment_name = names[slot] if slot < len(names) else ""
+    if not equipment_name:
         return "", len(priority)
-    rank, equipment_name = min(matches, key=lambda item: item[0])
-    return equipment_name, rank
+    return equipment_name, _equipment_rank(equipment_name, priority)
 
 
 def _equipment_info(task: TriggerTask, name_point, type_point):
@@ -918,9 +970,8 @@ def handle_equipment(task: TriggerTask):
 
         if should_install_first and lv_texts:
             chosen = lv_texts[0]
-            if current_name:
-                equipment.pop(current_name, None)
-            equipment[new_equipment["name"]] = equipment_desc
+            equipment["names"][slot] = new_equipment["name"]
+            equipment["descriptions"][slot] = equipment_desc
             task.log_info(
                 f"{slot + 1}号位装备「{new_equipment['name']}」优于当前装备「{current_name}」，安装给第一主战员"
             )
@@ -1039,40 +1090,80 @@ def handle_select_card(task: TriggerTask):
     return True
 
 
-def handle_three_choice_copy(task: TriggerTask):
-    """三选一复制卡牌页面: 检测到"请选择要复制的卡牌"时，识别三张卡牌名称和描述，按复制卡牌列表优先级选择。"""
+def handle_copy_card_choice(task: TriggerTask):
+    """复制卡牌选择页面: 动态识别最多三张卡牌，按复制卡牌列表优先级选择。"""
     box = find_box_at_point(task, 0.498, 0.133)
     if not (box and "请选择要复制的卡牌" in box.name):
         return False
 
-    task.log_info("检测到三选一复制卡牌页面")
+    task.log_info("检测到复制卡牌选择页面")
+    target_boxes, target_click_positions = find_target_card(task)
+    if target_boxes:
+        click_position = target_click_positions[0]
+        task.log_info(
+            f"复制卡牌选择: 检测到target卡牌，点击位置{click_position}"
+        )
+        task.click(*click_position)
+        return True
 
-    name_positions = [(0.221, 0.289), (0.473, 0.289), (0.727, 0.290)]
-    desc_regions = [
-        (0.156, 0.453, 0.355, 0.812),
-        (0.404, 0.442, 0.607, 0.818),
-        (0.661, 0.442, 0.855, 0.811),
-    ]
+    name_boxes = []
+    for text_box in task.all_texts:
+        center_x = (text_box.x + text_box.width / 2) / task.width
+        center_y = (text_box.y + text_box.height / 2) / task.height
+        name = text_box.name.strip()
+        if not (
+            0.080 <= center_x <= 0.948
+            and 0.183 <= center_y <= 0.367
+            and name
+            and _card_has_type_below(task, text_box)
+        ):
+            continue
+        if len(name) == 1 and (
+            name.isdigit()
+            or re.fullmatch(r"[A-Za-z]", name)
+            or not re.search(r"[\u4e00-\u9fffA-Za-z0-9]", name)
+        ):
+            continue
+        name_boxes.append(text_box)
+
+    if len(name_boxes) > 3:
+        task.log_info(
+            f"识别到{len(name_boxes)}个候选卡牌名，保留文本长度最长的三个"
+        )
+        name_boxes = sorted(
+            name_boxes,
+            key=lambda candidate: len(candidate.name.strip()),
+            reverse=True,
+        )[:3]
+    name_boxes.sort(key=lambda candidate: candidate.x)
 
     cards = []
-    for i, (nx, ny) in enumerate(name_positions):
-        name_box = find_box_at_point(task, nx, ny)
-        name = name_box.name if name_box else ""
-        desc = _get_region_text(task, desc_regions[i]) if name else ""
-        cards.append({"name": name, "x": nx, "y": ny, "desc": desc})
-        if name:
-            task.log_info(f"三选一复制卡牌 卡牌{i+1}: 名称=「{name}」 描述=「{desc}」")
+    for index, name_box in enumerate(name_boxes):
+        name_center_x = (name_box.x + name_box.width / 2) / task.width
+        name_bottom_y = (name_box.y + name_box.height) / task.height
+        desc_region = (
+            max(0.0, name_center_x - 0.0841),
+            max(0.0, name_bottom_y + 0.0883),
+            min(1.0, name_center_x + 0.1129),
+            min(1.0, name_bottom_y + 0.5063),
+        )
+        name = name_box.name.strip()
+        desc = _get_region_text(task, desc_region)
+        cards.append({"name": name, "box": name_box, "desc": desc})
+        task.log_info(
+            f"复制卡牌 卡牌{index + 1}: 名称=「{name}」 描述=「{desc}」"
+        )
 
     priority = _get_config_value(task, '复制卡牌列表', [])
     for pri_name in priority:
         for card in cards:
             if card["name"] and pri_name in card["name"]:
-                task.log_info(f"三选一复制卡牌选择: 按优先级选择「{card['name']}」(匹配「{pri_name}」)")
-                task.click(card["x"], card["y"])
+                task.log_info(f"复制卡牌选择: 按优先级选择「{card['name']}」(匹配「{pri_name}」)")
+                task.click_box(card["box"])
                 task.sleep(0.5)
                 return True
 
-    task.log_info("三选一复制卡牌: 未命中任何优先级，return False")
+    task.log_info("复制卡牌选择: 未命中任何优先级，return False")
     return False
 
 
@@ -1341,6 +1432,39 @@ def handle_event_task(task: TriggerTask):
     for t in tasks_info:
         task.log_info(f"  标题: {t['title']} | 描述: {t['description']}")
 
+    initial_card_name = _get_config_value(task, "刷初始卡牌", "")
+    initial_card_name = initial_card_name.strip() if isinstance(initial_card_name, str) else ""
+    node_status = getattr(task, "node_status", {})
+    is_initial_node = (
+        node_status.get("pass_final_boss_count", 0) == 0
+        and node_status.get("node_count", 0) == 0
+    )
+    if initial_card_name and is_initial_node:
+        legend_card_task = next(
+            (
+                task_info
+                for task_info in tasks_info
+                if "传说卡牌" in task_info["description"]
+            ),
+            None,
+        )
+        if legend_card_task:
+            task.log_info(
+                f"刷初始卡牌「{initial_card_name}」：选择包含“传说卡牌”的事件任务"
+            )
+            chosen_x = legend_card_task["x"]
+            task.click(chosen_x, 0.832)
+            task.sleep(1)
+            task.click(chosen_x, 0.952)
+            task.sleep(1)
+            return True
+        task.log_info(
+            f"刷初始卡牌「{initial_card_name}」：未找到包含“传说卡牌”的事件任务，点击ESC重新开始"
+        )
+        task.click(0.959, 0.053)
+        task.sleep(1)
+        return True
+
     # 检查任务区域中是否有 treasure 特征
     treasure_box = task.box_of_screen(0.477, 0.336, 0.841, 0.540)
     treasure_features = task.find_feature(feature_name="treasure", box=treasure_box)
@@ -1357,7 +1481,7 @@ def handle_event_task(task: TriggerTask):
         # 过滤掉描述包含拉黑关键词的任务
         filtered_tasks = [
             t for t in tasks_info
-            if not any(bk in t['description'] for bk in blacklist)
+            if not any(is_subsequence(bk, t['description']) for bk in blacklist)
         ]
         if len(filtered_tasks) < len(tasks_info):
             task.log_info(f"拉黑任务关键词: {blacklist}，过滤前{len(tasks_info)}个，过滤后{len(filtered_tasks)}个")
@@ -1374,7 +1498,7 @@ def handle_event_task(task: TriggerTask):
     chosen = None
     for keyword in priority:
         for t in tasks_info:
-            if keyword in t['description']:
+            if is_subsequence(keyword, t['description']):
                 chosen = t
                 task.log_info(f"优先选择「{keyword}」-> 标题: {t['title']}, 描述: {t['description']}")
                 break
@@ -1396,7 +1520,8 @@ def handle_event_task(task: TriggerTask):
 def handle_route_selection(task: TriggerTask):
     """路线选择页面: 识别节点类型，按优先级排序后依次点击所有节点，每次间隔1秒。
     同时负责节点计数：离开路线页面时 node_count +1。"""
-    position_feature = task.find_feature(feature_name="position")
+    position_box = task.box_of_screen(0.335, 0.568, 0.453, 0.751)
+    position_feature = task.find_feature(feature_name="position", box=position_box)
     cant_receive = find_box_at_point(task, 0.186, 0.850)
     is_route_page = position_feature or (cant_receive and "无法接收到梦境号" in cant_receive.name)
 
@@ -1424,40 +1549,26 @@ def handle_route_selection(task: TriggerTask):
             task.log_info(f"进入商店配置为True，更新 node_status['shop']=True")
     task.sleep(1)
 
-    # 检测最终boss节点：综合currentpos特征、finalboss特征和RGB颜色判断
-    boss_check_box = task.box_of_screen(0.202, 0.656, 0.245, 0.963)
-    currentpos_features = task.find_feature(feature_name="currentpos", box=boss_check_box)
-    finalboss_features = task.find_feature(feature_name="finalboss")
+    route_box = task.box_of_screen(0.656, 0.053, 0.977, 0.908)
+    node_feature_types = {
+        "safezone": "休息",
+        "enemy": "小怪",
+        "elite": "精英",
+        "event": "事件",
+        "settlement": "结算",
+    }
+    nodes = []
+    for feature_name, node_type in node_feature_types.items():
+        for feature_box in task.find_feature(feature_name=feature_name, box=route_box):
+            nodes.append({
+                "feature_name": feature_name,
+                "node_type": node_type,
+                "box": feature_box,
+                "special_features": [],
+            })
 
-    if not currentpos_features:
-        task.log_info("handle_route_selection: 未找到currentpos特征")
-    if not finalboss_features:
-        task.log_info("handle_route_selection: 未找到finalboss特征")
-
-    # RGB颜色判断最终boss：检测(0.892,0.327)和(0.891,0.467)两点的RGB值
-    is_final_boss_rgb = False
-    if task.frame is not None:
-        try:
-            px1, py1 = int(0.892 * task.width), int(0.327 * task.height)
-            px2, py2 = int(0.891 * task.width), int(0.467 * task.height)
-            if 0 <= px1 < task.width and 0 <= py1 < task.height and 0 <= px2 < task.width and 0 <= py2 < task.height:
-                pixel1 = task.frame[py1, px1, :3]  # BGR
-                pixel2 = task.frame[py2, px2, :3]
-                b1, g1, r1 = int(pixel1[0]), int(pixel1[1]), int(pixel1[2])
-                b2, g2, r2 = int(pixel2[0]), int(pixel2[1]), int(pixel2[2])
-                task.log_info(f"handle_route_selection: boss颜色点1 B={b1} G={g1} R={r1} (期望RGB≈(142,26,78), 即B≈78 G≈26 R≈142)")
-                task.log_info(f"handle_route_selection: boss颜色点2 B={b2} G={g2} R={r2} (期望RGB≈(163,45,97), 即B≈97 G≈45 R≈163)")
-                # RGB(142,26,78) → BGR(78,26,142)；RGB(163,45,97) → BGR(97,45,163)
-                if (abs(b1 - 78) <= 15 and abs(g1 - 26) <= 15 and abs(r1 - 142) <= 15 and
-                    abs(b2 - 97) <= 15 and abs(g2 - 45) <= 15 and abs(r2 - 163) <= 15):
-                    is_final_boss_rgb = True
-                    task.log_info("handle_route_selection: RGB颜色判定为最终boss节点")
-        except Exception:
-            pass
-
-    is_boss = (currentpos_features and finalboss_features) or is_final_boss_rgb
-
-    if is_boss:
+    # 找不到任何普通节点类型特征时，当前路线节点即为boss。
+    if not nodes:
         task.log_info("检测到最终boss节点，点击进入")
         if hasattr(task, 'node_status'):
             task.node_status['reach_final_boss'] = True
@@ -1479,45 +1590,78 @@ def handle_route_selection(task: TriggerTask):
                 pass
 
         task.click(0.815, 0.492)
-        task.sleep(4)
+        task.sleep(2)
         return True
 
-    node_regions = {
-        "node1": (0.759, 0.168, 0.769, 0.186),
-        "node2": (0.901, 0.471, 0.910, 0.486),
-        "node3": (0.758, 0.765, 0.769, 0.781),
-    }
-    click_points = {
-        "node1": (0.666, 0.232),
-        "node2": (0.805, 0.512),
-        "node3": (0.664, 0.801),
+    def relative_center(box):
+        return (
+            (box.x + box.width / 2) / task.width,
+            (box.y + box.height / 2) / task.height,
+        )
+
+    # 特殊特征优先级：负数高于普通节点，正数低于普通节点。
+    special_feature_priorities = {
+        "shop": -1,
+        "kalei": -1,
+        "hard": 1,
     }
 
-    node_types = {k: identify_node_type(task, r, name=k) for k, r in node_regions.items()}
+    # 每个特殊特征只归属到距离最近的一个节点类型特征。
+    for special_name in special_feature_priorities:
+        for special_box in task.find_feature(feature_name=special_name, box=route_box):
+            special_x, special_y = relative_center(special_box)
+            nearest_node = min(
+                nodes,
+                key=lambda node: (
+                    (relative_center(node["box"])[0] - special_x) ** 2
+                    + (relative_center(node["box"])[1] - special_y) ** 2
+                ),
+            )
+            nearest_node["special_features"].append(special_name)
+            task.log_info(
+                f"特殊特征「{special_name}」分配给"
+                f"「{nearest_node['node_type']}」节点"
+            )
+
     priority = _get_route_priority(task)
     task.log_info(f"路线优先级配置: {priority}")
-    task.log_info(f"识别到的节点类型: {node_types}")
+    task.log_info(
+        f"识别到的路线节点: "
+        f"{[(node['node_type'], node['special_features']) for node in nodes]}"
+    )
 
-    def sort_key(item):
-        node_type = item[1]
-        try:
-            return priority.index(node_type)
-        except ValueError:
-            return len(priority)
+    priority_index = {node_type: index for index, node_type in enumerate(priority)}
 
-    sorted_nodes = sorted(node_types.items(), key=sort_key)
+    def sort_key(node):
+        if node["node_type"] == "结算":
+            type_priority = len(priority) + 1
+        else:
+            type_priority = priority_index.get(node["node_type"], len(priority))
+        special_priority = min(
+            (special_feature_priorities[name] for name in node["special_features"]),
+            default=0,
+        )
+        center_x, center_y = relative_center(node["box"])
+        return type_priority, special_priority, center_y, center_x
+
+    sorted_nodes = sorted(nodes, key=sort_key)
+    node = sorted_nodes[0]
 
     # 更新 node_type 为最优先的节点类型
-    if hasattr(task, 'node_status') and sorted_nodes:
-        task.node_status['node_type'] = sorted_nodes[0][1]
-        task.log_info(f"更新 node_type 为「{sorted_nodes[0][1]}」")
+    if hasattr(task, 'node_status'):
+        task.node_status['node_type'] = node["node_type"]
+        task.log_info(f"更新 node_type 为「{node['node_type']}」")
 
-    for node_key, node_type in sorted_nodes:
-        task.log_info(f"点击节点{node_key[-1]} (类型: {node_type})")
-        task.click(*click_points[node_key])
-        task.sleep(0.5)
+    center_x, center_y = relative_center(node["box"])
+    click_x = center_x - 0.095
+    click_y = center_y - 0.0065
+    task.log_info(
+        f"点击{node['node_type']}节点"
+        f"（特殊特征: {node['special_features']}，位置: {click_x:.3f}, {click_y:.3f}）"
+    )
+    task.click(click_x, click_y)
 
-    task.sleep(4)
+    task.sleep(2)
 
     return True
 
@@ -1590,24 +1734,21 @@ def handle_select(task: TriggerTask):
     return False
 
 
+def _find_rest_feature(task: TriggerTask):
+    """在休息区域查找rest特征，命中时输出置信度。"""
+    search_box = task.box_of_screen(0.157, 0.503, 0.467, 0.863)
+    rest_feature = task.find_one(feature_name="rest", box=search_box)
+    if rest_feature:
+        task.log_info(f"检测到rest特征，匹配置信度: {rest_feature.confidence:.2%}")
+    return rest_feature
+
+
 def handle_rest(task: TriggerTask):
-    """休息界面: 检测区域内同时存在休息和免费文本则识别为休息界面。"""
-    x1, y1, x2, y2 = 0.298, 0.681, 0.420, 0.850
-    has_rest = False
-    has_free = False
-    rest_box = None
-    for b in task.all_texts:
-        cx = (b.x + b.width / 2) / task.width
-        cy = (b.y + b.height / 2) / task.height
-        if x1 <= cx <= x2 and y1 <= cy <= y2:
-            if b.name == "休息":
-                has_rest = True
-                rest_box = b
-            if "免费" in b.name:
-                has_free = True
-    if has_rest and has_free and rest_box and hasattr(task, 'node_status') and task.node_status.get('flash_or_rest', False):
+    """休息界面: 检测rest特征并根据flash_or_rest状态决定是否点击。"""
+    rest_feature = _find_rest_feature(task)
+    if rest_feature and hasattr(task, 'node_status') and task.node_status.get('flash_or_rest', False):
         task.log_info("检测到休息界面，点击休息")
-        task.click_box(rest_box)
+        task.click_box(rest_feature)
         task.sleep(1)
         task.node_status['flash_or_rest'] = False
         return True
@@ -1660,6 +1801,15 @@ def handle_view_original(task: TriggerTask):
     box2 = find_box_at_point(task, 0.896, 0.131)
     if not ((box1 and (_get_game_text(task, '查看原件') in box1.name or _get_game_text(task, '查看之前的闪光') in box1.name)) or (box2 and (_get_game_text(task, '查看原件') in box2.name or _get_game_text(task, '查看之前的闪光') in box2.name))):
         return False
+
+    target_boxes, target_click_positions = find_target_card(task)
+    if target_boxes:
+        click_position = target_click_positions[0]
+        task.log_info(
+            f"卡牌闪光事件: 检测到target卡牌，点击位置{click_position}"
+        )
+        task.click(*click_position)
+        return True
 
     name_cols = _cluster_region_boxes(task, (0.148, 0.192, 0.859, 0.325))
     desc_cols = _cluster_region_boxes(task, (0.154, 0.456, 0.859, 0.786))
@@ -1782,12 +1932,18 @@ def _initial_node_status():
     """返回 node_status 的初始副本。"""
     return {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False,
             "pass_final_boss_count": 0, "total_rounds": 0, "success_rounds": 0,
-            "node_count": 0, "enter_new_node": False, "node_type": "未知", "is_escaped": False}
+            "node_count": 0, "enter_new_node": False, "node_type": "", "is_escaped": False}
 
 
 def _initial_member_status():
     """返回第一主战员状态的初始副本。"""
-    return {"equipment": {}, "deck": {}}
+    return {
+        "equipment": {
+            "names": ["", "", ""],
+            "descriptions": ["", "", ""],
+        },
+        "deck": {},
+    }
 
 
 def _finish_only_first_layer(task: TriggerTask) -> bool:
@@ -1844,32 +2000,92 @@ def handle_close_button(task: TriggerTask):
 
 
 def handle_card_assign(task: TriggerTask):
-    """卡牌分配页面: 随机选择一个主战员接受卡牌（优先级高于卡牌奖励页面）。"""
-    box = find_box_at_point(task, 0.863, 0.133)
-    if not (box and "请选择要接受卡牌的主战员" in box.name):
+    """卡牌分配页面: 按奖励优先级刷新或跳过，并优先分配给第一主战员。"""
+    title_box = find_box_at_point(task, 0.863, 0.133)
+    if not (title_box and "请选择要接受卡牌的主战员" in title_box.name):
         return False
 
     task.log_info("检测到卡牌分配页面")
 
+    card_name_box = find_box_at_point(task, 0.184, 0.272)
+    card_name = card_name_box.name.strip() if card_name_box else ""
+    card_desc = _get_region_text(task, (0.118, 0.349, 0.324, 0.807))
+    task.log_info(f"待分配卡牌: 名称=「{card_name}」，描述=「{card_desc}」")
+
+    bottom_boxes = [
+        b for b in task.all_texts
+        if 0.290 <= (b.x + b.width / 2) / task.width <= 0.998
+        and 0.878 <= (b.y + b.height / 2) / task.height <= 0.997
+    ]
+    refresh_box = next((b for b in bottom_boxes if "刷新" in b.name), None)
+    skip_box = next((b for b in bottom_boxes if "跳过" in b.name), None)
+    refresh_count = None
+    for bottom_box in bottom_boxes:
+        count_match = re.search(r'(\d+)/(\d+)', bottom_box.name)
+        if count_match:
+            refresh_count = (int(count_match.group(1)), int(count_match.group(2)))
+            break
+
+    priority = _get_card_reward_priority(task)
+    matched_card_name = next(
+        (config_name for config_name in priority
+         if card_name and config_name
+         and (config_name in card_name or card_name in config_name)),
+        None,
+    )
+    if matched_card_name:
+        task.log_info(f"卡牌「{card_name}」命中奖励优先级「{matched_card_name}」")
+    else:
+        task.log_info(f"卡牌「{card_name}」未命中奖励优先级")
+        if refresh_box and refresh_count and refresh_count[0] > 0:
+            task.log_info(f"剩余刷新次数: {refresh_count[0]}/{refresh_count[1]}，点击刷新")
+            task.click_box(refresh_box)
+            return True
+        if _get_config_value(task, '跳过非优先级卡牌', True) and skip_box:
+            task.log_info("无可用刷新或刷新次数，点击跳过非优先级卡牌")
+            task.click_box(skip_box)
+            return True
+
     px1, py1 = int(0.426 * task.width), int(0.292 * task.height)
     px2, py2 = int(0.473 * task.width), int(0.783 * task.height)
-
     lv_texts = sorted(
         [b for b in task.all_texts
          if b.x >= px1 and b.y >= py1 and b.x + b.width <= px2 and b.y + b.height <= py2
-         and b.name in "等级"],
+         and "等级" in b.name],
         key=lambda b: b.y
     )
-
     if not lv_texts:
         task.log_info("未找到主战员等级信息")
         return False
 
-    count = len(lv_texts)
-    chosen_idx = random.randint(0, count - 1)
-    chosen_lv = lv_texts[chosen_idx]
-    task.log_info(f"共{count}个主战员，随机选择第{chosen_idx + 1}号")
+    available_members = []
+    for index, level_box in enumerate(lv_texts):
+        level_center_x = (level_box.x + level_box.width / 2) / task.width
+        level_center_y = (level_box.y + level_box.height / 2) / task.height
+        unavailable_box = find_box_at_point(
+            task,
+            level_center_x + 0.0615,
+            level_center_y - 0.0795,
+        )
+        if unavailable_box and "无法获得" in unavailable_box.name:
+            task.log_info(f"第{index + 1}号主战员无法获得该卡牌，排除")
+            continue
+        available_members.append((index, level_box))
 
+    if not available_members:
+        task.log_info("所有主战员均无法获得该卡牌")
+        if skip_box:
+            task.log_info("尝试点击跳过")
+            task.click_box(skip_box)
+            return True
+        task.log_info("未找到跳过按钮")
+        return False
+
+    chosen_idx, chosen_lv = available_members[0]
+    task.log_info(f"优先选择第{chosen_idx + 1}号主战员接受卡牌")
+    if chosen_idx == 0:
+        deck = _member_deck_state(task)
+        deck[matched_card_name or card_name] = card_desc
     task.click(0.756, (chosen_lv.y + chosen_lv.height / 2) / task.height)
     task.sleep(1)
     return False

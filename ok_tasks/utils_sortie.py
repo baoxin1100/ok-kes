@@ -3,7 +3,7 @@ from ok import TriggerTask
 from utils import (
     _simplify_texts, _edit_distance, _get_config_value, _get_card_list, _get_route_priority, _get_game_text,
     find_box_at_point, find_text, find_exact_text,
-    _card_has_type_below, select_card, identify_node_type, calculate_dominant_hue,
+    _card_has_type_below, select_card, calculate_dominant_hue,
     log_credit, log_node_status, handle_battle_crash, handle_close_page, handle_refine_equipment_credit,
     handle_center_confirm, handle_settlement, handle_skip,
     handle_destiny_choice, handle_main_member_flash,
@@ -20,7 +20,7 @@ from utils import (
     is_frame_stuck, handle_stuck_log, is_button_active, _clean_match,
     handle_shop, handle_expedition_result,
     handle_escape,
-    _get_current_credit, _get_current_hp_percent,
+    _get_current_credit, _get_current_hp_percent, _find_rest_feature,
     # handle_stage_clear,
     _finish_only_first_layer,
     handle_auto_stop,
@@ -217,16 +217,62 @@ def _read_hand_count(task: TriggerTask):
 
 
 def _read_member_slots(task: TriggerTask):
-    """读取会合主战员选择页面中三个候选槽位的文本框。"""
+    """根据等级和重新搜索文本动态读取会合主战员候选槽位。"""
+    x1, y1, x2, y2 = 0.077, 0.572, 0.946, 0.871
+    region_boxes = [
+        box for box in task.all_texts
+        if x1 <= (box.x + box.width / 2) / task.width <= x2
+        and y1 <= (box.y + box.height / 2) / task.height <= y2
+    ]
+    level_boxes = sorted(
+        (box for box in region_boxes if box.name.strip() == "等级"),
+        key=lambda box: box.x,
+    )
+    refresh_boxes = [
+        box for box in region_boxes
+        if "重新搜索" in box.name
+    ]
+
     slots = []
-    for x, y in [(0.320, 0.731), (0.592, 0.728), (0.850, 0.722)]:
-        box = find_box_at_point(task, x, y)
-        name = box.name if box else ""
-        if box:
-            task.log_info(f"_read_member_slots: 槽位({x},{y}) 识别到名称=「{name}」 box_x={box.x} box_y={box.y} box_w={box.width} box_h={box.height}")
+    unused_refresh_boxes = list(refresh_boxes)
+    for level_box in level_boxes:
+        level_center_x = (level_box.x + level_box.width / 2) / task.width
+        level_center_y = (level_box.y + level_box.height / 2) / task.height
+        name_x = level_center_x + 0.188
+        name_y = level_center_y + 0.042
+        name_box = find_box_at_point(task, name_x, name_y)
+        name = name_box.name if name_box else ""
+
+        refresh_box = None
+        if unused_refresh_boxes:
+            refresh_box = min(
+                unused_refresh_boxes,
+                key=lambda box: abs(
+                    (box.x + box.width / 2) / task.width - level_center_x
+                ),
+            )
+            unused_refresh_boxes.remove(refresh_box)
+        refresh_y = (
+            (refresh_box.y + refresh_box.height / 2) / task.height
+            if refresh_box else None
+        )
+
+        if name_box:
+            task.log_info(
+                f"_read_member_slots: 等级位置({level_center_x:.3f},{level_center_y:.3f}) "
+                f"识别到名称=「{name}」，重新搜索y={refresh_y}"
+            )
         else:
-            task.log_info(f"_read_member_slots: 槽位({x},{y}) 未识别到任何文本")
-        slots.append({"name": name, "x": x, "y": y, "refresh_y": 0.800})
+            task.log_info(
+                f"_read_member_slots: 等级位置({level_center_x:.3f},{level_center_y:.3f}) "
+                f"未识别到主战员名称，重新搜索y={refresh_y}"
+            )
+        slots.append({
+            "name": name,
+            "x": name_x,
+            "y": name_y,
+            "refresh_y": refresh_y,
+        })
     return slots
 
 
@@ -612,8 +658,9 @@ def handle_member_selection(task: TriggerTask):
     if chosen is None:
         task.log_info("主战员选择: 未找到优先角色或优先角色被拉黑，点击三个名字下方按钮刷新一次")
         for slot in slots:
-            task.click(slot["x"], slot["refresh_y"])
-            task.sleep(1)
+            if slot["refresh_y"] is not None:
+                task.click(slot["x"], slot["refresh_y"])
+                task.sleep(1)
         task.sleep(1)
         task.all_texts = _simplify_texts(task.ocr())
         slots = _read_member_slots(task)
@@ -878,23 +925,10 @@ def handle_rest_sortie(task: TriggerTask):
         else:
             task.log_info("不满足闪光条件，继续检测休息")
 
-    # 检测休息区域 (0.298,0.681)-(0.420,0.850) 是否存在"休息"+"免费"
-    x1, y1, x2, y2 = 0.298, 0.681, 0.420, 0.850
-    has_rest = False
-    has_free = False
-    rest_box = None
-    for b in task.all_texts:
-        cx = (b.x + b.width / 2) / task.width
-        cy = (b.y + b.height / 2) / task.height
-        if x1 <= cx <= x2 and y1 <= cy <= y2:
-            if b.name == "休息":
-                has_rest = True
-                rest_box = b
-            if "免费" in b.name:
-                has_free = True
-    if has_rest and has_free and rest_box and hasattr(task, 'node_status') and task.node_status.get('flash_or_rest', False):
+    rest_feature = _find_rest_feature(task)
+    if rest_feature and hasattr(task, 'node_status') and task.node_status.get('flash_or_rest', False):
         task.log_info("检测到休息界面，点击休息")
-        task.click_box(rest_box)
+        task.click_box(rest_feature)
         task.sleep(1)
         task.node_status['flash_or_rest'] = False
         return True
