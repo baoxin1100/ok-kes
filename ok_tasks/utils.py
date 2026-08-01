@@ -10,8 +10,6 @@ import numpy as np
 from opencc import OpenCC
 
 _cc = OpenCC('t2s')  # 繁转简，用于OCR文本统一转换
-
-
 def _edit_distance(s1, s2, max_dist=1):
     """计算两个字符串的编辑距离是否 <= max_dist。"""
     if abs(len(s1) - len(s2)) > max_dist:
@@ -195,18 +193,17 @@ def find_target_card(task: TriggerTask):
     return target_boxes, click_positions
 
 
-def recognize_cards(
+def _recognize_cards_by_features(
     task: TriggerTask,
-    region=(0.021, 0.172, 0.988, 0.432),
-    page="",
+    region,
+    page,
+    feature_types,
+    min_feature_distance,
+    name_offset,
+    type_offset,
+    description_offsets,
 ):
-    """在指定区域按卡牌类型特征识别卡牌名称、类型文本和描述。"""
-    feature_types = {
-        "attack": "攻击/基础攻击",
-        "skill": "技能/基础技能",
-        "enhance": "强化",
-        "hex": "咒术",
-    }
+    """按指定特征和相对位置识别卡牌。"""
     search_box = task.box_of_screen(*region)
     feature_candidates = []
     for feature_name, feature_type in feature_types.items():
@@ -217,10 +214,6 @@ def recognize_cards(
         ) or []
         for feature_box in feature_boxes:
             feature_candidates.append((feature_name, feature_type, feature_box))
-
-    min_feature_distance = (
-        (0.618 - 0.454) ** 2 + (0.304 - 0.306) ** 2
-    ) ** 0.5
 
     def feature_distance(first, second):
         first_x = (first.x + first.width / 2) / task.width
@@ -248,15 +241,15 @@ def recognize_cards(
     for feature_name, feature_type, feature_box in filtered_features:
         center_x = (feature_box.x + feature_box.width / 2) / task.width
         center_y = (feature_box.y + feature_box.height / 2) / task.height
-        name_x = center_x + 0.0185
-        name_y = center_y - 0.0350
-        type_x = center_x + 0.0265
-        type_y = center_y - 0.0010
+        name_x = center_x + name_offset[0]
+        name_y = center_y + name_offset[1]
+        type_x = center_x + type_offset[0]
+        type_y = center_y + type_offset[1]
         desc_region = (
-            max(0.0, center_x - 0.0565),
-            max(0.0, center_y + 0.1190),
-            min(1.0, center_x + 0.1495),
-            min(1.0, center_y + 0.4900),
+            max(0.0, center_x + description_offsets[0]),
+            max(0.0, center_y + description_offsets[1]),
+            min(1.0, center_x + description_offsets[2]),
+            min(1.0, center_y + description_offsets[3]),
         )
         name_box = find_box_at_point(task, name_x, name_y)
         card_name = name_box.name.strip() if name_box else ""
@@ -291,6 +284,147 @@ def recognize_cards(
                 f"特征={card['feature_name']}，置信度={card['confidence']:.4f}"
             )
     return cards
+
+
+def recognize_cards(
+    task: TriggerTask,
+    region=(0.021, 0.172, 0.988, 0.432),
+    page="",
+):
+    """识别卡牌选择页面中的卡牌。"""
+    return _recognize_cards_by_features(
+        task=task,
+        region=region,
+        page=page,
+        feature_types={
+            "attack": "攻击/基础攻击",
+            "skill": "技能/基础技能",
+            "enhance": "强化",
+            "hex": "咒术",
+        },
+        min_feature_distance=(
+            (0.618 - 0.454) ** 2 + (0.304 - 0.306) ** 2
+        ) ** 0.5,
+        name_offset=(0.0185, -0.0350),
+        type_offset=(0.0265, -0.0010),
+        description_offsets=(-0.0565, 0.1190, 0.1495, 0.4900),
+    )
+
+
+def recognize_cards_in_deck(
+    task: TriggerTask,
+    region=(0.274, 0.108, 0.929, 0.874),
+    page="",
+):
+    """识别卡组区域中的卡牌，并标记金色边框选中的卡牌。"""
+    cards = _recognize_cards_by_features(
+        task=task,
+        region=region,
+        page=page,
+        feature_types={
+            "attack_in_deck": "攻击/基础攻击",
+            "skill_in_deck": "技能/基础技能",
+            "enhance_in_deck": "强化",
+            "hex_in_deck": "咒术",
+        },
+        min_feature_distance=(
+            (0.464 - 0.326) ** 2 + (0.175 - 0.175) ** 2
+        ) ** 0.5,
+        name_offset=(0.0130, -0.0265),
+        type_offset=(0.0250, 0.0015),
+        description_offsets=(-0.0370, 0.0515, 0.1000, 0.3295),
+    )
+    _mark_selected_card_by_gold_border(task, cards, page=page)
+    return cards
+
+
+def _mark_selected_card_by_gold_border(
+    task: TriggerTask,
+    cards,
+    page="",
+    threshold=0.12,
+):
+    """计算卡牌的金黄色边框得分，并在卡牌信息中写入选中状态。"""
+    for card in cards:
+        card["selected"] = False
+        card["gold_border_score"] = 0.0
+        card["gold_border_edges"] = {}
+    if not cards or task.frame is None:
+        return
+
+    frame = task.frame[:, :, :3]
+    frame_height, frame_width = frame.shape[:2]
+    band_x = max(2, round(frame_width * 0.004))
+    band_y = max(2, round(frame_height * 0.006))
+
+    def gold_ratio(left, top, right, bottom):
+        left = max(0, min(frame_width, round(left)))
+        right = max(0, min(frame_width, round(right)))
+        top = max(0, min(frame_height, round(top)))
+        bottom = max(0, min(frame_height, round(bottom)))
+        if right <= left or bottom <= top:
+            return 0.0
+        hsv = cv2.cvtColor(frame[top:bottom, left:right], cv2.COLOR_BGR2HSV)
+        gold_mask = cv2.inRange(
+            hsv,
+            np.array((8, 100, 160), dtype=np.uint8),
+            np.array((38, 255, 255), dtype=np.uint8),
+        )
+        return float(cv2.countNonZero(gold_mask)) / gold_mask.size
+
+    scored_cards = []
+    for card in cards:
+        feature_box = card["feature_box"]
+        center_x = feature_box.x + feature_box.width / 2
+        center_y = feature_box.y + feature_box.height / 2
+        card_left = center_x - frame_width * 0.047
+        card_right = center_x + frame_width * 0.103
+        card_top = center_y - frame_height * 0.061
+        card_bottom = center_y + frame_height * 0.330
+
+        edge_scores = {
+            "上": gold_ratio(
+                card_left, card_top - band_y, card_right, card_top + band_y
+            ),
+            "下": gold_ratio(
+                card_left, card_bottom - band_y, card_right, card_bottom + band_y
+            ),
+            "左": gold_ratio(
+                card_left - band_x, card_top, card_left + band_x, card_bottom
+            ),
+            "右": gold_ratio(
+                card_right - band_x, card_top, card_right + band_x, card_bottom
+            ),
+        }
+        visible_edge_scores = [
+            edge_scores["上"],
+            edge_scores["左"],
+            edge_scores["右"],
+        ]
+        score = sum(visible_edge_scores) / len(visible_edge_scores)
+        strong_edge_count = sum(value >= 0.08 for value in visible_edge_scores)
+        card["gold_border_score"] = score
+        card["gold_border_edges"] = edge_scores
+        scored_cards.append((score, strong_edge_count, card))
+
+    score, strong_edge_count, selected_card = max(
+        scored_cards, key=lambda item: item[0]
+    )
+    prefix = f"{page}: " if page else ""
+    if score >= threshold and strong_edge_count >= 2:
+        selected_card["selected"] = True
+
+    for card in cards:
+        edge_scores = card["gold_border_edges"]
+        task.log_info(
+            f"{prefix}卡牌「{card['name']}」是否选中={card['selected']}，"
+            f"金色边框得分={card['gold_border_score']:.4f}，"
+            f"上={edge_scores['上']:.4f}，下={edge_scores['下']:.4f}，"
+            f"左={edge_scores['左']:.4f}，右={edge_scores['右']:.4f}"
+        )
+
+    if not selected_card["selected"]:
+        task.log_info(f"{prefix}未检测到选中卡牌的金色边框")
 
 
 def find_text(task: TriggerTask, pattern):
@@ -368,123 +502,155 @@ def _card_has_base_type_below(task: TriggerTask, box):
     return False
 
 
-def select_card(task: TriggerTask, card_names, max_scrolls=5, fallback_delete=False, count=1, action=""):
-    """依次匹配卡牌名（子串包含匹配），点击命中的前 count 张（同一张不会重复选）。
-    支持向下滚动查找，若滚到底部仍未找到足够数量且 fallback_delete 为 True，则补充点击最后的牌。
-    当 action 为 "移除" 且配置"优先移除基础牌"为 True 时，兜底优先选择类型含"基础"的卡牌。
-    返回成功选择的数量。
-    """
+def select_card(task: TriggerTask, card_names, count=1, action=""):
+    """使用卡组特征识别选择卡牌，支持滚动查找、基础牌移除和兜底选择。"""
     selected = 0
-    used_positions = []
+    page = f"select_card-{action}" if action else "select_card"
+    prefer_remove_base = (
+        action == "移除"
+        and _get_config_value(task, "优先移除基础牌", True)
+    )
 
-    # 判断是否需要在移除删除时优先选择基础牌
-    is_remove_priority_base = False
-    if action == "移除":
-        is_remove_priority_base = _get_config_value(task, "优先移除基础牌", True)
+    def refresh_cards():
+        task.all_texts = _simplify_texts(task.ocr())
+        return recognize_cards_in_deck(task, page=page)
 
-    for i in range(max_scrolls + 1):
-        found_cards = [b for b in task.all_texts
-                       if 0.274 <= (b.x + b.width / 2) / task.width <= 0.931
-                       and 0.106 <= (b.y + b.height / 2) / task.height <= 0.878
-                       and _is_valid_card_name(b.name)
-                       and _card_has_type_below(task, b)]
-        if found_cards:
-            found_names = [b.name for b in found_cards]
-            task.log_info(f"select_card 第{i+1}次查找, 目标: {card_names}, 区域内发现卡牌: {found_names}")
+    def point_is_white(x, y):
+        pixel_x = min(task.width - 1, max(0, round(x * task.width)))
+        pixel_y = min(task.height - 1, max(0, round(y * task.height)))
+        blue, green, red = (
+            int(value) for value in task.frame[pixel_y, pixel_x, :3]
+        )
+        is_white = min(blue, green, red) >= 240 and (
+            max(blue, green, red) - min(blue, green, red)
+        ) <= 15
+        task.log_info(
+            f"{page}: 点({x:.3f}, {y:.3f})颜色="
+            f"B{blue}/G{green}/R{red}，是否白色={is_white}"
+        )
+        return is_white
 
-        for name in card_names:
-            card = next((b for b in task.all_texts
-                         if (
-                             b.name == name
-                             if action == "移除" and is_remove_priority_base
-                             else name in b.name or b.name in name
-                         )
-                     and 0.274 <= (b.x + b.width / 2) / task.width <= 0.931
-                     and 0.106 <= (b.y + b.height / 2) / task.height <= 0.878
-                     and not any(abs(ux - b.x) <= 10 and abs(uy - b.y) <= 10 for ux, uy, _, _ in used_positions)
-                     and _card_has_type_below(task, b)), None)
-            if card:
-                task.log_info(f"select_card 匹配成功: 名称「{card.name}」, 位置({card.x},{card.y})")
-                task.click_box(card)
-                used_positions.append((card.x, card.y, card.width, card.height))
-                selected += 1
-                if selected >= count:
-                    return selected
-        if i < max_scrolls:
-            task.log_info(f"select_card 第{i+1}次未找到目标, 向下滚动")
-            task.scroll_relative(0.5, 0.7, -3)
+    def scroll_cards(x, y, amount):
+        direction = "向下" if amount < 0 else "向上"
+        task.log_info(f"{page}: 在({x:.3f}, {y:.3f}){direction}滚动")
+        task.move_relative(x, y)
+        task.sleep(0.05)
+        task.scroll_relative(x, y, amount)
+        task.sleep(0.5)
+
+    def card_matches(card):
+        card_name = card["name"].strip()
+        return any(
+            target and (target in card_name or card_name in target)
+            for target in card_names
+        )
+
+    def click_cards(cards, predicate, reason):
+        nonlocal selected
+        clicked = False
+        for card in cards:
+            if selected >= count:
+                break
+            if card["selected"] or not predicate(card):
+                continue
+            task.log_info(f"{page}: {reason}「{card['name']}」")
+            task.click(card["x"], card["y"])
             task.sleep(0.3)
-            task.all_texts = _simplify_texts(task.ocr())
-
-    if fallback_delete and selected < count:
-        remaining = count - selected
-        task.log_info(f"滚动{max_scrolls}次仍未找到足够目标卡牌，补充点击最后{remaining}张")
-        for _ in range(remaining):
-            task.all_texts = _simplify_texts(task.ocr())
-            cards = [
-                b for b in task.all_texts
-                if 0.274 <= (b.x + b.width / 2) / task.width <= 0.931
-                and 0.106 <= (b.y + b.height / 2) / task.height <= 0.878
-                and not any(abs(ux - b.x) <= 10 and abs(uy - b.y) <= 10 for ux, uy, _, _ in used_positions)
-                and b.name not in ["确认", "返回", "跳过"]
-                and _is_valid_card_name(b.name)
-                and _card_has_type_below(task, b)
-            ]
-            # 如果是移除操作且启用了优先移除基础牌
-            if is_remove_priority_base:
-                # 先从当前区域找基础牌（从后往前优先）
-                base_card = next((c for c in reversed(cards) if _card_has_base_type_below(task, c)), None)
-                if base_card:
-                    fallback_card = base_card
-                    task.log_info(f"select_card fallback 优先选择基础牌: 「{base_card.name}」")
-                else:
-                    task.log_info("select_card fallback: 移除操作且当前区域无基础牌，向上翻找")
-                    for up_i in range(max_scrolls):
-                        task.scroll_relative(0.5, 0.7, 3)
-                        task.sleep(0.3)
-                        task.all_texts = _simplify_texts(task.ocr())
-                        up_cards = [
-                            b for b in task.all_texts
-                            if 0.274 <= (b.x + b.width / 2) / task.width <= 0.931
-                            and 0.106 <= (b.y + b.height / 2) / task.height <= 0.878
-                            and not any(abs(ux - b.x) <= 10 and abs(uy - b.y) <= 10 for ux, uy, _, _ in used_positions)
-                            and b.name not in ["确认", "返回", "跳过"]
-                            and _is_valid_card_name(b.name)
-                            and _card_has_type_below(task, b)
-                        ]
-                        base_card = next((c for c in reversed(up_cards) if _card_has_base_type_below(task, c)), None)
-                        if base_card:
-                            task.log_info(f"select_card fallback 向上翻找到基础牌: 「{base_card.name}」")
-                            task.click_box(base_card)
-                            used_positions.append((base_card.x, base_card.y, base_card.width, base_card.height))
-                            selected += 1
-                            task.sleep(0.3)
-                            break
-                    else:
-                        # 向上翻完还没找到基础牌，用回原来兜底逻辑
-                        if not cards:
-                            task.log_info("select_card fallback: 上翻后无基础牌且原区域无卡牌，停止补充")
-                            break
-                        fallback_card = max(cards, key=lambda b: (b.y, b.x))
-                        task.log_info(f"select_card fallback 上翻未找到基础牌，回退选择: 「{fallback_card.name}」")
-                        task.click_box(fallback_card)
-                        used_positions.append((fallback_card.x, fallback_card.y, fallback_card.width, fallback_card.height))
-                        selected += 1
-                        task.sleep(0.3)
-                    continue
-            else:
-                # 非移除操作，用原有兜底
-                if not cards:
-                    task.log_info("select_card fallback: 区域内无可选卡牌，停止补充")
-                    break
-                fallback_card = max(cards, key=lambda b: (b.y, b.x))
-            task.log_info(f"select_card fallback 补充点击: 名称「{fallback_card.name}」, 位置({fallback_card.x},{fallback_card.y})")
-            task.click_box(fallback_card)
-            used_positions.append((fallback_card.x, fallback_card.y, fallback_card.width, fallback_card.height))
+            card["selected"] = True
             selected += 1
-            task.sleep(0.3)
+            clicked = True
+        return clicked
 
-    return selected
+    def sync_visible_selected(cards):
+        nonlocal selected
+        if selected == 0:
+            selected = min(count, sum(card["selected"] for card in cards))
+
+    cards = refresh_cards()
+    if not cards:
+        task.log_info(f"{page}: 未识别到任何卡牌，终止选卡")
+        return False
+    sync_visible_selected(cards)
+
+    while True:
+        click_cards(cards, card_matches, "命中目标卡牌，点击")
+        if selected >= count:
+            task.log_info(f"{page}: 已选中{selected}/{count}张卡牌")
+            return True
+
+        if point_is_white(0.982, 0.846):
+            task.log_info(f"{page}: 检测到已到达卡牌底部")
+            break
+
+        scroll_cards(0.251, 0.735, -3)
+        cards = refresh_cards()
+        if not cards:
+            task.log_info(f"{page}: 向下拖动后未识别到任何卡牌，终止选卡")
+            return False
+
+    if prefer_remove_base and selected < count:
+        bottom_to_top_cards = sorted(
+            cards,
+            key=lambda card: (card["y"], card["x"]),
+            reverse=True,
+        )
+        click_cards(
+            bottom_to_top_cards,
+            lambda card: "基础" in card["type"],
+            "底部页面优先移除基础牌，点击",
+        )
+        if selected >= count:
+            return True
+
+        while True:
+            if point_is_white(0.982, 0.128):
+                task.log_info(f"{page}: 检测到已到达卡牌顶部")
+                break
+
+            scroll_cards(0.252, 0.179, 3)
+            cards = refresh_cards()
+            if not cards:
+                task.log_info(f"{page}: 向上拖动后未识别到任何卡牌，终止选卡")
+                return False
+            bottom_to_top_cards = sorted(
+                cards,
+                key=lambda card: (card["y"], card["x"]),
+                reverse=True,
+            )
+            click_cards(
+                bottom_to_top_cards,
+                lambda card: "基础" in card["type"],
+                "向上翻页找到基础牌，点击",
+            )
+            if selected >= count:
+                return True
+
+    task.all_texts = _simplify_texts(task.ocr())
+    action_box = task.box_of_screen(0.424, 0.882, 1.000, 0.999)
+    for button_name in ("跳过", "取消"):
+        button = next(
+            (
+                box for box in task.all_texts
+                if action_box.x <= box.x + box.width / 2 <= action_box.x + action_box.width
+                and action_box.y <= box.y + box.height / 2 <= action_box.y + action_box.height
+                and button_name in box.name
+            ),
+            None,
+        )
+        if button:
+            task.log_info(f"{page}: 未找到足够卡牌，点击「{button_name}」")
+            task.click_box(button)
+            return True
+
+    cards = recognize_cards_in_deck(task, page=f"{page}-兜底")
+    fallback_cards = sorted(
+        cards,
+        key=lambda card: (card["y"], card["x"]),
+        reverse=True,
+    )
+    click_cards(fallback_cards, lambda card: True, "兜底补选卡牌，点击")
+    task.log_info(f"{page}: 兜底处理完成，已选中{selected}/{count}张卡牌")
+    return True
 
 
 def calculate_dominant_hue(task: TriggerTask, region):
@@ -1164,7 +1330,7 @@ def handle_select_card(task: TriggerTask):
     if action_tip:
         task.log_info(f"右下角选牌操作提示: 「{action_tip.name}」")
 
-    select_card(task, _get_card_list(task, config_key), fallback_delete=True, count=count, action=action)
+    select_card(task, _get_card_list(task, config_key), count=count, action=action)
     return True
 
 
@@ -1791,7 +1957,6 @@ def handle_rest(task: TriggerTask):
         task.log_info("检测到德朗商店，且 node_status['shop']=True，进入商店")
         task.click_box(shop_box)
         task.sleep(2)
-        task.node_status['shop'] = False
         return True
     return False
 
@@ -1804,25 +1969,30 @@ def handle_shop(task: TriggerTask):
         task.log_info("handle_shop: 通过页面判定（移除卡牌或售罄）")
         if soldout and "售" in soldout.name:
             task.log_info(f"德朗商店: 移除卡牌已售罄")
+            task.node_status['shop'] = False
             return False
         current_credit = _get_current_credit(task)
         task.log_info(f"handle_shop: 当前信用点={current_credit}")
         if current_credit <= 0:
             task.log_info("handle_shop: 信用点读取失败，return False")
+            task.node_status['shop'] = False
             return False
 
         cost_box = find_box_at_point(task, 0.724, 0.319)
         task.log_info(f"handle_shop: 0.724,0.319处费用文本='{cost_box.name if cost_box else None}'")
         if not (cost_box and cost_box.name.isdigit()):
             task.log_info("handle_shop: 费用读取失败，return False")
+            task.node_status['shop'] = False
             return False
         cost = int(cost_box.name)
-        if cost <= current_credit:
+        if cost <= current_credit and task.node_status['shop'] is True:
             task.log_info(f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，足够，点击移除")
             task.click_box(box)
+            task.node_status['shop'] = False
             return True
         else:
             task.log_info(f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，不足，跳过")
+            task.node_status['shop'] = False
             return False
     return False
 

@@ -74,7 +74,7 @@ config = {
         'lib': 'onnxocr',
         'auto_simplify': True, #自动繁体转简体, 需要ppocrv5等可以识别繁体的库
         'params': {
-            'use_openvino': True,
+            'use_openvino': False,
         }
     },
     'windows': {  # Windows游戏请填写此设置

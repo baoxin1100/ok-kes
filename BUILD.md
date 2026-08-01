@@ -38,7 +38,7 @@ pyinstaller --onefile --noconsole --uac-admin --noupx --runtime-tmpdir "C:\Temp\
   --hidden-import onnxocr_ppocrv5 ^
   --exclude-module PySide6.translations ^
   --collect-all onnxocr ^
-  --collect-all openvino ^
+  --collect-all onnxruntime ^
   --collect-all pyappify ^
   main.py
 ```
@@ -65,7 +65,7 @@ del "ok-kes-win32-portable-v1.3.1.spec"
 | `--uac-admin` | 请求管理员权限 |
 | `--add-data ok_tasks;ok_tasks` | 打包任务文件，运行时通过 `os.chdir(sys._MEIPASS)` 找到 |
 | `--hidden-import src.globals` | 动态引用的全局对象模块 |
-| `--collect-all openvino` | 包含 OpenVINO 完整库（否则缺少 ONNX 前端导致模型加载失败） |
+| `--collect-all onnxruntime` | 包含 ONNX Runtime 运行库和 CPU 执行提供程序 |
 | `--collect-all onnxocr` | 包含 OCR 模型文件（.onnx）和代码 |
 | `--runtime-tmpdir` | 指定纯英文临时解压路径，避免中文用户名导致 OpenCC C 库 fopen 失败 |
 | `--add-data opencc\clib;opencc\clib` | 打包 OpenCC 绑定的动态库和字典文件 |
