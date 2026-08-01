@@ -67,6 +67,12 @@
             "height": 1080
         },
         {
+            "id": 50,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
+        },
+        {
             "id": 51,
             "file_name": "images/0.png",
             "width": 1920,
@@ -128,6 +134,30 @@
         },
         {
             "id": 79,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
+        },
+        {
+            "id": 83,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
+        },
+        {
+            "id": 84,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
+        },
+        {
+            "id": 85,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
+        },
+        {
+            "id": 86,
             "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
@@ -588,6 +618,110 @@
             ],
             "area": 672,
             "iscrowd": 0
+        },
+        {
+            "id": 36,
+            "image_id": 83,
+            "category_id": 36,
+            "bbox": [
+                355,
+                278,
+                30,
+                30
+            ],
+            "area": 900,
+            "iscrowd": 0
+        },
+        {
+            "id": 37,
+            "image_id": 83,
+            "category_id": 37,
+            "bbox": [
+                1406,
+                279,
+                28,
+                28
+            ],
+            "area": 784,
+            "iscrowd": 0
+        },
+        {
+            "id": 38,
+            "image_id": 50,
+            "category_id": 38,
+            "bbox": [
+                318,
+                323,
+                26,
+                32
+            ],
+            "area": 832,
+            "iscrowd": 0
+        },
+        {
+            "id": 39,
+            "image_id": 85,
+            "category_id": 39,
+            "bbox": [
+                679,
+                411,
+                21,
+                21
+            ],
+            "area": 441,
+            "iscrowd": 0
+        },
+        {
+            "id": 40,
+            "image_id": 85,
+            "category_id": 40,
+            "bbox": [
+                1316,
+                411,
+                20,
+                21
+            ],
+            "area": 420,
+            "iscrowd": 0
+        },
+        {
+            "id": 41,
+            "image_id": 85,
+            "category_id": 41,
+            "bbox": [
+                1631,
+                412,
+                20,
+                20
+            ],
+            "area": 400,
+            "iscrowd": 0
+        },
+        {
+            "id": 42,
+            "image_id": 86,
+            "category_id": 42,
+            "bbox": [
+                670,
+                669,
+                21,
+                20
+            ],
+            "area": 420,
+            "iscrowd": 0
+        },
+        {
+            "id": 43,
+            "image_id": 84,
+            "category_id": 43,
+            "bbox": [
+                841,
+                310,
+                33,
+                34
+            ],
+            "area": 1122,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -764,6 +898,46 @@
         {
             "id": 35,
             "name": "targetinselectcard",
+            "supercategory": ""
+        },
+        {
+            "id": 36,
+            "name": "skill",
+            "supercategory": ""
+        },
+        {
+            "id": 37,
+            "name": "attack",
+            "supercategory": ""
+        },
+        {
+            "id": 38,
+            "name": "enhance",
+            "supercategory": ""
+        },
+        {
+            "id": 39,
+            "name": "attack_in_select_card",
+            "supercategory": ""
+        },
+        {
+            "id": 40,
+            "name": "skill_in_select_card",
+            "supercategory": ""
+        },
+        {
+            "id": 41,
+            "name": "enhance_in_select_card",
+            "supercategory": ""
+        },
+        {
+            "id": 42,
+            "name": "hex_in_select_card",
+            "supercategory": ""
+        },
+        {
+            "id": 43,
+            "name": "hex",
             "supercategory": ""
         }
     ]

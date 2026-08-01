@@ -195,6 +195,104 @@ def find_target_card(task: TriggerTask):
     return target_boxes, click_positions
 
 
+def recognize_cards(
+    task: TriggerTask,
+    region=(0.021, 0.172, 0.988, 0.432),
+    page="",
+):
+    """在指定区域按卡牌类型特征识别卡牌名称、类型文本和描述。"""
+    feature_types = {
+        "attack": "攻击/基础攻击",
+        "skill": "技能/基础技能",
+        "enhance": "强化",
+        "hex": "咒术",
+    }
+    search_box = task.box_of_screen(*region)
+    feature_candidates = []
+    for feature_name, feature_type in feature_types.items():
+        feature_boxes = task.find_feature(
+            feature_name=feature_name,
+            box=search_box,
+            threshold=0.65,
+        ) or []
+        for feature_box in feature_boxes:
+            feature_candidates.append((feature_name, feature_type, feature_box))
+
+    min_feature_distance = (
+        (0.618 - 0.454) ** 2 + (0.304 - 0.306) ** 2
+    ) ** 0.5
+
+    def feature_distance(first, second):
+        first_x = (first.x + first.width / 2) / task.width
+        first_y = (first.y + first.height / 2) / task.height
+        second_x = (second.x + second.width / 2) / task.width
+        second_y = (second.y + second.height / 2) / task.height
+        return (
+            (first_x - second_x) ** 2 + (first_y - second_y) ** 2
+        ) ** 0.5
+
+    filtered_features = []
+    for candidate in sorted(
+        feature_candidates,
+        key=lambda item: item[2].confidence,
+        reverse=True,
+    ):
+        if any(
+            feature_distance(candidate[2], kept[2]) < min_feature_distance
+            for kept in filtered_features
+        ):
+            continue
+        filtered_features.append(candidate)
+
+    cards = []
+    for feature_name, feature_type, feature_box in filtered_features:
+        center_x = (feature_box.x + feature_box.width / 2) / task.width
+        center_y = (feature_box.y + feature_box.height / 2) / task.height
+        name_x = center_x + 0.0185
+        name_y = center_y - 0.0350
+        type_x = center_x + 0.0265
+        type_y = center_y - 0.0010
+        desc_region = (
+            max(0.0, center_x - 0.0565),
+            max(0.0, center_y + 0.1190),
+            min(1.0, center_x + 0.1495),
+            min(1.0, center_y + 0.4900),
+        )
+        name_box = find_box_at_point(task, name_x, name_y)
+        card_name = name_box.name.strip() if name_box else ""
+        if not card_name:
+            continue
+        type_box = find_box_at_point(task, type_x, type_y)
+        card_type = type_box.name.strip() if type_box else ""
+        description = _get_region_text(task, desc_region)
+        if not card_type or not description:
+            continue
+        cards.append({
+            "name": card_name,
+            "type": card_type,
+            "description": description,
+            "feature_name": feature_name,
+            "feature_type": feature_type,
+            "confidence": feature_box.confidence,
+            "feature_box": feature_box,
+            "x": name_x,
+            "y": name_y,
+            "description_region": desc_region,
+        })
+    cards.sort(key=lambda card: card["feature_box"].x)
+    if cards:
+        log_prefix = f"{page}: " if page else ""
+        task.log_info(f"{log_prefix}卡牌识别到{len(cards)}张卡牌")
+        for index, card in enumerate(cards, 1):
+            task.log_info(
+                f"{log_prefix}卡牌{index}: 名称=「{card['name']}」，"
+                f"类型=「{card['type'] or card['feature_type']}」，"
+                f"描述=「{card['description']}」，"
+                f"特征={card['feature_name']}，置信度={card['confidence']:.4f}"
+            )
+    return cards
+
+
 def find_text(task: TriggerTask, pattern):
     """按正则在所有识别文本中查找第一个匹配的 box。"""
     return next((b for b in task.all_texts if re.search(pattern, b.name)), None)
@@ -479,22 +577,6 @@ def is_button_active(task: TriggerTask, button_box):
     return not is_disabled_gray
 
 
-def _cluster_region_boxes(task: TriggerTask, region):
-    """将区域内文本框按 x 坐标聚类为列（用于卡牌名/效果描述区域），返回 [{'x': 中心x, 'texts': [...]}, ...]"""
-    x1, y1, x2, y2 = region
-    boxes = [b for b in task.all_texts
-             if x1 <= (b.x + b.width / 2) / task.width <= x2
-             and y1 <= (b.y + b.height / 2) / task.height <= y2]
-    columns = []
-    for box in sorted(boxes, key=lambda b: b.x):
-        cx = (box.x + box.width / 2) / task.width
-        if columns and abs(cx - columns[-1]['x']) <= 0.08:
-            columns[-1]['texts'].append(box.name)
-        else:
-            columns.append({'x': cx, 'texts': [box.name]})
-    return columns
-
-
 # def group_dialog_columns(task: TriggerTask, region, max_width_ratio=0.25, align_tolerance=0.04):
 #     """把区域内文本框按左边缘聚成对话框列。"""
 #     x1, y1, x2, y2 = region
@@ -741,7 +823,7 @@ def handle_main_member_flash(task: TriggerTask):
 
 
 def handle_card_reward(task: TriggerTask):
-    """卡牌奖励页面: 在区域内OCR识别卡牌名，按优先级选择卡牌并确认。"""
+    """卡牌奖励页面: 按类型特征识别卡牌，并按优先级选择。"""
     box = find_box_at_point(task, 0.498, 0.129)
     if not (box and _get_game_text(task, '卡牌奖励') in box.name):
         return False
@@ -758,16 +840,7 @@ def handle_card_reward(task: TriggerTask):
 
     priority = _get_card_reward_priority(task)
 
-    # 在指定区域内查找所有满足卡牌特征的文本框
-    x1, y1, x2, y2 = 0.094, 0.231, 0.973, 0.875
-    cards = [
-        b for b in task.all_texts
-        if x1 <= (b.x + b.width / 2) / task.width <= x2
-        and y1 <= (b.y + b.height / 2) / task.height <= y2
-        and _card_has_type_below(task, b)
-        and len(b.name.strip()) > 1
-    ]
-    task.log_info(f"卡牌奖励区域识别到{len(cards)}张卡牌: {[b.name for b in cards]}")
+    cards = recognize_cards(task, page="卡牌奖励页面")
 
     initial_card_name = _get_config_value(task, "刷初始卡牌", "")
     initial_card_name = initial_card_name.strip() if isinstance(initial_card_name, str) else ""
@@ -778,14 +851,14 @@ def handle_card_reward(task: TriggerTask):
     )
     if initial_card_name and is_initial_node:
         initial_card = next(
-            (card for card in cards if initial_card_name in card.name.strip()),
+            (card for card in cards if initial_card_name in card["name"]),
             None,
         )
         if initial_card:
             task.log_info(
                 f"刷初始卡牌命中「{initial_card_name}」，点击该卡牌"
             )
-            task.click_box(initial_card)
+            task.click(initial_card["x"], initial_card["y"])
             task.sleep(1)
             return True
         task.log_info(
@@ -797,9 +870,14 @@ def handle_card_reward(task: TriggerTask):
 
     chosen_card = None
     for pri_name in priority:
-        chosen_card = next((b for b in cards if pri_name and pri_name in b.name), None)
+        chosen_card = next(
+            (card for card in cards if pri_name and pri_name in card["name"]),
+            None,
+        )
         if chosen_card:
-            task.log_info(f"按优先级选择卡牌: {chosen_card.name}（配置: {pri_name}）")
+            task.log_info(
+                f"按优先级选择卡牌: {chosen_card['name']}（配置: {pri_name}）"
+            )
             break
 
     if chosen_card is None and cards:
@@ -819,10 +897,10 @@ def handle_card_reward(task: TriggerTask):
             task.sleep(0.5)
             return True
         chosen_card = random.choice(cards)
-        task.log_info(f"未命中优先级，随机选择卡牌: {chosen_card.name}")
+        task.log_info(f"未命中优先级，随机选择卡牌: {chosen_card['name']}")
 
     if chosen_card:
-        task.click_box(chosen_card)
+        task.click(chosen_card["x"], chosen_card["y"])
         task.sleep(1)
         return True
     return False
@@ -1091,7 +1169,7 @@ def handle_select_card(task: TriggerTask):
 
 
 def handle_copy_card_choice(task: TriggerTask):
-    """复制卡牌选择页面: 动态识别最多三张卡牌，按复制卡牌列表优先级选择。"""
+    """复制卡牌选择页面: 按类型特征识别卡牌，并按复制卡牌列表优先级选择。"""
     box = find_box_at_point(task, 0.498, 0.133)
     if not (box and "请选择要复制的卡牌" in box.name):
         return False
@@ -1106,60 +1184,14 @@ def handle_copy_card_choice(task: TriggerTask):
         task.click(*click_position)
         return True
 
-    name_boxes = []
-    for text_box in task.all_texts:
-        center_x = (text_box.x + text_box.width / 2) / task.width
-        center_y = (text_box.y + text_box.height / 2) / task.height
-        name = text_box.name.strip()
-        if not (
-            0.080 <= center_x <= 0.948
-            and 0.183 <= center_y <= 0.367
-            and name
-            and _card_has_type_below(task, text_box)
-        ):
-            continue
-        if len(name) == 1 and (
-            name.isdigit()
-            or re.fullmatch(r"[A-Za-z]", name)
-            or not re.search(r"[\u4e00-\u9fffA-Za-z0-9]", name)
-        ):
-            continue
-        name_boxes.append(text_box)
-
-    if len(name_boxes) > 3:
-        task.log_info(
-            f"识别到{len(name_boxes)}个候选卡牌名，保留文本长度最长的三个"
-        )
-        name_boxes = sorted(
-            name_boxes,
-            key=lambda candidate: len(candidate.name.strip()),
-            reverse=True,
-        )[:3]
-    name_boxes.sort(key=lambda candidate: candidate.x)
-
-    cards = []
-    for index, name_box in enumerate(name_boxes):
-        name_center_x = (name_box.x + name_box.width / 2) / task.width
-        name_bottom_y = (name_box.y + name_box.height) / task.height
-        desc_region = (
-            max(0.0, name_center_x - 0.0841),
-            max(0.0, name_bottom_y + 0.0883),
-            min(1.0, name_center_x + 0.1129),
-            min(1.0, name_bottom_y + 0.5063),
-        )
-        name = name_box.name.strip()
-        desc = _get_region_text(task, desc_region)
-        cards.append({"name": name, "box": name_box, "desc": desc})
-        task.log_info(
-            f"复制卡牌 卡牌{index + 1}: 名称=「{name}」 描述=「{desc}」"
-        )
+    cards = recognize_cards(task, page="复制卡牌选择页面")
 
     priority = _get_config_value(task, '复制卡牌列表', [])
     for pri_name in priority:
         for card in cards:
             if card["name"] and pri_name in card["name"]:
                 task.log_info(f"复制卡牌选择: 按优先级选择「{card['name']}」(匹配「{pri_name}」)")
-                task.click_box(card["box"])
+                task.click(card["x"], card["y"])
                 task.sleep(0.5)
                 return True
 
@@ -1796,7 +1828,7 @@ def handle_shop(task: TriggerTask):
 
 
 def handle_view_original(task: TriggerTask):
-    """卡牌闪光（查看原件）事件: 聚类卡牌名和效果描述，按 FLASH_PRIORITY 优先选择。"""
+    """卡牌闪光（查看原件）事件: 按类型特征识别卡牌，并按闪光优先级选择。"""
     box1 = find_box_at_point(task, 0.890, 0.051)
     box2 = find_box_at_point(task, 0.896, 0.131)
     if not ((box1 and (_get_game_text(task, '查看原件') in box1.name or _get_game_text(task, '查看之前的闪光') in box1.name)) or (box2 and (_get_game_text(task, '查看原件') in box2.name or _get_game_text(task, '查看之前的闪光') in box2.name))):
@@ -1811,26 +1843,9 @@ def handle_view_original(task: TriggerTask):
         task.click(*click_position)
         return True
 
-    name_cols = _cluster_region_boxes(task, (0.148, 0.192, 0.859, 0.325))
-    desc_cols = _cluster_region_boxes(task, (0.154, 0.456, 0.859, 0.786))
-
-    if not name_cols or not desc_cols:
+    cards = recognize_cards(task, page="卡牌闪光页面")
+    if not cards:
         return False
-
-    cards = []
-    for name_col in name_cols:
-        nearest_desc = min(desc_cols, key=lambda d: abs(d['x'] - name_col['x']))
-        card_name = name_col['texts'][0] if name_col['texts'] else ''
-        cards.append({
-            'x': (name_col['x'] + nearest_desc['x']) / 2,
-            'name': card_name,
-            'descs': nearest_desc['texts'],
-        })
-
-    log_parts = [f"检测到卡牌闪光事件，卡牌名称是{cards[0]['name']}"]
-    for i, card in enumerate(cards, 1):
-        log_parts.append(f"闪光{i}效果是{'、'.join(card['descs'])}")
-    task.log_info('，'.join(log_parts))
 
     flash_priority = _get_config_value(task, '闪光优先级', {})
     if isinstance(flash_priority, str):
@@ -1844,7 +1859,7 @@ def handle_view_original(task: TriggerTask):
             if card_name not in card['name']:
                 continue
             for desc_keyword in priority_descs:
-                if any(is_subsequence(desc_keyword, d) for d in card['descs']):
+                if is_subsequence(desc_keyword, card['description']):
                     chosen_card = card
                     task.log_info(f"优先选择「{card['name']}」({desc_keyword})")
                     break
@@ -1857,7 +1872,7 @@ def handle_view_original(task: TriggerTask):
         chosen_card = random.choice(cards)
         task.log_info(f"随机选择「{chosen_card['name']}」")
 
-    task.click(chosen_card['x'], 0.515)
+    task.click(chosen_card['x'], chosen_card['y'])
     return True
 
 

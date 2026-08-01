@@ -2,7 +2,7 @@ from ok import TriggerTask
 
 from utils import (
     _simplify_texts, _edit_distance, _get_config_value, _get_card_list, _get_route_priority, _get_game_text,
-    find_box_at_point, find_text, find_exact_text,
+    find_box_at_point, find_text, find_exact_text, recognize_cards,
     _card_has_type_below, select_card, calculate_dominant_hue,
     log_credit, log_node_status, handle_battle_crash, handle_close_page, handle_refine_equipment_credit,
     handle_center_confirm, handle_settlement, handle_skip,
@@ -503,21 +503,13 @@ def handle_get_card(task: TriggerTask):
     tip = find_box_at_point(task, 0.883, 0.131)
     if not (title and title.name == "获得卡牌" and tip and re.search(r"请选择.*获得的卡牌", tip.name)):
         return False
-    cards = []
-    for x, y in [(0.194, 0.310), (0.471, 0.311), (0.750, 0.310)]:
-        box = find_box_at_point(task, x, y)
-        if box:
-            box_info = f"name=「{box.name}」 x={box.x} y={box.y} w={box.width} h={box.height}"
-            task.log_info(f"获得卡牌: 槽位({x},{y}) 识别到 {box_info}")
-            cards.append({"name": box.name, "x": x, "y": y})
-        else:
-            task.log_info(f"获得卡牌: 槽位({x},{y}) 未识别到任何文本")
+    cards = recognize_cards(task, page="获得卡牌页面")
     if not cards:
-        task.log_info("获得卡牌: 三个槽位均未识别到卡牌，无法选择")
+        task.log_info("获得卡牌: 未识别到卡牌类型特征，无法选择")
         return False
 
     priority = _get_config_value(task, "获得卡牌优先级", [])
-    task.log_info(f"获得卡牌: 识别到{len(cards)}张卡牌: {[c['name'] for c in cards]}, 当前优先级配置: {priority}")
+    task.log_info(f"获得卡牌: 当前优先级配置: {priority}")
     for name in priority:
         task.log_info(f"获得卡牌: 检查优先级「{name}」是否在卡牌列表中")
         chosen = next((card for card in cards if name in card["name"]), None)
@@ -779,27 +771,21 @@ def handle_curiosity_activate(task: TriggerTask):
     if box and _get_game_text(task, '请选择1张要手持的卡牌') in box.name:
         task.log_info("检测到尼娅的好奇心发动页面")
         priority = ["剑雨", "展开极光", "一缕光芒", "万众英雄"]
-        px1, py1 = int(0.168 * task.width), int(0.247 * task.height)
-        px2, py2 = int(0.868 * task.width), int(0.318 * task.height)
-        cards = [
-            b for b in task.all_texts
-            if b.x >= px1 and b.y >= py1 and b.x + b.width <= px2 and b.y + b.height <= py2
-            and b.name not in ["确认", "返回", "跳过"]
-        ]
+        cards = recognize_cards(task, page="尼娅的好奇心页面")
         chosen_card = None
         for pri_name in priority:
             for card in cards:
-                if card.name in pri_name:
+                if card["name"] and card["name"] in pri_name:
                     chosen_card = card
-                    task.log_info(f"按优先级选择卡牌: {card.name}")
+                    task.log_info(f"按优先级选择卡牌: {card['name']}")
                     break
             if chosen_card:
                 break
         if not chosen_card and cards:
             chosen_card = random.choice(cards)
-            task.log_info(f"未命中优先级，随机选择卡牌: {chosen_card.name}")
+            task.log_info(f"未命中优先级，随机选择卡牌: {chosen_card['name']}")
         if chosen_card:
-            task.click_box(chosen_card)
+            task.click(chosen_card["x"], chosen_card["y"])
             task.sleep(2)
             return True
     return False
@@ -837,17 +823,14 @@ def handle_card_function_select(task: TriggerTask):
         task.click(0.722, 0.286)
         task.sleep(4)
         return True
-    cards = [
-        b for b in task.all_texts
-        if 0.023 <= (b.x + b.width / 2) / task.width <= 0.970
-        and 0.239 <= (b.y + b.height / 2) / task.height <= 0.312
-        and len(b.name.strip()) > 1
-        and b.name not in ["确认", "返回", "跳过"]
-    ]
+    cards = recognize_cards(task, page="卡牌功能选择页面")
     if cards:
         chosen = random.choice(cards)
-        task.log_info(f"卡牌功能选择兜底: 随机点击卡牌「{chosen.name}」")
-        task.click_box(chosen)
+        task.log_info(
+            f"卡牌功能选择兜底: 随机点击卡牌「{chosen['name']}」，"
+            f"类型「{chosen['type'] or chosen['feature_type']}」"
+        )
+        task.click(chosen["x"], chosen["y"])
         task.sleep(4)
         return True
     return False
@@ -944,6 +927,22 @@ def handle_rest_sortie(task: TriggerTask):
     return False
 
 
+def handle_unrecognized_card_selection(task: TriggerTask):
+    """未知卡牌选择页面兜底: 识别到卡牌时随机点击一张。"""
+    cards = recognize_cards(task, page="未知卡牌选择页面兜底")
+    if not cards:
+        return False
+
+    chosen = random.choice(cards)
+    task.log_info(
+        f"未知卡牌选择页面兜底: 随机点击卡牌「{chosen['name']}」，"
+        f"类型「{chosen['type'] or chosen['feature_type']}」"
+    )
+    task.click(chosen["x"], chosen["y"])
+    task.sleep(1)
+    return True
+
+
 # 出击模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
     handle_auto_stop,
@@ -1016,4 +1015,5 @@ PAGE_HANDLERS = [
     handle_held_cards_page,
     handle_escape,
     handle_unknown_page,
+    handle_unrecognized_card_selection,
 ]
