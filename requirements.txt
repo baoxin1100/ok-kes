@@ -12,6 +12,10 @@ onnxocr-ppocrv5==0.0.18
     # via -r requirements.in
 onnxruntime==1.28.0
     # via -r requirements.in
+openvino==2026.0.0
+    # via -r requirements.in
+openvino-telemetry==2025.2.0
+    # via openvino
 pyappify==1.0.5
     # via ok-script
 certifi==2025.7.14

@@ -1,5 +1,6 @@
 ok-script
 onnxocr-ppocrv5==0.0.18
 onnxruntime==1.28.0
+openvino==2026.0.0
 opencv-python
 requests # 用于配置同步上传/下载

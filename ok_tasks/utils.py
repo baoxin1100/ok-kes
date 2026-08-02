@@ -347,6 +347,77 @@ def recognize_cards_in_deck(
     return cards
 
 
+def recognize_event_options(
+    task: TriggerTask,
+    region=(0.198, 0.840, 0.803, 1.000),
+    page="",
+):
+    """按事件选项特征识别最多三个事件描述。"""
+    event_region = task.box_of_screen(*region)
+    event_features = []
+    for feature_name in ("event1", "event2", "event3", "event4", "event5", "event6", "event7", "event8"):
+        for feature_box in task.find_feature(
+            feature_name=feature_name,
+            box=event_region,
+            threshold=0.70,
+        ) or []:
+            center_x = (feature_box.x + feature_box.width / 2) / task.width
+            center_y = (feature_box.y + feature_box.height / 2) / task.height
+            event_features.append(
+                (feature_name, feature_box, center_x, center_y)
+            )
+
+    filtered_features = []
+    for candidate in sorted(
+        event_features,
+        key=lambda item: item[1].confidence,
+        reverse=True,
+    ):
+        if any(
+            (
+                (candidate[2] - kept[2]) ** 2
+                + (candidate[3] - kept[3]) ** 2
+            ) ** 0.5 < 0.207
+            for kept in filtered_features
+        ):
+            continue
+        filtered_features.append(candidate)
+        if len(filtered_features) >= 3:
+            break
+
+    filtered_features.sort(key=lambda item: item[2])
+    event_options = []
+    for feature_name, feature_box, center_x, center_y in filtered_features:
+        description_region = (
+            max(0.0, center_x - 0.119),
+            max(0.0, center_y - 0.208),
+            min(1.0, center_x + 0.122),
+            min(1.0, center_y - 0.021),
+        )
+        description = _get_region_text(task, description_region).strip()
+        if not description:
+            continue
+        event_options.append({
+            "x": center_x,
+            "y": center_y,
+            "description": description,
+            "description_region": description_region,
+            "feature_name": feature_name,
+            "confidence": feature_box.confidence,
+        })
+
+    if event_options:
+        prefix = f"{page}: " if page else ""
+        task.log_info(f"{prefix}识别到{len(event_options)}个事件选项")
+        for index, event_option in enumerate(event_options, 1):
+            task.log_info(
+                f"{prefix}事件选项{index}: 描述=「{event_option['description']}」，"
+                f"特征={event_option['feature_name']}，"
+                f"置信度={event_option['confidence']:.4f}"
+            )
+    return event_options
+
+
 def _mark_selected_card_by_gold_border(
     task: TriggerTask,
     cards,
@@ -1213,6 +1284,18 @@ def handle_equipment(task: TriggerTask):
 
     if equip_hint and _get_game_text(task, '请选择主战员') in equip_hint.name:
         task.log_info("检测到安装装备界面")
+        bottom_buttons = [
+            box for box in task.all_texts
+            if 0.563 <= (box.x + box.width / 2) / task.width <= 0.998
+            and 0.881 <= (box.y + box.height / 2) / task.height <= 0.997
+            and box.name.strip()
+        ]
+        refine_boxes = [box for box in bottom_buttons if "提炼" in box.name]
+        if refine_boxes and len(refine_boxes) == len(bottom_buttons):
+            task.log_info("安装装备界面只有提炼按钮，直接点击提炼")
+            task.click_box(refine_boxes[0])
+            return True
+
         new_equipment = _equipment_info(task, (0.245, 0.412), (0.217, 0.464))
         if not new_equipment:
             task.log_info("未能识别待安装装备的名称或类型")
@@ -1572,7 +1655,11 @@ def handle_equipment_recast(task: TriggerTask):
 
 
 def handle_event_task(task: TriggerTask):
-    """事件任务页面: 识别标题+描述区域，按任务优先级匹配描述选择推进。"""
+    """事件任务页面: 识别事件选项特征和描述，按任务优先级选择推进。"""
+    bottom_box = find_box_at_point(task, 0.516, 0.971)
+    if bottom_box and re.search(r'\d+/\d+', bottom_box.name):
+        return False
+
     rewards = task.find_feature(feature_name="taskreward")
     if rewards:
         reward = rewards[0]
@@ -1583,76 +1670,16 @@ def handle_event_task(task: TriggerTask):
             task.click_box(reward)
             return True
 
-    bottom_box = find_box_at_point(task, 0.516, 0.971)
-    if bottom_box and re.search(r'\d+/\d+', bottom_box.name):
+    tasks_info = recognize_event_options(task, page="事件任务页面")
+    if not tasks_info:
         return False
 
-    task_open_box = task.box_of_screen(0.116, 0.899, 0.888, 0.994)
-    task_open_boxes = task.find_feature(feature_name="taskopen", box=task_open_box)
-    if task_open_boxes:
-        task.log_info("检测到taskopen特征，点击打开任务")
-        task.click_box(task_open_boxes[0])
-        task.sleep(1)
-        return True
-
-    px1, py1 = int(0.121 * task.width), int(0.769 * task.height)
-    px2, py2 = int(0.844 * task.width), int(0.818 * task.height)
-
-    candidates = [
-        b for b in task.all_texts
-        if b.x >= px1 and b.y >= py1 and b.x + b.width <= px2 and b.y + b.height <= py2
-        and (b.width / task.width) < 0.232
-        and len(b.name.strip()) > 1
-        and b.name not in ["确认", "返回", "跳过"]
-    ]
-
-    if not (1 <= len(candidates) <= 3):
-        return False
-
-    candidates.sort(key=lambda b: (b.y, b.x))
-    rows = []
-    current_row = [candidates[0]]
-    for b in candidates[1:]:
-        if abs(b.y - current_row[-1].y) < task.height * 0.02:
-            current_row.append(b)
-        else:
-            rows.append(current_row)
-            current_row = [b]
-    rows.append(current_row)
-    titles = max(rows, key=len)
-
-    if not (1 <= len(titles) <= 3):
-        return False
-
-    tasks_info = []
-    for title in titles:
-        desc_left = title.x
-        desc_top = title.y + title.height
-        desc_right = title.x + 0.221 * task.width
-        desc_bottom = title.y + title.height + 0.121 * task.height
-
-        desc_lines = [
-            b for b in task.all_texts
-            if b.x >= desc_left - 0.01 * task.width and b.y + b.height >= desc_top - 0.02 * task.height
-            and b.x + b.width <= desc_right + 0.01 * task.width and b.y <= desc_bottom + 0.02 * task.height
-            and b.name not in ["确认", "返回", "跳过"]
-        ]
-
-        if not desc_lines:
-            return False
-
-        desc_lines.sort(key=lambda b: b.y)
-        desc_text = "".join(b.name.strip() for b in desc_lines)
-
-        tasks_info.append({
-            'x': (title.x + title.width / 2) / task.width,
-            'title': title.name,
-            'description': desc_text
-        })
-
-    task.log_info(f"检测到事件任务({len(tasks_info)}个选项):")
-    for t in tasks_info:
-        task.log_info(f"  标题: {t['title']} | 描述: {t['description']}")
+    def click_event_option(event_task):
+        if event_task["y"] > 0.931:
+            left, top, right, bottom = event_task["description_region"]
+            task.click((left + right) / 2, (top + bottom) / 2)
+            task.sleep(1)
+        task.click(event_task["x"], 0.95)
 
     initial_card_name = _get_config_value(task, "刷初始卡牌", "")
     initial_card_name = initial_card_name.strip() if isinstance(initial_card_name, str) else ""
@@ -1674,10 +1701,7 @@ def handle_event_task(task: TriggerTask):
             task.log_info(
                 f"刷初始卡牌「{initial_card_name}」：选择包含“传说卡牌”的事件任务"
             )
-            chosen_x = legend_card_task["x"]
-            task.click(chosen_x, 0.832)
-            task.sleep(1)
-            task.click(chosen_x, 0.952)
+            click_event_option(legend_card_task)
             task.sleep(1)
             return True
         task.log_info(
@@ -1709,7 +1733,7 @@ def handle_event_task(task: TriggerTask):
             task.log_info(f"拉黑任务关键词: {blacklist}，过滤前{len(tasks_info)}个，过滤后{len(filtered_tasks)}个")
             for t in tasks_info:
                 if t not in filtered_tasks:
-                    task.log_info(f"  已拉黑: {t['title']} | 描述: {t['description']}")
+                    task.log_info(f"  已拉黑: 描述: {t['description']}")
         # 如果全部被拉黑，兜底用原列表
         if not filtered_tasks:
             task.log_info("所有任务均被拉黑，兜底使用原列表")
@@ -1722,19 +1746,19 @@ def handle_event_task(task: TriggerTask):
         for t in tasks_info:
             if is_subsequence(keyword, t['description']):
                 chosen = t
-                task.log_info(f"优先选择「{keyword}」-> 标题: {t['title']}, 描述: {t['description']}")
+                task.log_info(f"优先选择「{keyword}」-> 描述: {t['description']}")
                 break
         if chosen is not None:
             break
 
     if chosen is None:
         chosen = random.choice(tasks_info)
-        task.log_info(f"未命中优先级描述, 从{len(tasks_info)}个可选任务中随机选择: {chosen['title']}")
+        task.log_info(
+            f"未命中优先级描述，从{len(tasks_info)}个可选任务中随机选择: "
+            f"{chosen['description']}"
+        )
 
-    chosen_x = chosen['x']
-    task.click(chosen_x, 0.832)
-    task.sleep(1)
-    task.click(chosen_x, 0.952)
+    click_event_option(chosen)
     task.sleep(1)
     return True
 

@@ -1,10 +1,79 @@
+import json
 import os
+import platform
+import sys
 
 import numpy as np
 from ok import ConfigOption
 
 version = "dev"
 #不需要修改version, Github Action打包会自动修改
+
+OCR_BACKEND_AUTO = "自动"
+OCR_BACKEND_ONNX = "ONNX Runtime"
+OCR_BACKEND_OPENVINO = "OpenVINO"
+
+
+def _get_config_folder():
+    """返回本次启动实际使用的配置目录。"""
+    if getattr(sys, "frozen", False):
+        return os.path.join(os.path.dirname(sys.executable), "configs")
+    return os.path.join(os.getcwd(), "configs")
+
+
+def _read_ocr_backend():
+    """OCR 在 GUI 初始化前创建，因此需要提前读取全局配置文件。"""
+    config_path = os.path.join(_get_config_folder(), "OCR设置.json")
+    try:
+        with open(config_path, "r", encoding="utf-8") as config_file:
+            value = json.load(config_file).get("OCR后端", OCR_BACKEND_AUTO)
+    except (FileNotFoundError, OSError, ValueError, TypeError):
+        value = OCR_BACKEND_AUTO
+    if value not in {OCR_BACKEND_AUTO, OCR_BACKEND_ONNX, OCR_BACKEND_OPENVINO}:
+        return OCR_BACKEND_AUTO
+    return value
+
+
+def _openvino_is_available():
+    try:
+        import openvino  # noqa: F401
+        return True
+    except (ImportError, OSError):
+        return False
+
+
+def _auto_use_openvino():
+    """自动模式保持保守：仅在资源充足的 Intel 设备上启用 OpenVINO。"""
+    processor = " ".join(filter(None, (
+        platform.processor(),
+        os.environ.get("PROCESSOR_IDENTIFIER", ""),
+    ))).lower()
+    if "intel" not in processor:
+        return False
+    try:
+        import psutil
+        if psutil.virtual_memory().total < 12 * 1024 ** 3:
+            return False
+    except (ImportError, OSError):
+        return False
+    return _openvino_is_available()
+
+
+def resolve_use_openvino():
+    backend = _read_ocr_backend()
+    if backend == OCR_BACKEND_OPENVINO:
+        if _openvino_is_available():
+            print("OCR 后端：OpenVINO（用户指定）")
+            return True
+        print("OpenVINO 不可用，OCR 后端自动回退到 ONNX Runtime")
+        return False
+    if backend == OCR_BACKEND_AUTO:
+        use_openvino = _auto_use_openvino()
+        selected_backend = OCR_BACKEND_OPENVINO if use_openvino else OCR_BACKEND_ONNX
+        print(f"OCR 后端：{selected_backend}（自动选择）")
+        return use_openvino
+    print("OCR 后端：ONNX Runtime（用户指定）")
+    return False
 
 key_config_option = ConfigOption('Game Hotkey Config', { #全局配置示例
     'Echo Key': 'q',
@@ -24,6 +93,15 @@ game_language_option = ConfigOption('游戏语言', {
 upload_config_option = ConfigOption('配置上传', {
     '是否上传配置': True,
 }, description='开启后每5分钟自动上传匿名的配置信息和胜率，帮助统计热门配置。\n不上传任何个人信息、游戏账号、截图、IP地址等隐私数据。\n仅上传配置内容和胜率统计数据。')
+
+ocr_backend_option = ConfigOption('OCR设置', {
+    'OCR后端': OCR_BACKEND_AUTO,
+}, config_type={
+    'OCR后端': {
+        'type': 'drop_down',
+        'options': [OCR_BACKEND_AUTO, OCR_BACKEND_ONNX, OCR_BACKEND_OPENVINO],
+    },
+}, description='自动模式仅在内存不少于12GB的Intel设备上使用OpenVINO，其他设备使用ONNX Runtime。修改后重启程序生效。')
 
 
 def make_bottom_right_black(frame): #可选. 某些游戏截图时遮挡UID使用
@@ -64,7 +142,7 @@ config = {
     'debug': False,  # Optional, default: False
     'use_gui': True, # 目前只支持True
     'config_folder': 'configs', #最好不要修改
-    'global_configs': [key_config_option, game_language_option, upload_config_option],
+    'global_configs': [key_config_option, game_language_option, upload_config_option, ocr_backend_option],
     'screenshot_processor': make_bottom_right_black, # 在截图的时候对frame进行修改, 可选
     'gui_icon': 'icons/icon.png', #窗口图标, 最好不需要修改文件名
     'wait_until_before_delay': 0,
@@ -74,7 +152,7 @@ config = {
         'lib': 'onnxocr',
         'auto_simplify': True, #自动繁体转简体, 需要ppocrv5等可以识别繁体的库
         'params': {
-            'use_openvino': False,
+            'use_openvino': resolve_use_openvino(),
         }
     },
     'windows': {  # Windows游戏请填写此设置

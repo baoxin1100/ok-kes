@@ -25,6 +25,12 @@
             "height": 1080
         },
         {
+            "id": 10,
+            "file_name": "images/1.png",
+            "width": 1920,
+            "height": 1080
+        },
+        {
             "id": 32,
             "file_name": "images/0.png",
             "width": 1920,
@@ -32,19 +38,19 @@
         },
         {
             "id": 38,
-            "file_name": "images/1.png",
-            "width": 1920,
-            "height": 1080
-        },
-        {
-            "id": 39,
             "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
         },
         {
+            "id": 39,
+            "file_name": "images/2.png",
+            "width": 1920,
+            "height": 1080
+        },
+        {
             "id": 40,
-            "file_name": "images/1.png",
+            "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
         },
@@ -74,7 +80,7 @@
         },
         {
             "id": 51,
-            "file_name": "images/0.png",
+            "file_name": "images/1.png",
             "width": 1920,
             "height": 1080
         },
@@ -122,7 +128,7 @@
         },
         {
             "id": 75,
-            "file_name": "images/1.png",
+            "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
         },
@@ -161,20 +167,44 @@
             "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 91,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
+        },
+        {
+            "id": 92,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
+        },
+        {
+            "id": 93,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
+        },
+        {
+            "id": 95,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
         {
             "id": 1,
             "image_id": 5,
-            "category_id": 2,
+            "category_id": 22,
             "bbox": [
-                1732,
-                849,
-                176,
-                175
+                1429,
+                1023,
+                65,
+                47
             ],
-            "area": 30800,
+            "area": 3055,
             "iscrowd": 0
         },
         {
@@ -193,14 +223,14 @@
         {
             "id": 3,
             "image_id": 7,
-            "category_id": 3,
+            "category_id": 45,
             "bbox": [
-                0,
-                185,
-                149,
-                130
+                430,
+                1023,
+                61,
+                44
             ],
-            "area": 19370,
+            "area": 2684,
             "iscrowd": 0
         },
         {
@@ -271,14 +301,14 @@
         {
             "id": 9,
             "image_id": 39,
-            "category_id": 9,
+            "category_id": 21,
             "bbox": [
-                928,
-                998,
-                66,
+                1816,
+                33,
+                56,
                 50
             ],
-            "area": 3300,
+            "area": 2800,
             "iscrowd": 0
         },
         {
@@ -427,27 +457,27 @@
         {
             "id": 21,
             "image_id": 39,
-            "category_id": 21,
+            "category_id": 46,
             "bbox": [
-                1816,
-                33,
-                56,
-                50
+                426,
+                1024,
+                67,
+                45
             ],
-            "area": 2800,
+            "area": 3015,
             "iscrowd": 0
         },
         {
             "id": 22,
-            "image_id": 7,
-            "category_id": 22,
+            "image_id": 95,
+            "category_id": 3,
             "bbox": [
-                443,
-                1042,
-                34,
-                30
+                928,
+                956,
+                67,
+                46
             ],
-            "area": 1020,
+            "area": 3082,
             "iscrowd": 0
         },
         {
@@ -722,6 +752,58 @@
             ],
             "area": 1122,
             "iscrowd": 0
+        },
+        {
+            "id": 44,
+            "image_id": 91,
+            "category_id": 2,
+            "bbox": [
+                1429,
+                957,
+                65,
+                46
+            ],
+            "area": 2990,
+            "iscrowd": 0
+        },
+        {
+            "id": 45,
+            "image_id": 10,
+            "category_id": 42,
+            "bbox": [
+                426,
+                1025,
+                64,
+                45
+            ],
+            "area": 2880,
+            "iscrowd": 0
+        },
+        {
+            "id": 47,
+            "image_id": 92,
+            "category_id": 47,
+            "bbox": [
+                929,
+                1025,
+                63,
+                45
+            ],
+            "area": 2835,
+            "iscrowd": 0
+        },
+        {
+            "id": 48,
+            "image_id": 93,
+            "category_id": 48,
+            "bbox": [
+                427,
+                955,
+                63,
+                46
+            ],
+            "area": 2898,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -732,12 +814,12 @@
         },
         {
             "id": 2,
-            "name": "event_task",
+            "name": "event5",
             "supercategory": ""
         },
         {
             "id": 3,
-            "name": "event_task2",
+            "name": "event8",
             "supercategory": ""
         },
         {
@@ -763,11 +845,6 @@
         {
             "id": 8,
             "name": "deletecards3",
-            "supercategory": ""
-        },
-        {
-            "id": 9,
-            "name": "taskopen",
             "supercategory": ""
         },
         {
@@ -832,7 +909,7 @@
         },
         {
             "id": 22,
-            "name": "eventflag",
+            "name": "event2",
             "supercategory": ""
         },
         {
@@ -931,6 +1008,11 @@
             "supercategory": ""
         },
         {
+            "id": 42,
+            "name": "event1",
+            "supercategory": ""
+        },
+        {
             "id": 43,
             "name": "hex",
             "supercategory": ""
@@ -938,6 +1020,26 @@
         {
             "id": 44,
             "name": "attack_in_deck",
+            "supercategory": ""
+        },
+        {
+            "id": 45,
+            "name": "event3",
+            "supercategory": ""
+        },
+        {
+            "id": 46,
+            "name": "event4",
+            "supercategory": ""
+        },
+        {
+            "id": 47,
+            "name": "event6",
+            "supercategory": ""
+        },
+        {
+            "id": 48,
+            "name": "event7",
             "supercategory": ""
         }
     ]
