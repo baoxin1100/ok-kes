@@ -922,8 +922,9 @@ def handle_close_page(task: TriggerTask):
 def handle_refine_equipment_credit(task: TriggerTask):
     """提炼装备信用点页面：点击“以信用点接收”。"""
     box = find_box_at_point(task, 0.598, 0.635)
-    if box and "以信用点接收" in box.name:
-        task.log_info("检测到提炼装备信用点页面，点击以信用点接收")
+    receive_text = _get_game_text(task, "以信用点接收")
+    if box and receive_text in box.name:
+        task.log_info(f"检测到提炼装备信用点页面，点击{receive_text}")
         task.click_box(box)
         task.sleep(0.5)
         return True
