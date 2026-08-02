@@ -202,6 +202,7 @@ def _recognize_cards_by_features(
     name_offset,
     type_offset,
     description_offsets,
+    name_only_feature_thresholds=None,
 ):
     """按指定特征和相对位置识别卡牌。"""
     search_box = task.box_of_screen(*region)
@@ -258,7 +259,14 @@ def _recognize_cards_by_features(
         type_box = find_box_at_point(task, type_x, type_y)
         card_type = type_box.name.strip() if type_box else ""
         description = _get_region_text(task, desc_region)
-        if not card_type or not description:
+        name_only_threshold = (name_only_feature_thresholds or {}).get(
+            feature_name
+        )
+        allow_name_only = (
+            name_only_threshold is not None
+            and feature_box.confidence > name_only_threshold
+        )
+        if not allow_name_only and (not card_type or not description):
             continue
         cards.append({
             "name": card_name,
@@ -333,6 +341,7 @@ def recognize_cards_in_deck(
         name_offset=(0.0130, -0.0265),
         type_offset=(0.0250, 0.0015),
         description_offsets=(-0.0370, 0.0515, 0.1000, 0.3295),
+        name_only_feature_thresholds={"hex_in_deck": 0.90},
     )
     _mark_selected_card_by_gold_border(task, cards, page=page)
     return cards
@@ -587,6 +596,20 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         if not cards:
             task.log_info(f"{page}: 向下拖动后未识别到任何卡牌，终止选卡")
             return False
+
+    if action == "移除" and selected < count:
+        bottom_to_top_cards = sorted(
+            cards,
+            key=lambda card: (card["y"], card["x"]),
+            reverse=True,
+        )
+        click_cards(
+            bottom_to_top_cards,
+            lambda card: card["feature_name"] == "hex_in_deck",
+            "底部页面优先移除咒术卡牌，点击",
+        )
+        if selected >= count:
+            return True
 
     if prefer_remove_base and selected < count:
         bottom_to_top_cards = sorted(
