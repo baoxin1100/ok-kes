@@ -833,7 +833,7 @@
         {
             "id": 49,
             "image_id": 100,
-            "category_id": 50,
+            "category_id": 49,
             "bbox": [
                 422,
                 111,
@@ -1086,8 +1086,8 @@
             "supercategory": ""
         },
         {
-            "id": 50,
-            "name": "flashmembercomfirm",
+            "id": 49,
+            "name": "flashmemberconfirm",
             "supercategory": ""
         }
     ]
