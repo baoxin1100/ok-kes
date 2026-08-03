@@ -1,12 +1,9 @@
 from ok import TriggerTask, og
 
 import utils_chaos
-from opencc import OpenCC
 from config_io import make_export_callback, make_import_callback
 from config_sync import check_upload_if_needed, show_hot_configs_dialog
-from utils import reset_all_status, _migrate_route_boss_to_elite
-
-_cc = OpenCC('t2s')  # 繁转简，用于OCR文本统一转换
+from utils import reset_all_status, _migrate_route_boss_to_elite, _simplify_texts
 
 class ChaosMode(TriggerTask):
 
@@ -76,13 +73,6 @@ class ChaosMode(TriggerTask):
         _migrate_route_boss_to_elite(self)
         super().enable()
 
-    def _ocr_and_simplify(self):
-        """执行OCR并将所有识别文本转简体。"""
-        texts = self.ocr()
-        for b in texts:
-            b.name = _cc.convert(b.name)
-        return texts
-
     def _check_upload_if_needed(self):
         check_upload_if_needed(self, "chaos")
 
@@ -91,7 +81,7 @@ class ChaosMode(TriggerTask):
 
     def run(self):
         # 每帧执行一次 OCR 并转简体, 供各页面处理函数复用
-        self.all_texts = self._ocr_and_simplify()
+        self.all_texts = _simplify_texts(self.ocr())
         # 依次尝试各页面处理函数, 命中(返回 True)即结束本次循环
         for handle_page in utils_chaos.PAGE_HANDLERS:
             if handle_page(self):

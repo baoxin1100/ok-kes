@@ -1,9 +1,7 @@
 from ok import TriggerTask, og
 
 import utils_story
-from opencc import OpenCC
-
-_cc = OpenCC('t2s')  # 繁转简，用于OCR文本统一转换
+from utils import _simplify_texts
 
 class StoryMode(TriggerTask):
 
@@ -29,16 +27,9 @@ class StoryMode(TriggerTask):
             chaos.disable()
         super().enable()
 
-    def _ocr_and_simplify(self):
-        """执行OCR并将所有识别文本转简体。"""
-        texts = self.ocr()
-        for b in texts:
-            b.name = _cc.convert(b.name)
-        return texts
-
     def run(self):
         # 每帧执行一次 OCR 并转简体, 供各页面处理函数复用
-        self.all_texts = self._ocr_and_simplify()
+        self.all_texts = _simplify_texts(self.ocr())
         # 依次尝试各页面处理函数, 命中(返回 True)即结束本次循环
         for handle_page in utils_story.PAGE_HANDLERS:
             if handle_page(self):

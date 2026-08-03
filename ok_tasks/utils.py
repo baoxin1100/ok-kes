@@ -9,7 +9,15 @@ import os
 import numpy as np
 from opencc import OpenCC
 
-_cc = OpenCC('t2s')  # 繁转简，用于OCR文本统一转换
+_jp2t = OpenCC('jp2t')  # 日文新字体转繁体
+_t2s = OpenCC('t2s')  # 繁体转简体
+
+
+def _normalize_text(text):
+    """先将日文汉字字形转繁体，再统一转换为简体。"""
+    return _t2s.convert(_jp2t.convert(text))
+
+
 def _edit_distance(s1, s2, max_dist=1):
     """计算两个字符串的编辑距离是否 <= max_dist。"""
     if abs(len(s1) - len(s2)) > max_dist:
@@ -34,9 +42,9 @@ def is_subsequence(first: str, second: str) -> bool:
 
 
 def _simplify_texts(texts):
-    """将OCR结果的文本批量转换为简体（原地修改）。"""
+    """将OCR结果按 jp2t → t2s 批量转换为简体（原地修改）。"""
     for b in texts:
-        b.name = _cc.convert(b.name)
+        b.name = _normalize_text(b.name)
     return texts
 
 
@@ -47,9 +55,9 @@ def _get_config_value(task: TriggerTask, key, default):
     else:
         value = getattr(task, 'default_config', {}).get(key, default)
     if isinstance(value, str):
-        value = _cc.convert(value)
+        value = _normalize_text(value)
     elif isinstance(value, (list, tuple)):
-        value = [_cc.convert(v) if isinstance(v, str) else v for v in value]
+        value = [_normalize_text(v) if isinstance(v, str) else v for v in value]
     return value
 
 
