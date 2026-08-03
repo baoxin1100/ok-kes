@@ -422,7 +422,7 @@ def _mark_selected_card_by_gold_border(
     task: TriggerTask,
     cards,
     page="",
-    threshold=0.12,
+    threshold=0.25,
 ):
     """计算卡牌的金黄色边框得分，并在卡牌信息中写入选中状态。"""
     for card in cards:
@@ -477,7 +477,6 @@ def _mark_selected_card_by_gold_border(
             ),
         }
         visible_edge_scores = [
-            edge_scores["上"],
             edge_scores["左"],
             edge_scores["右"],
         ]
@@ -487,12 +486,10 @@ def _mark_selected_card_by_gold_border(
         card["gold_border_edges"] = edge_scores
         scored_cards.append((score, strong_edge_count, card))
 
-    score, strong_edge_count, selected_card = max(
-        scored_cards, key=lambda item: item[0]
-    )
     prefix = f"{page}: " if page else ""
-    if score >= threshold and strong_edge_count >= 2:
-        selected_card["selected"] = True
+    for score, strong_edge_count, card in scored_cards:
+        if score >= threshold and strong_edge_count == 2:
+            card["selected"] = True
 
     for card in cards:
         edge_scores = card["gold_border_edges"]
@@ -503,7 +500,7 @@ def _mark_selected_card_by_gold_border(
             f"左={edge_scores['左']:.4f}，右={edge_scores['右']:.4f}"
         )
 
-    if not selected_card["selected"]:
+    if not any(card["selected"] for card in cards):
         task.log_info(f"{prefix}未检测到选中卡牌的金色边框")
 
 
@@ -610,6 +607,22 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         )
         return is_white
 
+    def region_white_ratio(region):
+        if task.frame is None:
+            return 1.0
+        region_box = task.box_of_screen(*region)
+        pixels = task.frame[
+            region_box.y:region_box.y + region_box.height,
+            region_box.x:region_box.x + region_box.width,
+            :3,
+        ]
+        if pixels.size == 0:
+            return 1.0
+        channel_min = pixels.min(axis=2)
+        channel_max = pixels.max(axis=2)
+        white_mask = (channel_min >= 240) & ((channel_max - channel_min) <= 15)
+        return float(np.count_nonzero(white_mask)) / white_mask.size
+
     def scroll_cards(x, y, amount):
         direction = "向下" if amount < 0 else "向上"
         task.log_info(f"{page}: 在({x:.3f}, {y:.3f}){direction}滚动")
@@ -651,12 +664,22 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         task.log_info(f"{page}: 未识别到任何卡牌，终止选卡")
         return False
     sync_visible_selected(cards)
+    scrollbar_white_ratio = region_white_ratio((0.976, 0.119, 0.988, 0.858))
+    single_page = scrollbar_white_ratio < 0.01
+    task.log_info(
+        f"{page}: 滚动条区域白色像素占比={scrollbar_white_ratio:.2%}，"
+        f"是否仅一页卡牌={single_page}"
+    )
 
     while True:
         click_cards(cards, card_matches, "命中目标卡牌，点击")
         if selected >= count:
             task.log_info(f"{page}: 已选中{selected}/{count}张卡牌")
             return True
+
+        if single_page:
+            task.log_info(f"{page}: 当前仅一页卡牌，不执行向下滚动")
+            break
 
         if point_is_white(0.982, 0.846):
             task.log_info(f"{page}: 检测到已到达卡牌底部")
@@ -696,7 +719,7 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         if selected >= count:
             return True
 
-        while True:
+        while not single_page:
             if point_is_white(0.982, 0.128):
                 task.log_info(f"{page}: 检测到已到达卡牌顶部")
                 break

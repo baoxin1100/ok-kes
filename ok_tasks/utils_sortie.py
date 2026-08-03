@@ -355,6 +355,7 @@ def _select_battle_member(task: TriggerTask, max_scrolls=5):
                     task.log_info(f"出战主战员优先级匹配失败: 「{name}」未在当前列出的{len(boxes)}个主战员中")
         if scroll_index < max_scrolls:
             task.log_info(f"第{scroll_index + 1}次未匹配到任何优先级角色, 向下滚动重试")
+            task.move_relative(0.5, 0.5)
             task.scroll_relative(0.5, 0.7, -3)
             task.sleep(0.5)
             task.all_texts = _simplify_texts(task.ocr())
@@ -866,10 +867,10 @@ def handle_return_to_draw_pile(task: TriggerTask):
 
 def handle_rest_sortie(task: TriggerTask):
     """出击模式休息页面: 包含休息和闪光两个功能，检测到对应条件分别处理。"""
-    # 检测闪光区域 (0.788,0.463)-(0.870,0.594) 是否存在"闪光"和"30"
+    # 检测闪光区域 (0.788,0.463)-(0.870,0.594) 是否存在“闪光”和不大于30的数字
     flash_x1, flash_y1, flash_x2, flash_y2 = 0.788, 0.463, 0.870, 0.594
     has_flash_text = False
-    has_flash_cost = False
+    flash_cost = None
     flash_box = None
     for b in task.all_texts:
         cx = (b.x + b.width / 2) / task.width
@@ -878,10 +879,11 @@ def handle_rest_sortie(task: TriggerTask):
             if "闪光" in b.name:
                 has_flash_text = True
                 flash_box = b
-            if "30" in b.name:
-                has_flash_cost = True
+            costs = [int(number) for number in re.findall(r"\d+", b.name) if int(number) <= 30]
+            if costs and flash_cost is None:
+                flash_cost = costs[0]
 
-    if has_flash_text and has_flash_cost and flash_box and hasattr(task, 'node_status') and task.node_status.get('flash_or_rest', False):
+    if has_flash_text and flash_cost is not None and flash_box and hasattr(task, 'node_status') and task.node_status.get('flash_or_rest', False):
         task.log_info("休息区存在可闪光选项")
 
         # 获取当前信用点
@@ -899,7 +901,7 @@ def handle_rest_sortie(task: TriggerTask):
         except (ValueError, TypeError):
             flash_threshold = 60
         task.log_info(f"生命值={hp_percent}%, 阈值={flash_threshold}%, 信用点={credit}")
-        if credit > 30 and hp_percent >= flash_threshold:
+        if credit > flash_cost and hp_percent >= flash_threshold:
             task.log_info("满足闪光条件，点击闪光")
             task.click_box(flash_box)
             task.sleep(2)
