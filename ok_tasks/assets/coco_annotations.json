@@ -203,6 +203,12 @@
             "file_name": "images/1.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 106,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -842,6 +848,19 @@
             ],
             "area": 13761,
             "iscrowd": 0
+        },
+        {
+            "id": 50,
+            "image_id": 106,
+            "category_id": 50,
+            "bbox": [
+                607,
+                485,
+                22,
+                22
+            ],
+            "area": 484,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -1088,6 +1107,11 @@
         {
             "id": 49,
             "name": "flashmemberconfirm",
+            "supercategory": ""
+        },
+        {
+            "id": 50,
+            "name": "hex_in_deck_tw",
             "supercategory": ""
         }
     ]

@@ -334,6 +334,7 @@ def recognize_cards_in_deck(
             "skill_in_deck": "技能/基础技能",
             "enhance_in_deck": "强化",
             "hex_in_deck": "咒术",
+            "hex_in_deck_tw": "诅咒",
         },
         min_feature_distance=(
             (0.464 - 0.326) ** 2 + (0.175 - 0.175) ** 2
@@ -341,7 +342,10 @@ def recognize_cards_in_deck(
         name_offset=(0.0130, -0.0265),
         type_offset=(0.0250, 0.0015),
         description_offsets=(-0.0370, 0.0515, 0.1000, 0.3295),
-        name_only_feature_thresholds={"hex_in_deck": 0.90},
+        name_only_feature_thresholds={
+            "hex_in_deck": 0.90,
+            "hex_in_deck_tw": 0.90,
+        },
     )
     _mark_selected_card_by_gold_border(task, cards, page=page)
     return cards
@@ -700,7 +704,10 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         )
         click_cards(
             bottom_to_top_cards,
-            lambda card: card["feature_name"] == "hex_in_deck",
+            lambda card: card["feature_name"] in {
+                "hex_in_deck",
+                "hex_in_deck_tw",
+            },
             "底部页面优先移除咒术卡牌，点击",
         )
         if selected >= count:
