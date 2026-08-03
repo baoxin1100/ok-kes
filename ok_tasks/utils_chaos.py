@@ -89,7 +89,7 @@ def handle_desire_card_inheritance(task: TriggerTask):
         title_box
         and title_box.name == "卡牌奖励"
         and prompt_box
-        and "请选择要继承的欲望卡牌" in prompt_box.name
+        and _get_game_text(task, "请选择要继承的") in prompt_box.name
     ):
         return False
 

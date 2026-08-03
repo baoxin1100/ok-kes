@@ -191,6 +191,18 @@
             "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 97,
+            "file_name": "images/1.png",
+            "width": 1920,
+            "height": 1080
+        },
+        {
+            "id": 100,
+            "file_name": "images/1.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -780,6 +792,19 @@
             "iscrowd": 0
         },
         {
+            "id": 46,
+            "image_id": 97,
+            "category_id": 9,
+            "bbox": [
+                1644,
+                549,
+                75,
+                69
+            ],
+            "area": 5175,
+            "iscrowd": 0
+        },
+        {
             "id": 47,
             "image_id": 92,
             "category_id": 47,
@@ -803,6 +828,19 @@
                 46
             ],
             "area": 2898,
+            "iscrowd": 0
+        },
+        {
+            "id": 49,
+            "image_id": 100,
+            "category_id": 50,
+            "bbox": [
+                422,
+                111,
+                99,
+                139
+            ],
+            "area": 13761,
             "iscrowd": 0
         }
     ],
@@ -845,6 +883,11 @@
         {
             "id": 8,
             "name": "deletecards3",
+            "supercategory": ""
+        },
+        {
+            "id": 9,
+            "name": "flash_in_sortie_safezoom",
             "supercategory": ""
         },
         {
@@ -1040,6 +1083,11 @@
         {
             "id": 48,
             "name": "event7",
+            "supercategory": ""
+        },
+        {
+            "id": 50,
+            "name": "flashmembercomfirm",
             "supercategory": ""
         }
     ]

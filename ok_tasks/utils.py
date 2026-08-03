@@ -587,6 +587,7 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         action == "移除"
         and _get_config_value(task, "优先移除基础牌", True)
     )
+    base_card_type = _get_game_text(task, "基础")
 
     def refresh_cards():
         task.all_texts = _simplify_texts(task.ocr())
@@ -713,7 +714,7 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         )
         click_cards(
             bottom_to_top_cards,
-            lambda card: "基础" in card["type"],
+            lambda card: base_card_type in card["type"],
             "底部页面优先移除基础牌，点击",
         )
         if selected >= count:
@@ -736,7 +737,7 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
             )
             click_cards(
                 bottom_to_top_cards,
-                lambda card: "基础" in card["type"],
+                lambda card: base_card_type in card["type"],
                 "向上翻页找到基础牌，点击",
             )
             if selected >= count:
@@ -996,7 +997,9 @@ def log_node_status(task: TriggerTask):
 
 def handle_battle_crash(task: TriggerTask):
     """战斗信息错乱 / 点击重试: 点击屏幕中央恢复。"""
-    if find_text(task, r'出现错乱') or find_text(task, r'点击重试'):
+    if (find_text(task, r'出现错乱')
+            or find_text(task, r'点击重试')
+            or find_text(task, r'通讯不稳定.*重新尝试')):
         task.log_info("战斗信息出现错乱，点击恢复")
         task.click(0.5, 0.5)
         return True
@@ -1093,23 +1096,42 @@ def handle_destiny_choice(task: TriggerTask):
 
 
 def handle_main_member_flash(task: TriggerTask):
-    """主战员闪光选择页面: 依次选择三个并各自确认。"""
+    """主战员闪光选择页面: 依次尝试主战员，直到出现确认特征。"""
     box = find_box_at_point(task, 0.495, 0.936)
-    if box and re.search(r'请选择获得', box.name):
-        task.log_info("检测主战员闪光选择，进行相应操作")
-        x, y = random.choice([(0.244, 0.446), (0.5, 0.446), (0.748, 0.485)])
-        task.click(x, y)
-        task.sleep(1)
-        # task.click(0.884, 0.931)
-        # task.sleep(1)
-        return True  # 选择后不点击确认按钮，返回True让其他逻辑处理
-    return False
+    if not (box and _get_game_text(task, "请选择获得") in box.name):
+        return False
+
+    task.log_info("检测主战员闪光选择，进行相应操作")
+    confirm_box = task.box_of_screen(0.145, 0.044, 0.856, 0.214)
+    click_positions = [(0.228, 0.510), (0.504, 0.504), (0.755, 0.508)]
+
+    for cx, cy in click_positions:
+        task.log_info(f"点击位置({cx}, {cy})")
+        task.click(cx, cy)
+        task.sleep(0.5)
+
+        feature = task.wait_feature(
+            "flashmemberconfirm",
+            box=confirm_box,
+            time_out=2,
+        )
+        if feature:
+            task.log_info(
+                f"点击位置({cx}, {cy})后成功找到flashmemberconfirm"
+            )
+            return True
+        task.log_info(
+            f"点击位置({cx}, {cy})后未找到flashmemberconfirm，继续尝试"
+        )
+
+    task.log_info("所有尝试均未找到flashmemberconfirm")
+    return True
 
 
 def handle_card_reward(task: TriggerTask):
     """卡牌奖励页面: 按类型特征识别卡牌，并按优先级选择。"""
     box = find_box_at_point(task, 0.498, 0.129)
-    if not (box and _get_game_text(task, '卡牌奖励') in box.name):
+    if not (box and "卡牌奖励" in box.name):
         return False
 
     task.log_info("检测到卡牌奖励页面")
@@ -1193,10 +1215,10 @@ def handle_card_reward(task: TriggerTask):
 _EQUIPMENT_TYPE_SLOTS = {"攻击力": 0, "防御力": 1, "生命值": 2}
 
 
-def _equipment_slot(type_text):
+def _equipment_slot(task: TriggerTask, type_text):
     """根据装备类型文本返回 equipment 下标，无法识别时返回 None。"""
     return next((slot for equipment_type, slot in _EQUIPMENT_TYPE_SLOTS.items()
-                 if equipment_type in type_text), None)
+                 if _get_game_text(task, equipment_type) in type_text), None)
 
 
 def _equipment_priority(task: TriggerTask, slot):
@@ -1281,7 +1303,7 @@ def _equipment_info(task: TriggerTask, name_point, type_point):
     type_box = find_box_at_point(task, *type_point)
     if not name_box or not type_box:
         return None
-    slot = _equipment_slot(type_box.name)
+    slot = _equipment_slot(task, type_box.name)
     if slot is None:
         return None
     priority = _equipment_priority(task, slot)
@@ -1319,7 +1341,7 @@ def handle_equipment(task: TriggerTask):
             task.click_box(refine_boxes[0])
             return True
 
-        new_equipment = _equipment_info(task, (0.245, 0.412), (0.217, 0.464))
+        new_equipment = _equipment_info(task, (0.245, 0.412), (0.202, 0.465))
         if not new_equipment:
             task.log_info("未能识别待安装装备的名称或类型")
             return False
@@ -1467,7 +1489,8 @@ def handle_select_card(task: TriggerTask):
 def handle_copy_card_choice(task: TriggerTask):
     """复制卡牌选择页面: 按类型特征识别卡牌，并按复制卡牌列表优先级选择。"""
     box = find_box_at_point(task, 0.498, 0.133)
-    if not (box and "请选择要复制的卡牌" in box.name):
+    copy_card_prompt = _get_game_text(task, "请选择要复制的卡牌")
+    if not (box and copy_card_prompt in box.name):
         return False
 
     task.log_info("检测到复制卡牌选择页面")
@@ -1498,7 +1521,8 @@ def handle_copy_card_choice(task: TriggerTask):
 def handle_copy_member(task: TriggerTask):
     """选择要复制卡牌的主战员页面。"""
     box = find_box_at_point(task, 0.502, 0.932)
-    if not (box and "选择要复制卡牌的主战员" in box.name):
+    copy_member_prompt = _get_game_text(task, "选择要复制卡牌的主战员")
+    if not (box and copy_member_prompt in box.name):
         return False
 
     task.log_info("检测到卡牌复制主战员选择事件，进行相应操作")
@@ -2017,6 +2041,10 @@ def handle_rest(task: TriggerTask):
     rest_feature = _find_rest_feature(task)
     if rest_feature and hasattr(task, 'node_status') and task.node_status.get('flash_or_rest', False):
         task.log_info("检测到休息界面，点击休息")
+        task.move_relative(
+            (rest_feature.x + rest_feature.width / 2) / task.width,
+            (rest_feature.y + rest_feature.height / 2) / task.height,
+        )
         task.click_box(rest_feature)
         task.sleep(1)
         task.node_status['flash_or_rest'] = False
@@ -2145,13 +2173,14 @@ def handle_escape(task: TriggerTask):
 def handle_expedition_result(task: TriggerTask):
     """探险结果页面: 如果0.625,0.122处有"探险结果"，则为探险结果页面。
     如果0.928,0.122处有"完成"，则success_rounds+1。"""
+    expedition_result_text = _get_game_text(task, "探险结果")
     title_box = find_box_at_point(task, 0.625, 0.122)
-    if not (title_box and "探险结果" in title_box.name):
+    if not (title_box and expedition_result_text in title_box.name):
         return False
     task.sleep(2)
     task.all_texts = _simplify_texts(task.ocr())
     title_box = find_box_at_point(task, 0.625, 0.122)
-    if not (title_box and "探险结果" in title_box.name):
+    if not (title_box and expedition_result_text in title_box.name):
         return False
 
     task.log_info("检测到探险结果页面")
@@ -2258,7 +2287,8 @@ def handle_close_button(task: TriggerTask):
 def handle_card_assign(task: TriggerTask):
     """卡牌分配页面: 按奖励优先级刷新或跳过，并优先分配给第一主战员。"""
     title_box = find_box_at_point(task, 0.863, 0.133)
-    if not (title_box and "请选择要接受卡牌的主战员" in title_box.name):
+    assign_prompt = _get_game_text(task, "请选择要接受卡牌的主战员")
+    if not (title_box and assign_prompt in title_box.name):
         return False
 
     task.log_info("检测到卡牌分配页面")
@@ -2273,7 +2303,8 @@ def handle_card_assign(task: TriggerTask):
         if 0.290 <= (b.x + b.width / 2) / task.width <= 0.998
         and 0.878 <= (b.y + b.height / 2) / task.height <= 0.997
     ]
-    refresh_box = next((b for b in bottom_boxes if "刷新" in b.name), None)
+    refresh_text = _get_game_text(task, "刷新")
+    refresh_box = next((b for b in bottom_boxes if refresh_text in b.name), None)
     skip_box = next((b for b in bottom_boxes if "跳过" in b.name), None)
     refresh_count = None
     for bottom_box in bottom_boxes:

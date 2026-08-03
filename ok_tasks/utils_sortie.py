@@ -219,6 +219,7 @@ def _read_hand_count(task: TriggerTask):
 def _read_member_slots(task: TriggerTask):
     """根据等级和重新搜索文本动态读取会合主战员候选槽位。"""
     x1, y1, x2, y2 = 0.077, 0.572, 0.946, 0.871
+    refresh_text = _get_game_text(task, "重新搜索")
     region_boxes = [
         box for box in task.all_texts
         if x1 <= (box.x + box.width / 2) / task.width <= x2
@@ -230,7 +231,7 @@ def _read_member_slots(task: TriggerTask):
     )
     refresh_boxes = [
         box for box in region_boxes
-        if "重新搜索" in box.name
+        if refresh_text in box.name
     ]
 
     slots = []
@@ -327,7 +328,10 @@ def _select_battle_member(task: TriggerTask, max_scrolls=5):
             cy = (b.y + b.height / 2) / task.height
             task.log_info(f"  box: name=「{b.name}」 cx={cx:.4f} cy={cy:.4f} x={b.x} y={b.y} w={b.width} h={b.height}")
         for name in priority:
-            member = next((box for box in boxes if name in box.name), None)
+            member = next(
+                (box for box in boxes if name.strip() == box.name.strip()),
+                None,
+            )
             if member:
                 cx = (member.x + member.width / 2) / task.width
                 cy = (member.y + member.height / 2) / task.height
@@ -924,7 +928,6 @@ def handle_rest_sortie(task: TriggerTask):
         task.log_info("检测到德朗商店，且 node_status['shop']=True，进入商店")
         task.click_box(shop_box)
         task.sleep(2)
-        task.node_status['shop'] = False
         return True
     return False
 
