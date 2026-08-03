@@ -544,16 +544,6 @@ def _get_region_text(task: TriggerTask, region):
     return "".join(texts)
 
 
-def _is_valid_card_name(name):
-    """过滤非卡牌名的文本：单个字母、单个符号、纯符号等都不是卡牌名。"""
-    if len(name.strip()) <= 1:
-        return False
-    # 排除纯符号/特殊字符组成的名（不含中文字符和字母）
-    if not re.search(r'[\u4e00-\u9fff\w]', name):
-        return False
-    return True
-
-
 _CARD_TYPE_KEYWORDS = {
     "攻击", "强化", "技能", "技", "咒术", "诅咒",
     "攻", "击", "基础", "基本", "状态", "异常",
@@ -573,21 +563,6 @@ def _card_has_type_below(task: TriggerTask, box):
             for kw in _CARD_TYPE_KEYWORDS:
                 if kw in b.name:
                     return True
-    return False
-
-
-def _card_has_base_type_below(task: TriggerTask, box):
-    """判断卡牌下方的类型标签是否包含'基础'或'基本'。"""
-    box_bottom_y = (box.y + box.height) / task.height
-    box_cx = (box.x + box.width / 2) / task.width
-    for b in task.all_texts:
-        cx = (b.x + b.width / 2) / task.width
-        cy = (b.y + b.height / 2) / task.height
-        dy = cy - box_bottom_y
-        dx = abs(cx - box_cx)
-        if -0.005 <= dy <= 0.040 and dx <= 0.045 and len(b.name) <= 4:
-            if "基础" in b.name or "基本" in b.name:
-                return True
     return False
 
 

@@ -31,6 +31,7 @@ UPLOAD_INTERVAL = 300  # 5分钟
 
 # 有效数据最低场数（后期用户多了可以改大）
 MIN_ROUNDS = 5
+SUPPORTED_GAME_LANGUAGES = ("简体中文", "繁体中文", "日文", "英文")
 
 
 def _get_version():
@@ -193,42 +194,47 @@ def fetch_popular_configs(
         "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
     }
 
-    # 先获取足够多的原始数据
-    params = {
+    # 每种语言分别获取数据，避免全局按胜率截断后小语种完全进不了客户端
+    base_params = {
         "select": "config_b64,config_ver,game_lang,first_member,win_rate,total_rounds,user_hash",
         "mode": f"eq.{mode}",
         "total_rounds": f"gte.{MIN_ROUNDS}",
         "order": "win_rate.desc",
-        "limit": 200,  # 获取 200 条，足够客户端聚合
+        "limit": limit,
     }
     if version:
-        params["config_ver"] = f"eq.{version}"
+        base_params["config_ver"] = f"eq.{version}"
 
+    records = []
     try:
-        resp = requests.get(
-            f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}",
-            headers=headers,
-            params=params,
-            timeout=10,
-        )
-        if resp.status_code != 200:
-            return []
-        records = resp.json()
+        for game_lang in SUPPORTED_GAME_LANGUAGES:
+            params = dict(base_params)
+            params["game_lang"] = f"eq.{game_lang}"
+            resp = requests.get(
+                f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}",
+                headers=headers,
+                params=params,
+                timeout=10,
+            )
+            if resp.status_code != 200:
+                continue
+            records.extend(resp.json())
     except requests.RequestException:
         return []
 
     if not records:
         return []
 
-    # 按 config_b64 聚合
+    # 相同配置按游戏语言分别聚合，避免简体和繁体数据互相覆盖
     groups = {}
     for r in records:
-        key = r["config_b64"]
+        game_lang = r.get("game_lang") or "简体中文"
+        key = (r["config_b64"], game_lang)
         if key not in groups:
             groups[key] = {
-                "config_b64": key,
+                "config_b64": r["config_b64"],
                 "config_ver": r.get("config_ver", "unknown"),
-                "game_lang": r.get("game_lang", "简体中文"),
+                "game_lang": game_lang,
                 "first_member": r.get("first_member", ""),
                 "win_rates": [],
                 "users": set(),
@@ -258,15 +264,18 @@ def fetch_popular_configs(
     else:  # winrate
         result.sort(key=lambda x: (-x["avg_win_rate"], -x["user_count"]))
 
-    # 去掉重复的 config_b64（同一个配置被不同版本上传）
-    seen = set()
-    unique_result = []
+    # 每种语言分别保留 limit 条，避免最终排序再次淘汰数据量较少的语言
+    language_counts = {}
+    limited_result = []
     for r in result:
-        if r["config_b64"] not in seen:
-            seen.add(r["config_b64"])
-            unique_result.append(r)
+        game_lang = r.get("game_lang", "简体中文")
+        count = language_counts.get(game_lang, 0)
+        if count >= limit:
+            continue
+        language_counts[game_lang] = count + 1
+        limited_result.append(r)
 
-    return unique_result[:limit]
+    return limited_result
 
 
 def check_upload_disabled_and_warn(task: TriggerTask) -> bool:
