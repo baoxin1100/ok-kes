@@ -211,6 +211,7 @@ def _recognize_cards_by_features(
     type_offset,
     description_offsets,
     name_only_feature_thresholds=None,
+    allow_empty_type_threshold=None,
 ):
     """按指定特征和相对位置识别卡牌。"""
     search_box = task.box_of_screen(*region)
@@ -274,7 +275,13 @@ def _recognize_cards_by_features(
             name_only_threshold is not None
             and feature_box.confidence > name_only_threshold
         )
-        if not allow_name_only and (not card_type or not description):
+        allow_empty_type = (
+            allow_empty_type_threshold is not None
+            and feature_box.confidence > allow_empty_type_threshold
+        )
+        if not allow_name_only and (
+            not description or (not card_type and not allow_empty_type)
+        ):
             continue
         cards.append({
             "name": card_name,
@@ -354,6 +361,7 @@ def recognize_cards_in_deck(
             "hex_in_deck": 0.90,
             "hex_in_deck_tw": 0.90,
         },
+        allow_empty_type_threshold=0.90,
     )
     _mark_selected_card_by_gold_border(task, cards, page=page)
     return cards
@@ -1886,6 +1894,7 @@ def handle_route_selection(task: TriggerTask):
     special_feature_priorities = {
         "shop": -1,
         "kalei": -1,
+        "seal": -1,
         "hard": 1,
     }
 

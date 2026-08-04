@@ -209,6 +209,12 @@
             "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 109,
+            "file_name": "images/2.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -861,6 +867,19 @@
             ],
             "area": 484,
             "iscrowd": 0
+        },
+        {
+            "id": 51,
+            "image_id": 109,
+            "category_id": 51,
+            "bbox": [
+                1776,
+                429,
+                22,
+                44
+            ],
+            "area": 968,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -1112,6 +1131,11 @@
         {
             "id": 50,
             "name": "hex_in_deck_tw",
+            "supercategory": ""
+        },
+        {
+            "id": 51,
+            "name": "seal",
             "supercategory": ""
         }
     ]

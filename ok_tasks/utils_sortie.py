@@ -540,7 +540,8 @@ def handle_get_card(task: TriggerTask):
 def handle_draw_card_event(task: TriggerTask):
     """抽牌事件页面: 按获得卡牌优先级选择一张要手持的卡牌。"""
     title = find_box_at_point(task, 0.509, 0.108)
-    if not (title and re.search(r"请选择.*手持的卡牌", title.name)):
+    prompt_pattern = _get_game_text(task, r"请选择.*手持的卡牌")
+    if not (title and re.search(prompt_pattern, title.name)):
         return False
     x1, y1, x2, y2 = 0.028, 0.211, 0.938, 0.857
     cards = [

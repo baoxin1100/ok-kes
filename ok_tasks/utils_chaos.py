@@ -210,7 +210,7 @@ def handle_chaos_mask_engraving(task: TriggerTask):
 
     # 检测是否处于替换模式
     replace_box = find_box_at_point(task, 0.495, 0.221)
-    if replace_box and "替换" in replace_box.name:
+    if replace_box and _get_game_text(task, "替换") in replace_box.name:
         task.log_info("检测到替换模式（A逻辑）")
 
         # ===== A逻辑：刻印1 =====
@@ -314,13 +314,19 @@ def handle_chaos_mask_engraving(task: TriggerTask):
 
 
 def handle_mask_card(task: TriggerTask):
-    """面具获得卡牌页面: 检测到0.507,0.090处有"面具"，则为面具卡牌获得页面。
+    """面具获得卡牌页面: 根据0.507,0.090处的面具获得提示判断页面。
     检测0.120,0.228,0.945,0.418范围内是否有三个"人格面具"文本，
     如果不足三个则说明已选择过人格面具，点击跳过。
     否则提取三张卡牌描述区域文本，匹配配置中"指定面具卡牌"内容。
     匹配成功则点击对应卡牌，否则刷新或跳过。"""
     box = find_box_at_point(task, 0.507, 0.090)
-    if not (box and "面具" in box.name and "获得卡牌" in box.name):
+    is_mask_card_page = (
+        box
+        and "面具" in box.name
+        and "获得" in box.name
+        and "卡牌" in box.name
+    )
+    if not is_mask_card_page:
         return False
 
     task.log_info("检测到面具卡牌获得页面")
