@@ -1008,6 +1008,12 @@ def log_node_status(task: TriggerTask):
     """记录当前胜率（仅记录, 不拦截后续处理）。"""
     ns = getattr(task, 'node_status', None)
     if ns:
+        try:
+            lang_config = task.executor.global_config.get_config('游戏语言')
+            game_lang = lang_config.get('游戏语言', '简体中文')
+        except Exception:
+            game_lang = '简体中文'
+        task.info_set("游戏语言", game_lang)
         total = ns.get('total_rounds', 0)
         node_count = ns.get('node_count', 0)
         node_type = ns.get('node_type', "")
