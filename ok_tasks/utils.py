@@ -577,6 +577,7 @@ def _card_has_type_below(task: TriggerTask, box):
 def select_card(task: TriggerTask, card_names, count=1, action=""):
     """使用卡组特征识别选择卡牌，支持滚动查找、基础牌移除和兜底选择。"""
     selected = 0
+    max_scrolls = 20
     page = f"select_card-{action}" if action else "select_card"
     prefer_remove_base = (
         action == "移除"
@@ -655,6 +656,20 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         if selected == 0:
             selected = min(count, sum(card["selected"] for card in cards))
 
+    def find_action_button():
+        if not action:
+            return None
+        action_text = _get_game_text(task, action)
+        return next(
+            (
+                box for box in task.all_texts
+                if 0.495 <= (box.x + box.width / 2) / task.width <= 0.997
+                and 0.878 <= (box.y + box.height / 2) / task.height <= 1.001
+                and action_text in box.name
+            ),
+            None,
+        )
+
     cards = refresh_cards()
     if not cards:
         task.log_info(f"{page}: 未识别到任何卡牌，终止选卡")
@@ -667,6 +682,7 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         f"是否仅一页卡牌={single_page}"
     )
 
+    down_scrolls = 0
     while True:
         click_cards(cards, card_matches, "命中目标卡牌，点击")
         if selected >= count:
@@ -681,10 +697,21 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
             task.log_info(f"{page}: 检测到已到达卡牌底部")
             break
 
+        if down_scrolls >= max_scrolls:
+            task.log_info(f"{page}: 向下滚动已达到{max_scrolls}次限制")
+            break
+
         scroll_cards(0.251, 0.735, -3)
+        down_scrolls += 1
         cards = refresh_cards()
         if not cards:
-            task.log_info(f"{page}: 向下拖动后未识别到任何卡牌，终止选卡")
+            if find_action_button():
+                task.log_info(
+                    f"{page}: 向下滚动后卡牌漏识别，但仍存在「{action}」按钮，"
+                    "继续向下滚动"
+                )
+                continue
+            task.log_info(f"{page}: 向下滚动后未识别到卡牌或操作按钮，终止选卡")
             return False
 
     if action == "移除" and selected < count:
@@ -718,15 +745,27 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         if selected >= count:
             return True
 
+        up_scrolls = 0
         while not single_page:
             if point_is_white(0.982, 0.128):
                 task.log_info(f"{page}: 检测到已到达卡牌顶部")
                 break
 
+            if up_scrolls >= max_scrolls:
+                task.log_info(f"{page}: 向上滚动已达到{max_scrolls}次限制")
+                break
+
             scroll_cards(0.252, 0.179, 3)
+            up_scrolls += 1
             cards = refresh_cards()
             if not cards:
-                task.log_info(f"{page}: 向上拖动后未识别到任何卡牌，终止选卡")
+                if find_action_button():
+                    task.log_info(
+                        f"{page}: 向上滚动后卡牌漏识别，但仍存在「{action}」按钮，"
+                        "继续向上滚动"
+                    )
+                    continue
+                task.log_info(f"{page}: 向上滚动后未识别到卡牌或操作按钮，终止选卡")
                 return False
             bottom_to_top_cards = sorted(
                 cards,
