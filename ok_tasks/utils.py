@@ -55,9 +55,12 @@ def _get_config_value(task: TriggerTask, key, default):
     else:
         value = getattr(task, 'default_config', {}).get(key, default)
     if isinstance(value, str):
-        value = _normalize_text(value)
+        value = _normalize_text(value).strip()
     elif isinstance(value, (list, tuple)):
-        value = [_normalize_text(v) if isinstance(v, str) else v for v in value]
+        value = [
+            _normalize_text(v).strip() if isinstance(v, str) else v
+            for v in value
+        ]
     return value
 
 
