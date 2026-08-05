@@ -16,8 +16,8 @@ openvino==2026.0.0
     # via -r requirements.in
 openvino-telemetry==2025.2.0
     # via openvino
-pyappify==1.0.5
-    # via ok-script
+pyappify==1.0.6
+    # via ok-script-kes
 certifi==2025.7.14
     # via requests
 charset-normalizer==3.4.2

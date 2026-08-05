@@ -1,4 +1,4 @@
-ok-script
+ok-script-kes==1.0.2
 onnxocr-ppocrv5==0.0.18
 onnxruntime==1.28.0
 openvino==2026.0.0
