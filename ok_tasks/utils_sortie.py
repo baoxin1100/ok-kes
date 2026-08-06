@@ -20,7 +20,7 @@ from utils import (
     is_frame_stuck, handle_stuck_log, is_button_active, _clean_match,
     handle_shop, handle_expedition_result,
     handle_escape,
-    _get_current_credit, _get_current_hp_percent, _find_rest_feature,
+    _get_current_credit, _get_current_hp_percent, _find_rest_feature, _wait_for_rest_confirm,
     # handle_stage_clear,
     _finish_only_first_layer,
     handle_auto_stop,
@@ -909,7 +909,8 @@ def handle_rest_sortie(task: TriggerTask):
         if credit > flash_cost and hp_percent >= flash_threshold:
             task.log_info("满足闪光条件，点击闪光")
             task.click_box(flash_box)
-            task.sleep(2)
+            if not _wait_for_rest_confirm(task):
+                return True
             task.node_status['flash_or_rest'] = False
             return True
         else:
@@ -919,7 +920,8 @@ def handle_rest_sortie(task: TriggerTask):
     if rest_feature and hasattr(task, 'node_status') and task.node_status.get('flash_or_rest', False):
         task.log_info("检测到休息界面，点击休息")
         task.click_box(rest_feature)
-        task.sleep(1)
+        if not _wait_for_rest_confirm(task):
+            return True
         task.node_status['flash_or_rest'] = False
         return True
 

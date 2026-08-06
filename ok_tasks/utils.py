@@ -1768,11 +1768,12 @@ def handle_event_task(task: TriggerTask):
         return False
 
     def click_event_option(event_task):
-        if event_task["y"] > 0.931:
-            left, top, right, bottom = event_task["description_region"]
-            task.click((left + right) / 2, (top + bottom) / 2)
-            task.sleep(1)
-        task.click(event_task["x"], 0.95)
+        left, top, right, bottom = event_task["description_region"]
+        description_x = (left + right) / 2
+        description_y = (top + bottom) / 2
+        task.click(description_x, description_y)
+        task.sleep(1)
+        task.click(description_x, description_y)
 
     initial_card_name = _get_config_value(task, "刷初始卡牌", "")
     initial_card_name = initial_card_name.strip() if isinstance(initial_card_name, str) else ""
@@ -2083,6 +2084,18 @@ def _find_rest_feature(task: TriggerTask):
     return rest_feature
 
 
+def _wait_for_rest_confirm(task: TriggerTask):
+    """等待休息操作后的确认按钮出现。"""
+    confirm_boxes = task.wait_ocr(
+        0.170, 0.554, to_x=0.855, to_y=0.769,
+        match=re.compile(r"确认"), time_out=2,
+    )
+    if not confirm_boxes:
+        task.log_info("等待休息确认按钮超时")
+        return False
+    return True
+
+
 def handle_rest(task: TriggerTask):
     """休息界面: 检测rest特征并根据flash_or_rest状态决定是否点击。"""
     rest_feature = _find_rest_feature(task)
@@ -2093,7 +2106,8 @@ def handle_rest(task: TriggerTask):
             (rest_feature.y + rest_feature.height / 2) / task.height,
         )
         task.click_box(rest_feature)
-        task.sleep(1)
+        if not _wait_for_rest_confirm(task):
+            return True
         task.node_status['flash_or_rest'] = False
         return True
 
