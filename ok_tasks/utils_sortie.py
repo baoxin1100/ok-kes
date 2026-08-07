@@ -888,7 +888,17 @@ def handle_rest_sortie(task: TriggerTask):
             if costs and flash_cost is None:
                 flash_cost = costs[0]
 
-    if has_flash_text and flash_cost is not None and flash_box and hasattr(task, 'node_status') and task.node_status.get('flash_or_rest', False):
+    flash_feature = task.find_one(
+        feature_name="flash_in_sortie_safezoom",
+        box=task.box_of_screen(0.702, 0.347, 0.963, 0.713),
+    )
+    if flash_feature:
+        task.log_info(
+            f"检测到flash_in_sortie_safezoom特征，匹配置信度: "
+            f"{flash_feature.confidence:.2%}"
+        )
+
+    if flash_feature and has_flash_text and flash_cost is not None and flash_box and hasattr(task, 'node_status') and task.node_status.get('flash_or_rest', False):
         task.log_info("休息区存在可闪光选项")
 
         # 获取当前信用点
