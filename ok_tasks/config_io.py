@@ -4,6 +4,46 @@ import os
 
 from ok import og
 from ok.gui.Communicate import communicate
+from ok.util.config import Config
+from ok.util.file import get_relative_path, read_json_file, write_json_file
+
+
+def _migrate_flash_priority(data):
+    """将旧版闪光优先级 JSON 字符串转换为按顺序匹配的列表。"""
+    value = data.get("闪光优先级")
+    if not isinstance(value, str):
+        return data
+    try:
+        old_priority = json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        data["闪光优先级"] = []
+        return data
+    if not isinstance(old_priority, dict):
+        data["闪光优先级"] = []
+        return data
+    data["闪光优先级"] = [
+        f"{card_name}{description}"
+        for card_name, descriptions in old_priority.items()
+        if isinstance(card_name, str)
+        for description in (
+            descriptions if isinstance(descriptions, (list, tuple)) else []
+        )
+        if isinstance(description, str) and description
+    ]
+    return data
+
+
+def migrate_flash_priority_config_file(task):
+    """在框架按默认值校验类型前迁移本地旧版配置文件。"""
+    config_file = get_relative_path(
+        Config.config_folder,
+        f"{task.__class__.__name__}.json",
+    )
+    data = read_json_file(config_file)
+    if not isinstance(data, dict) or not isinstance(data.get("闪光优先级"), str):
+        return
+    _migrate_flash_priority(data)
+    write_json_file(config_file, data)
 
 
 def _export_config_to_text(task):
@@ -36,6 +76,7 @@ def _import_config_from_text(task, encoded_text):
     if not isinstance(data, dict):
         task.log_info("无效的配置数据格式")
         return False
+    _migrate_flash_priority(data)
     # 写入配置文件
     config_file = task.config.config_file
     try:

@@ -1,7 +1,11 @@
 from ok import TriggerTask, og
 
 import utils_chaos
-from config_io import make_export_callback, make_import_callback
+from config_io import (
+    make_export_callback,
+    make_import_callback,
+    migrate_flash_priority_config_file,
+)
 from config_sync import check_upload_if_needed, show_hot_configs_dialog
 from utils import reset_all_status, _migrate_route_boss_to_elite, _simplify_texts
 
@@ -19,8 +23,16 @@ class ChaosMode(TriggerTask):
         # 事件任务优先级列表, 匹配到包含对应文字的选项时会优先选择
         self.default_config['任务优先级'] = ["复制","信用点增加", "移除"]
         self.default_config['拉黑任务'] = ["咒术卡牌", "压力"]
-        # 闪光卡牌优先级配置 (JSON字符串): {"卡牌名": ["效果关键词1", "效果关键词2"], ...}
-        self.default_config['闪光优先级'] = '{"剑雨": ["生成2张极光剑", "生成1张极光剑"]}'
+        # 闪光卡牌优先级配置，按列表顺序匹配卡牌名称与描述的组合文本
+        self.default_config['闪光优先级'] = [
+            "剑雨感应：生成2张极光剑",
+            "剑雨赋予其回收",
+            "缕光芒80%",
+            "缕光芒216%",
+            "展开极光70%",
+            "展开极光安息唯一",
+            "展开极光200%",
+        ]
         # 卡牌策略配置 (列表)
         self.default_config['移除卡牌列表'] = ["剑幕", "剑光", "水之伞", "海潮的庇护", "作战分析"]
         self.default_config['闪光卡牌列表'] = ["展开极光", "剑雨", "缕光芒", "一缕光芒", "万众英雄"]
@@ -62,6 +74,10 @@ class ChaosMode(TriggerTask):
             'hottest_config': {'type': 'button', 'text': '热门配置', 'callback': self._show_hot_configs},
             '第几层boss前自动暂停': {'type': 'drop_down', 'options': ['不暂停', '1', '2']},
         }
+
+    def load_config(self):
+        migrate_flash_priority_config_file(self)
+        super().load_config()
 
     def enable(self):
         """开启卡厄思模式时自动禁用出击模式，重置状态并迁移配置。"""

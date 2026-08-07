@@ -1,7 +1,6 @@
 from ok import TriggerTask
 
 import re
-import json
 import random
 import time
 import cv2
@@ -631,13 +630,6 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         task.scroll_relative(x, y, amount)
         task.sleep(0.5)
 
-    def card_matches(card):
-        card_name = card["name"].strip()
-        return any(
-            target and (target in card_name or card_name in target)
-            for target in card_names
-        )
-
     def click_cards(cards, predicate, reason):
         nonlocal selected
         clicked = False
@@ -652,6 +644,33 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
             card["selected"] = True
             selected += 1
             clicked = True
+        return clicked
+
+    def click_priority_cards(cards):
+        nonlocal selected
+        clicked = False
+        for target in card_names:
+            if selected >= count:
+                break
+            target = target.strip() if isinstance(target, str) else ""
+            if not target:
+                continue
+            for card in cards:
+                if selected >= count:
+                    break
+                if card["selected"]:
+                    continue
+                card_name = card["name"].strip()
+                if target not in card_name and card_name not in target:
+                    continue
+                task.log_info(
+                    f"{page}: 命中优先级「{target}」，点击目标卡牌「{card['name']}」"
+                )
+                task.click(card["x"], card["y"])
+                task.sleep(0.3)
+                card["selected"] = True
+                selected += 1
+                clicked = True
         return clicked
 
     def sync_visible_selected(cards):
@@ -687,7 +706,7 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
 
     down_scrolls = 0
     while True:
-        click_cards(cards, card_matches, "命中目标卡牌，点击")
+        click_priority_cards(cards)
         if selected >= count:
             task.log_info(f"{page}: 已选中{selected}/{count}张卡牌")
             return True
@@ -2177,22 +2196,14 @@ def handle_view_original(task: TriggerTask):
     if not cards:
         return False
 
-    flash_priority = _get_config_value(task, '闪光优先级', {})
-    if isinstance(flash_priority, str):
-        try:
-            flash_priority = json.loads(flash_priority)
-        except json.JSONDecodeError:
-            flash_priority = {}
+    flash_priority = _get_card_list(task, '闪光优先级')
     chosen_card = None
-    for card_name, priority_descs in flash_priority.items():
+    for desc_keyword in flash_priority:
         for card in cards:
-            if card_name not in card['name']:
-                continue
-            for desc_keyword in priority_descs:
-                if is_subsequence(desc_keyword, card['description']):
-                    chosen_card = card
-                    task.log_info(f"优先选择「{card['name']}」({desc_keyword})")
-                    break
+            if is_subsequence(desc_keyword, card['name'] + card['description']):
+                chosen_card = card
+                task.log_info(f"优先选择「{card['name']}」({desc_keyword})")
+                break
             if chosen_card:
                 break
         if chosen_card:
