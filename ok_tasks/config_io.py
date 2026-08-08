@@ -22,7 +22,7 @@ def _migrate_flash_priority(data):
         data["闪光优先级"] = []
         return data
     data["闪光优先级"] = [
-        f"{card_name}{description}"
+        f"{card_name}：{description}"
         for card_name, descriptions in old_priority.items()
         if isinstance(card_name, str)
         for description in (

@@ -1,7 +1,7 @@
 from ok import TriggerTask
 
 from utils import (
-    _simplify_texts, _get_config_value, _get_card_list, _get_card_reward_priority, _get_route_priority, _get_game_text, _get_region_text, _finish_only_first_layer,
+    _move_and_click, _simplify_texts, _get_config_value, _get_card_list, _get_card_reward_priority, _get_route_priority, _get_game_text, _get_region_text, _get_current_hp_percent, _finish_only_first_layer,
     find_box_at_point, find_text, find_exact_text,
     _card_has_type_below, select_card,
     log_credit, log_node_status, handle_battle_crash, handle_close_page, handle_refine_equipment_credit,
@@ -31,6 +31,149 @@ import random
 
 # ------------------------- 卡厄思模式独有页面处理函数 -------------------------
 
+def _save_runtime_feature(task: TriggerTask, feature_name: str, region, target_region=None):
+    """将当前帧指定区域保存为运行时特征，可按目标区域尺寸缩放。"""
+    import os
+    import cv2
+    from ok.feature.Box import Box
+    from ok.feature.Feature import Feature
+    from ok.util.config import Config
+    from ok.util.file import get_relative_path
+
+    x1, y1, x2, y2 = region
+    left = round(x1 * task.width)
+    top = round(y1 * task.height)
+    right = round(x2 * task.width)
+    bottom = round(y2 * task.height)
+    feature_mat = task.frame[top:bottom, left:right, :3].copy()
+    if feature_mat.size == 0:
+        task.log_error(f"保存特征「{feature_name}」失败：截图区域为空")
+        return False
+
+    if target_region is not None:
+        target_x1, target_y1, target_x2, target_y2 = target_region
+        left = round(target_x1 * task.width)
+        top = round(target_y1 * task.height)
+        right = round(target_x2 * task.width)
+        bottom = round(target_y2 * task.height)
+        feature_mat = cv2.resize(
+            feature_mat,
+            (right - left, bottom - top),
+            interpolation=cv2.INTER_AREA,
+        )
+
+    feature_set = task.executor.feature_set
+    with feature_set.lock:
+        feature_set.feature_dict[feature_name] = Feature(feature_mat, left, top)
+        feature_set.box_dict[feature_name] = Box(
+            left, top, right - left, bottom - top, 1.0, feature_name
+        )
+
+    config_folder = get_relative_path(Config.config_folder)
+    os.makedirs(config_folder, exist_ok=True)
+    feature_path = os.path.join(config_folder, f"{feature_name}.png")
+    if cv2.imwrite(feature_path, feature_mat):
+        task.log_info(
+            f"已将主战员头像保存为特征「{feature_name}」：{feature_path}"
+        )
+    else:
+        task.log_info(f"保存特征图片失败：{feature_path}")
+    return True
+
+
+def handle_archive_target_member(task: TriggerTask):
+    """信息统计页面：按配置记录刷存档时使用的目标主战员特征。"""
+    search_box = task.box_of_screen(0.005, 0.018, 0.080, 0.343)
+    member_info = task.find_one(
+        feature_name=["memberinfo", "memberinfo2"], box=search_box
+    )
+    if not member_info:
+        return False
+
+    task.log_info(
+        f"检测到信息统计页面，点击「{member_info.name}」，相似度={member_info.confidence:.4f}"
+    )
+    task.click_box(member_info)
+    task.sleep(0.5)
+    _move_and_click(task, 0.201, 0.056)
+    task.sleep(0.5)
+
+    target_name = _get_config_value(task, "刷存档主战员", "海德玛丽")
+    if not target_name:
+        task.log_info("未配置刷存档主战员，关闭信息统计页面")
+        _move_and_click(task, 0.960, 0.054)
+        task.sleep(1)
+        return True
+
+    member_positions = [(0.159, 0.368), (0.432, 0.368), (0.705, 0.369)]
+    member_regions = [
+        (0.233, 0.151, 0.301, 0.269),
+        (0.502, 0.151, 0.570, 0.269),
+        (0.780, 0.151, 0.848, 0.269),
+    ]
+    task.all_texts = _simplify_texts(task.ocr())
+    member_names = []
+    for x, y in member_positions:
+        name_box = find_box_at_point(task, x, y)
+        member_names.append(name_box.name.strip() if name_box else "")
+    task.log_info(f"信息统计页面主战员：{member_names}")
+
+    for index, member_name in enumerate(member_names):
+        if member_name and (target_name in member_name or member_name in target_name):
+            if _save_runtime_feature(task, "target_member", member_regions[index]):
+                _save_runtime_feature(
+                    task,
+                    "target_member_small",
+                    member_regions[index],
+                    target_region=(0.534, 0.225, 0.587125, 0.316667),
+                )
+                _save_runtime_feature(
+                    task,
+                    "target_member_tiny",
+                    member_regions[index],
+                    target_region=(
+                        0.65790625,
+                        0.470962963,
+                        0.70009375,
+                        0.545037037,
+                    ),
+                )
+                _save_runtime_feature(
+                    task,
+                    "target_member_large",
+                    member_regions[index],
+                    target_region=(0.218, 0.320, 0.291958, 0.446852),
+                )
+                task.log_info(
+                    f"第{index + 1}个主战员「{member_name}」命中刷存档主战员「{target_name}」"
+                )
+            task.node_status["save_target_member"] = True
+            _move_and_click(task, 0.960, 0.054)
+            task.sleep(1)
+            return True
+
+    task.log_info(f"三个主战员均未命中刷存档主战员「{target_name}」")
+    _move_and_click(task, 0.960, 0.054)
+    task.sleep(1)
+    return True
+
+
+def handle_save_target_member(task: TriggerTask):
+    """主界面：进入信息统计页面获取刷存档目标主战员头像特征。"""
+    if not _get_current_hp_percent(task):
+        return False
+
+    target_name = _get_config_value(task, "刷存档主战员", "海德玛丽")
+    if not target_name:
+        return False
+    if task.node_status.get("save_target_member", False):
+        return False
+
+    task.log_info("前往获取刷存档主战员头像特征")
+    _move_and_click(task, 0.182, 0.081)
+    task.sleep(2)
+    return True
+
 def handle_battle_auto_check(task: TriggerTask):
     """战斗页面: 检测手牌数并检查自动战斗是否开启，如关闭则开启。"""
     box = find_box_at_point(task, 0.512, 0.969)
@@ -53,7 +196,7 @@ def handle_battle_auto_check(task: TriggerTask):
     task.log_info(f"自动战斗按钮区域白色占比: {white_ratio:.2%}")
     if white_ratio > 0.02:
         task.log_info("自动战斗处于关闭状态，点击开启")
-        task.click(0.880, 0.056)
+        _move_and_click(task, 0.880, 0.056)
         task.sleep(0.5)
 
     # 如果已到达最终boss节点，标记boss战状态
@@ -74,7 +217,7 @@ def handle_discovery_select(task: TriggerTask): #忘了按个页面要用
     task.log_info("检测到发现选择页面，随机选择一项")
     positions = [(0.180, 0.519), (0.505, 0.514), (0.818, 0.519)]
     chosen = random.choice(positions)
-    task.click(*chosen)
+    _move_and_click(task, *chosen)
     task.sleep(1)
     # task.click_box(confirm)
     # task.sleep(1)
@@ -119,7 +262,7 @@ def handle_desire_card_inheritance(task: TriggerTask):
     if card_box:
         task.click_box(card_box)
     else:
-        task.click(*position)
+        _move_and_click(task, *position)
     return True
 
 
@@ -141,7 +284,7 @@ def handle_codex_search(task: TriggerTask):
     if not (title and title.name == "法典"):
         return False
     task.log_info("检测到法典搜索页面，点击搜索新坐标")
-    task.click(0.5, 0.760)
+    _move_and_click(task, 0.5, 0.760)
     task.sleep(2)
     return True
 
@@ -179,7 +322,7 @@ def handle_conquer_difficulty(task: TriggerTask):
     box = find_box_at_point(task, 0.502, 0.572)
     if box and "征服新难度" in box.name:
         task.log_info("检测到征服新难度页面，点击关闭")
-        task.click(0.502, 0.943)
+        _move_and_click(task, 0.502, 0.943)
         task.sleep(1)
         return True
     return False
@@ -215,7 +358,7 @@ def handle_chaos_mask_engraving(task: TriggerTask):
 
         # ===== A逻辑：刻印1 =====
         task.log_info("点击刻印1")
-        task.click(0.399, 0.472)
+        _move_and_click(task, 0.399, 0.472)
         task.sleep(0.5)
 
         slot_desc = _get_region_text(task, slot_desc_region)
@@ -237,18 +380,18 @@ def handle_chaos_mask_engraving(task: TriggerTask):
                     task.log_info(f"刻印1未命中，剩余刷新次数: {remaining}")
                     if remaining > 0:
                         task.log_info(f"点击刷新")
-                        task.click(0.916, 0.810)
+                        _move_and_click(task, 0.916, 0.810)
                         task.sleep(1)
                         return True
             # 无法刷新，点击跳过
             task.log_info("无法刷新，点击跳过")
-            task.click(0.747, 0.932)
+            _move_and_click(task, 0.747, 0.932)
             task.sleep(1)
             return True
 
         # ===== 刻印1命中，继续刻印2 =====
         task.log_info("刻印1命中，点击刻印2")
-        task.click(0.399, 0.610)
+        _move_and_click(task, 0.399, 0.610)
         task.sleep(0.5)
 
         slot2_desc = _get_region_text(task, slot_desc_region)
@@ -257,7 +400,7 @@ def handle_chaos_mask_engraving(task: TriggerTask):
         if specify_text in slot2_desc:
             # 刻印2也命中，点击跳过
             task.log_info("刻印2也命中配置，点击跳过")
-            task.click(0.747, 0.932)
+            _move_and_click(task, 0.747, 0.932)
             task.sleep(1)
             return True
 
@@ -277,13 +420,13 @@ def handle_chaos_mask_engraving(task: TriggerTask):
                 task.log_info(f"刻印2未命中，剩余刷新次数: {remaining}")
                 if remaining > 0:
                     task.log_info(f"点击刷新")
-                    task.click(0.916, 0.810)
+                    _move_and_click(task, 0.916, 0.810)
                     task.sleep(1)
                     return True
 
         # 无法刷新，点击跳过
         task.log_info("无法刷新，点击跳过")
-        task.click(0.747, 0.932)
+        _move_and_click(task, 0.747, 0.932)
         task.sleep(1)
         return True
 
@@ -305,7 +448,7 @@ def handle_chaos_mask_engraving(task: TriggerTask):
             task.log_info(f"未命中指定刻印，剩余刷新次数: {remaining}")
             if remaining > 0:
                 task.log_info(f"剩余刷新次数{remaining}>0，点击刷新")
-                task.click(0.913, 0.667)
+                _move_and_click(task, 0.913, 0.667)
                 task.sleep(1)
                 return True
 
@@ -344,7 +487,7 @@ def handle_mask_card(task: TriggerTask):
         if skip_box:
             task.click_box(skip_box)
             task.sleep(0.5)
-            # task.click(0.654, 0.626)
+            # _move_and_click(task, 0.654, 0.626)
         return True
 
     task.log_info("检测到3张人格面具，提取卡牌描述")
@@ -370,7 +513,7 @@ def handle_mask_card(task: TriggerTask):
             task.log_info(f"卡牌{i+1}描述包含「{specify_text}」，点击该卡牌")
             click_x = (rx1 + rx2) / 2
             click_y = (ry1 + ry2) / 2
-            task.click(click_x, click_y)
+            _move_and_click(task, click_x, click_y)
             task.sleep(0.5)
             return True
 
@@ -383,7 +526,7 @@ def handle_mask_card(task: TriggerTask):
             task.log_info(f"未匹配到指定面具卡牌，剩余刷新次数: {remaining}")
             if remaining > 0:
                 task.log_info(f"剩余刷新次数{remaining}>0，点击刷新")
-                task.click(0.313, 0.931)
+                _move_and_click(task, 0.313, 0.931)
                 task.sleep(1)
                 return True
 
@@ -392,7 +535,7 @@ def handle_mask_card(task: TriggerTask):
     if skip_box:
         task.click_box(skip_box)
         task.sleep(0.5)
-        # task.click(0.654, 0.626)
+        # _move_and_click(task, 0.654, 0.626)
     return True
 
 
@@ -418,7 +561,7 @@ def handle_data_collected(task: TriggerTask):
 #     """卡厄思 TIP 提示页面: 点击关闭。"""
 #     box = find_box_at_point(task, 0.502, 0.286)
 #     if box and box.name == "TIP":
-#         task.click(0.884, 0.915)
+#         _move_and_click(task, 0.884, 0.915)
 #         return True
 #     return False
 
@@ -428,7 +571,7 @@ def handle_expedition_unlock(task: TriggerTask):
     box = find_box_at_point(task, 0.5, 0.151)
     if box and _get_game_text(task, '解锁的探险记录') in box.name:
         task.log_info("检测到解锁探险记录页面，点击页面")
-        task.click(0.5, 0.95)
+        _move_and_click(task, 0.5, 0.95)
         task.sleep(1)
         return True
     return False
@@ -442,7 +585,7 @@ def handle_mental_breakdown(task: TriggerTask):
     if box and _get_game_text(task, '精神崩溃发生') in box.name:
         if _get_config_value(task, '治疗崩溃', True):
             task.log_info("检测到精神崩溃发生，去创伤中心治疗")
-            task.click(0.706, 0.915)
+            _move_and_click(task, 0.706, 0.915)
             task.sleep(1)
             return True
     return False
@@ -455,9 +598,9 @@ def handle_trauma_center(task: TriggerTask):
         return False
     task.log_info("检测到创伤中心，采取策略，优先使用旅行券")
     if find_text(task, _get_game_text(task, '没有恢复中的战员')):
-        task.click(0.044, 0.046)
+        _move_and_click(task, 0.044, 0.046)
         return True
-    task.click(0.420, 0.339)
+    _move_and_click(task, 0.420, 0.339)
     task.sleep(0.5)
     travel_ticket = task.ocr(0.933, 0.904, 0.971, 0.943)
     if travel_ticket:
@@ -465,9 +608,9 @@ def handle_trauma_center(task: TriggerTask):
         prefer_gold = _get_config_value(task, '优先使用金币治疗', False)
         if prefer_gold:
             task.log_info("优先使用金币治疗配置为True，点击金币治疗")
-            task.click(0.702, 0.924)
+            _move_and_click(task, 0.702, 0.924)
         else:
-            task.click(0.798 if has_ticket else 0.702, 0.924)
+            _move_and_click(task, 0.798 if has_ticket else 0.702, 0.924)
         task.sleep(0.5)
     return True
 
@@ -476,7 +619,7 @@ def handle_treating(task: TriggerTask):
     """治疗进行中页面: 选择治疗方法。"""
     if find_text(task, _get_game_text(task, '选择哪种方法进行治疗')):
         task.log_info("检测到治疗进行中")
-        task.click(0.765, 0.500)
+        _move_and_click(task, 0.765, 0.500)
         return True
     return False
 
@@ -485,7 +628,7 @@ def handle_treat_approve(task: TriggerTask):
     """治疗完成页面: 点击批准。"""
     if find_text(task, _get_game_text(task, '点击批准')):
         task.log_info("检测到治疗完成，点击批准")
-        task.click(0.768, 0.810)
+        _move_and_click(task, 0.768, 0.810)
         return True
     return False
 
@@ -533,12 +676,12 @@ def handle_chaos_reward_claim(task: TriggerTask):
             task.config['领取奖励(只使用验证卡)'] = False
             from ok.gui.Communicate import communicate
             communicate.task_list_updated.emit()
-            task.click(0.352, 0.708)
+            _move_and_click(task, 0.352, 0.708)
             task.sleep(1)
             return True
     else:
         task.log_info("未检测到战利品验证卡信息，点击取消")
-        task.click(0.352, 0.708)
+        _move_and_click(task, 0.352, 0.708)
         task.sleep(1)
         return True
 
@@ -572,6 +715,7 @@ def handle_chaos_reward_settlement(task: TriggerTask):
 # 卡厄思模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
     handle_auto_stop,
+    handle_save_target_member,
     handle_route_selection,
     # handle_stage_clear,
     log_credit,
@@ -580,6 +724,7 @@ PAGE_HANDLERS = [
 
     handle_refine_equipment_credit, #提炼装备信用点页面，优先于确认按钮
     handle_center_confirm, #页面中央确认按钮
+    handle_archive_target_member, #信息统计页面，记录刷存档目标主战员
     handle_chaos_mask_engraving, #面具卡牌刻印获取页面
     handle_equipment, #装备选择
     handle_card_assign,

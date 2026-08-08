@@ -1,7 +1,7 @@
 from ok import TriggerTask
 
 from utils import (
-    _simplify_texts, _edit_distance, _get_config_value, _get_card_list, _get_route_priority, _get_game_text,
+    _move_and_click, _simplify_texts, _edit_distance, _get_config_value, _get_card_list, _get_route_priority, _get_game_text,
     find_box_at_point, find_text, find_exact_text, recognize_cards,
     _card_has_type_below, select_card, calculate_dominant_hue,
     log_credit, log_node_status, handle_battle_crash, handle_close_page, handle_refine_equipment_credit,
@@ -301,11 +301,11 @@ def _confirm_battle_member_selection(task: TriggerTask):
     dominant_hue = calculate_dominant_hue(task, (0.901, 0.931, 0.911, 0.941))
     if dominant_hue != -1 and 7 <= dominant_hue <= 17:
         task.log_info(f"出战主战员确认按钮色相={dominant_hue}，点击确认")
-        task.click(0.906, 0.936)
+        _move_and_click(task, 0.906, 0.936)
         task.sleep(2)
     else:
         task.log_info(f"出战主战员确认按钮色相={dominant_hue}，未激活，返回")
-        task.click(0.044, 0.050)
+        _move_and_click(task, 0.044, 0.050)
     return True
 
 
@@ -392,9 +392,9 @@ def handle_boss_selection(task: TriggerTask):
         return False
     boss = random.choice(bosses)
     task.log_info(f"首领选择: 随机选择「{boss['name']}」")
-    task.click(boss["x"], boss["y"])
+    _move_and_click(task, boss["x"], boss["y"])
     task.sleep(1)
-    # task.click(0.919, 0.930)
+    # _move_and_click(task, 0.919, 0.930)
     return True
 
 
@@ -520,20 +520,20 @@ def handle_get_card(task: TriggerTask):
         chosen = next((card for card in cards if name in card["name"]), None)
         if chosen:
             task.log_info(f"获得卡牌: 优先选择「{chosen['name']}」(匹配优先级「{name}」)")
-            task.click(chosen["x"], chosen["y"])
+            _move_and_click(task, chosen["x"], chosen["y"])
             task.sleep(0.5)
-            task.click(0.912, 0.931)
+            _move_and_click(task, 0.912, 0.931)
             return True
     if _get_config_value(task, '跳过非优先级卡牌', True):
         task.log_info("获得卡牌: 未命中任何优先级卡牌，跳过非优先级卡牌")
-        task.click(0.749, 0.931)
+        _move_and_click(task, 0.749, 0.931)
         task.sleep(1)
         return True
     chosen = random.choice(cards)
     task.log_info(f"获得卡牌: 跳过非优先级卡牌配置为False，随机选择「{chosen['name']}」")
-    task.click(chosen["x"], chosen["y"])
+    _move_and_click(task, chosen["x"], chosen["y"])
     task.sleep(1)
-    # task.click(0.912, 0.931)
+    # _move_and_click(task, 0.912, 0.931)
     return True
 
 
@@ -563,7 +563,7 @@ def handle_draw_card_event(task: TriggerTask):
         task.log_info(f"抽牌事件: 未命中优先级，随机选择「{chosen.name}」")
     task.click_box(chosen)
     task.sleep(1)
-    # task.click(0.952, 0.933)
+    # _move_and_click(task, 0.952, 0.933)
     return True
 
 
@@ -572,9 +572,9 @@ def handle_discard_hand_card(task: TriggerTask):
     box = find_box_at_point(task, 0.5, 0.356)
     if box and "手牌中仍有可用卡牌" in box.name:
         task.log_info("检测到手牌丢弃页面，点击丢弃")
-        task.click(0.424, 0.500) #今日不再提示
+        _move_and_click(task, 0.424, 0.500) #今日不再提示
         task.sleep(0.5)
-        task.click(0.663, 0.607)
+        _move_and_click(task, 0.663, 0.607)
         return True
     return False
 
@@ -601,11 +601,11 @@ def handle_sortie_reward_claim(task: TriggerTask):
         return False
     if _get_config_value(task, "领取奖励", False):
         task.log_info("检测到出击模式奖励领取页面，领取卡厄思战利品")
-        task.click(0.567, 0.708)
+        _move_and_click(task, 0.567, 0.708)
         task.sleep(1)
         return True
     task.log_info("检测到出击模式奖励领取页面，放弃卡厄思战利品")
-    task.click(0.355, 0.714)
+    _move_and_click(task, 0.355, 0.714)
     return True
 
 
@@ -617,11 +617,11 @@ def handle_battle_member_config(task: TriggerTask):
     battle_member_hint = find_box_at_point(task, 0.188, 0.799)
     if not (battle_member_hint and battle_member_hint.name.strip()):
         task.log_info("检测到主战员配置页面: 当前处于出战主战员，点击出战主战员入口")
-        task.click(0.315, 0.475)
+        _move_and_click(task, 0.315, 0.475)
         task.sleep(2)
         return True
     task.log_info("检测到主战员配置页面: 点击进入")
-    task.click(0.719, 0.914)
+    _move_and_click(task, 0.719, 0.914)
     return True
 
 
@@ -657,7 +657,7 @@ def handle_member_selection(task: TriggerTask):
         task.log_info("主战员选择: 未找到优先角色或优先角色被拉黑，点击三个名字下方按钮刷新一次")
         for slot in slots:
             if slot["refresh_y"] is not None:
-                task.click(slot["x"], slot["refresh_y"])
+                _move_and_click(task, slot["x"], slot["refresh_y"])
                 task.sleep(1)
         task.sleep(1)
         task.all_texts = _simplify_texts(task.ocr())
@@ -676,11 +676,11 @@ def handle_member_selection(task: TriggerTask):
             task.log_info("主战员选择: 所有候选都被拉黑，从全部候选中随机选择")
         chosen = random.choice(valid_slots)
         task.log_info(f"主战员选择: 未找到优先角色，随机选择「{chosen['name']}」")
-    task.click(chosen["x"], chosen["y"])
+    _move_and_click(task, chosen["x"], chosen["y"])
     task.sleep(1)
-    # task.click(0.884, 0.931)
+    # _move_and_click(task, 0.884, 0.931)
     # task.sleep(0.5)
-    # task.click(0.635, 0.639)
+    # _move_and_click(task, 0.635, 0.639)
     # task.sleep(0.5)
     return True
 
@@ -702,7 +702,7 @@ def handle_rational_supply(task: TriggerTask):
         task.config['领取奖励'] = False
         from ok.gui.Communicate import communicate
         communicate.task_list_updated.emit()
-        task.click(0.352, 0.774)
+        _move_and_click(task, 0.352, 0.774)
         task.sleep(1)
         return True
     return False
@@ -713,7 +713,7 @@ def handle_ether_supply(task: TriggerTask):
     box = find_box_at_point(task, 0.502, 0.139)
     if box and box.name == _get_game_text(task, '以太补充'):
         task.log_info("检测到以太补充页面，请手动补充以太后再启动功能")
-        task.click(0.347, 0.803)
+        _move_and_click(task, 0.347, 0.803)
         task.sleep(0.5)
         return True
     return False
@@ -754,7 +754,7 @@ def handle_battle_hand_select(task: TriggerTask):
             task.log_info("手牌区域未找到卡牌，随机在手牌区域内点击一个位置")
             rx = random.uniform(0.216, 0.759)
             ry = random.uniform(0.697, 0.878)
-            task.click(rx, ry)
+            _move_and_click(task, rx, ry)
             selected += 1
             task.sleep(1)
             continue
@@ -766,7 +766,7 @@ def handle_battle_hand_select(task: TriggerTask):
 
     if selected > 0:
         task.log_info(f"已完成选择，点击确认")
-        task.click(0.934, 0.883)
+        _move_and_click(task, 0.934, 0.883)
         task.sleep(1)
     return True
 
@@ -791,7 +791,7 @@ def handle_curiosity_activate(task: TriggerTask):
             chosen_card = random.choice(cards)
             task.log_info(f"未命中优先级，随机选择卡牌: {chosen_card['name']}")
         if chosen_card:
-            task.click(chosen_card["x"], chosen_card["y"])
+            _move_and_click(task, chosen_card["x"], chosen_card["y"])
             task.sleep(2)
             return True
     return False
@@ -802,7 +802,7 @@ def handle_extra_card_use(task: TriggerTask):
     box = find_box_at_point(task, 0.498, 0.131)
     if box and "请选择张要额外使用的卡牌" in box.name:
         task.log_info("检测到额外使用卡牌页面，随机选择")
-        task.click(*random.choice([(0.251, 0.546), (0.508, 0.518), (0.764, 0.525)]))
+        _move_and_click(task, *random.choice([(0.251, 0.546), (0.508, 0.518), (0.764, 0.525)]))
         task.sleep(2)
         return True
     return False
@@ -826,7 +826,7 @@ def handle_card_function_select(task: TriggerTask):
     p3 = find_box_at_point(task, 0.722, 0.286)
     if p1 and p2 and p3 and "创造" in p1.name and "创造" in p2.name and "创造" in p3.name:
         task.log_info("检测到量子晶种预测卡牌页面，点击创造")
-        task.click(0.722, 0.286)
+        _move_and_click(task, 0.722, 0.286)
         task.sleep(4)
         return True
     cards = recognize_cards(task, page="卡牌功能选择页面")
@@ -836,7 +836,7 @@ def handle_card_function_select(task: TriggerTask):
             f"卡牌功能选择兜底: 随机点击卡牌「{chosen['name']}」，"
             f"类型「{chosen['type'] or chosen['feature_type']}」"
         )
-        task.click(chosen["x"], chosen["y"])
+        _move_and_click(task, chosen["x"], chosen["y"])
         task.sleep(4)
         return True
     return False
@@ -862,7 +862,7 @@ def handle_return_to_draw_pile(task: TriggerTask):
     chosen = cards[0]
     task.click_box(chosen)
     task.sleep(1)
-    # task.click(0.934, 0.883)
+    # _move_and_click(task, 0.934, 0.883)
     # task.sleep(1)
     return True
 
@@ -956,7 +956,7 @@ def handle_unrecognized_card_selection(task: TriggerTask):
         f"未知卡牌选择页面兜底: 随机点击卡牌「{chosen['name']}」，"
         f"类型「{chosen['type'] or chosen['feature_type']}」"
     )
-    task.click(chosen["x"], chosen["y"])
+    _move_and_click(task, chosen["x"], chosen["y"])
     task.sleep(1)
     return True
 

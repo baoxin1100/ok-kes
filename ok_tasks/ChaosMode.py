@@ -20,6 +20,7 @@ class ChaosMode(TriggerTask):
         self.all_texts = []
         # 默认关闭，由用户在界面中手动启停，保持 TriggerTask 自己作为主任务运行
         self.default_config['_enabled'] = False
+        self.default_config['刷存档主战员'] = "海德玛丽"
         # 事件任务优先级列表, 匹配到包含对应文字的选项时会优先选择
         self.default_config['任务优先级'] = ["复制","信用点增加", "移除"]
         self.default_config['拉黑任务'] = ["咒术卡牌", "压力"]
@@ -58,7 +59,7 @@ class ChaosMode(TriggerTask):
         self.default_config['第几层boss前自动暂停'] = "不暂停"
         self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, 
                             "total_rounds": 0, "success_rounds": 0, "node_count": 0, "enter_new_node": False, "node_type": "",
-                            "is_escaped": False}
+                            "is_escaped": False, "save_target_member": False}
         self.member_status = {
             "equipment": {
                 "names": ["", "", ""],
@@ -74,6 +75,9 @@ class ChaosMode(TriggerTask):
             'hottest_config': {'type': 'button', 'text': '热门配置', 'callback': self._show_hot_configs},
             '第几层boss前自动暂停': {'type': 'drop_down', 'options': ['不暂停', '1', '2']},
         }
+        self.config_description['闪光优先级'] = (
+            "卡牌名称和描述无需完整填写，输入几个关键字即可，但顺序须与游戏原文一致。"
+        )
 
     def load_config(self):
         migrate_flash_priority_config_file(self)

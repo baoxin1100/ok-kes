@@ -215,6 +215,18 @@
             "file_name": "images/2.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 115,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
+        },
+        {
+            "id": 116,
+            "file_name": "images/1.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -848,11 +860,11 @@
             "category_id": 49,
             "bbox": [
                 422,
-                111,
-                99,
-                139
+                108,
+                98,
+                98
             ],
-            "area": 13761,
+            "area": 9604,
             "iscrowd": 0
         },
         {
@@ -879,6 +891,58 @@
                 44
             ],
             "area": 968,
+            "iscrowd": 0
+        },
+        {
+            "id": 52,
+            "image_id": 115,
+            "category_id": 52,
+            "bbox": [
+                54,
+                50,
+                55,
+                59
+            ],
+            "area": 3245,
+            "iscrowd": 0
+        },
+        {
+            "id": 53,
+            "image_id": 115,
+            "category_id": 53,
+            "bbox": [
+                55,
+                279,
+                51,
+                55
+            ],
+            "area": 2805,
+            "iscrowd": 0
+        },
+        {
+            "id": 54,
+            "image_id": 116,
+            "category_id": 54,
+            "bbox": [
+                54,
+                50,
+                57,
+                58
+            ],
+            "area": 3306,
+            "iscrowd": 0
+        },
+        {
+            "id": 55,
+            "image_id": 116,
+            "category_id": 55,
+            "bbox": [
+                54,
+                277,
+                55,
+                58
+            ],
+            "area": 3190,
             "iscrowd": 0
         }
     ],
@@ -1136,6 +1200,26 @@
         {
             "id": 51,
             "name": "seal",
+            "supercategory": ""
+        },
+        {
+            "id": 52,
+            "name": "memberinfo",
+            "supercategory": ""
+        },
+        {
+            "id": 53,
+            "name": "deckinfo",
+            "supercategory": ""
+        },
+        {
+            "id": 54,
+            "name": "memberinfo2",
+            "supercategory": ""
+        },
+        {
+            "id": 55,
+            "name": "deckinfo2",
             "supercategory": ""
         }
     ]

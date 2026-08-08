@@ -126,13 +126,18 @@ def upload_config(task: TriggerTask, mode: str) -> bool:
     except Exception:
         pass
 
-    # 读取出战主战员优先级第一个名字（仅在出击模式有效）
+    # 出击模式记录首选主战员，卡厄思模式记录刷存档主战员
     first_member = ""
     if mode == "sortie":
         try:
             member_list = task.config.get('出战主战员优先级', [])
             if isinstance(member_list, (list, tuple)) and len(member_list) > 0:
-                first_member = member_list[0]
+                first_member = str(member_list[0]).strip()
+        except Exception:
+            pass
+    elif mode == "chaos":
+        try:
+            first_member = str(task.config.get('刷存档主战员', '') or '').strip()
         except Exception:
             pass
 
@@ -344,14 +349,14 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
     filter_layout.addWidget(lang_filter_label)
     filter_layout.addWidget(lang_filter_combo)
 
-    # 出战主战员筛选（出击模式可用）
-    member_filter_combo = None
-    if mode == "sortie":
-        member_filter_label = QLabel("出战主战员：")
-        member_filter_combo = QComboBox()
-        member_filter_combo.addItem("不限", "")
-        filter_layout.addWidget(member_filter_label)
-        filter_layout.addWidget(member_filter_combo)
+    # 成员筛选：出击模式筛选首选主战员，卡厄思模式筛选刷存档主战员
+    member_filter_label = QLabel(
+        "出战主战员：" if mode == "sortie" else "刷存档主战员："
+    )
+    member_filter_combo = QComboBox()
+    member_filter_combo.addItem("不限", "")
+    filter_layout.addWidget(member_filter_label)
+    filter_layout.addWidget(member_filter_combo)
 
     filter_layout.addStretch()
     layout.addLayout(filter_layout)
@@ -437,7 +442,8 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
             gl = r.get("game_lang", "简体中文")
             fm = r.get("first_member", "")
             if fm:
-                text = f"#{i}  胜率: {wr:.0%}  使用人数: {uc}  主战员: {fm}  语言: {gl}  版本: {ver}"
+                member_label = "主战员" if mode == "sortie" else "刷存档主战员"
+                text = f"#{i}  胜率: {wr:.0%}  使用人数: {uc}  {member_label}: {fm}  语言: {gl}  版本: {ver}"
             else:
                 text = f"#{i}  胜率: {wr:.0%}  使用人数: {uc}  语言: {gl}  版本: {ver}"
             item = QListWidgetItem(text)

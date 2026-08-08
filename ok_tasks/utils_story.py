@@ -1,6 +1,7 @@
 from ok import TriggerTask
 
 from utils import (
+    _move_and_click,
     handle_confirm,
     handle_enter,
     handle_close_page,
@@ -50,7 +51,7 @@ def handle_view_event(task: TriggerTask):
 #         box = find_box_at_point(task, check_x, check_y)
 #         if box is None or not box.name.strip():
 #             task.log_info(f"槽位({check_x},{check_y})为空，点击({click_x},{click_y})补充角色")
-#             task.click(click_x, click_y)
+#             _move_and_click(task, click_x, click_y)
 #             task.sleep(2)
 #             return True
 #     task.log_info("所有槽位已有角色，无需补充")
