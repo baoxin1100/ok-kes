@@ -1,0 +1,57 @@
+site_name: ok-kes
+site_description: Documentation for the ok-kes Chaos Zero Nightmare automation tool
+site_url: https://baoxin1100.github.io/ok-kes/
+repo_url: https://github.com/baoxin1100/ok-kes
+repo_name: baoxin1100/ok-kes
+edit_uri: edit/master/docs/
+
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - content.action.edit
+    - navigation.footer
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: 切换到深色模式
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: 切换到浅色模式
+
+nav:
+  - 首页: index.md
+  - 简体中文: zh-CN/index.md
+  - English: en/index.md
+  - 开发文档:
+      - 开发指南: development/index.md
+      - 软件需求与设计: srd.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+
+extra_css:
+  - stylesheets/extra.css
+
+plugins:
+  - search
+
+strict: true

@@ -35,6 +35,7 @@ thread_dumps.txt
 
 # Distribution / packaging
 dist/
+site/
 build/
 *.spec
 .Python
