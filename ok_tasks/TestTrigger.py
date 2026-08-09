@@ -1,6 +1,6 @@
 from ok import TriggerTask
 
-from utils import recognize_cards_in_deck
+from utils_sortie import handle_secret_enemy
 
 
 class TestTrigger(TriggerTask):
@@ -13,10 +13,4 @@ class TestTrigger(TriggerTask):
 
     def run(self):
         self.all_texts = self.ocr()
-        cards = recognize_cards_in_deck(self, page="测试trigger")
-        selected_cards = [card for card in cards if card["selected"]]
-        for card in selected_cards:
-            self.log_info(
-                f"测试trigger: 当前选中卡牌名称=「{card['name']}」，"
-                f"类型=「{card['type']}」，描述=「{card['description']}」"
-            )
+        handle_secret_enemy(self)

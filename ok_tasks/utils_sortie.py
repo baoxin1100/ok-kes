@@ -398,6 +398,35 @@ def handle_boss_selection(task: TriggerTask):
     return True
 
 
+def handle_secret_enemy(task: TriggerTask):
+    """战斗页面：发现特殊怪物时，随机拖动一张手牌到怪物中心。"""
+    hand_count_box = find_box_at_point(task, 0.513, 0.975)
+    if not (hand_count_box and re.search(r"\d+/\d+", hand_count_box.name)):
+        return False
+
+    search_box = task.box_of_screen(0.496, 0.154, 0.967, 0.636)
+    secret_enemy = task.find_one(
+        feature_name="secret_enemy",
+        box=search_box,
+        threshold=0.7,
+    )
+    if not secret_enemy:
+        return False
+
+    enemy_x = (secret_enemy.x + secret_enemy.width / 2) / task.width
+    enemy_y = (secret_enemy.y + secret_enemy.height / 2) / task.height
+    card_x = random.uniform(0.202, 0.795)
+    card_y = random.uniform(0.726, 0.911)
+    task.log_info(
+        f"发现特殊怪物，从({card_x:.3f}, {card_y:.3f})拖动手牌到"
+        f"怪物中心({enemy_x:.3f}, {enemy_y:.3f})，"
+        f"相似度={secret_enemy.confidence:.4f}"
+    )
+    task.move_relative(card_x, card_y)
+    task.swipe_relative(card_x, card_y, enemy_x, enemy_y, duration=0.5)
+    return False
+
+
 def handle_battle_page(task: TriggerTask):
     """战斗页面: 优先按"出牌优先级"配置出牌；找不到优先级中的牌时按当前手牌数从大到小兜底尝试。"""
 

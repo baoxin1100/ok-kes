@@ -227,6 +227,12 @@
             "file_name": "images/1.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 132,
+            "file_name": "images/1.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -944,6 +950,19 @@
             ],
             "area": 3190,
             "iscrowd": 0
+        },
+        {
+            "id": 56,
+            "image_id": 132,
+            "category_id": 56,
+            "bbox": [
+                1127,
+                440,
+                141,
+                106
+            ],
+            "area": 14946,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -1220,6 +1239,11 @@
         {
             "id": 55,
             "name": "deckinfo2",
+            "supercategory": ""
+        },
+        {
+            "id": 56,
+            "name": "secret_enemy",
             "supercategory": ""
         }
     ]

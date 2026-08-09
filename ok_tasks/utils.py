@@ -954,13 +954,13 @@ def is_button_active(task: TriggerTask, button_box):
 
 # ------------------------- 帧卡住检测 -------------------------
 
-def is_frame_stuck(task: TriggerTask, stuck_threshold_seconds=30, change_threshold=0.005):
+def is_frame_stuck(task: TriggerTask, stuck_threshold_seconds=30, change_threshold=0.08):
     """
     基于像素变化检测画面是否卡住。
     在 task 上缓存 _prev_frame_gray 和 _last_change_time。
     连续 stuck_threshold_seconds 秒变化比例低于 change_threshold 返回 True。
     stuck_threshold_seconds: 判定卡住的连续秒数阈值，默认30秒
-    change_threshold: 两帧之间变化像素比例阈值，默认0.005（0.5%）
+    change_threshold: 两帧之间变化像素比例阈值，默认0.08（8%）
     """
     if not hasattr(task, '_last_change_time'):
         task._last_change_time = time.time()
@@ -995,6 +995,8 @@ def handle_stuck_log(task: TriggerTask):
         now = time.time()
         last_click_time = getattr(task, "_last_stuck_click_time", 0)
         if now - last_click_time >= 10:
+            from utils_sortie import handle_secret_enemy
+            handle_secret_enemy(task)
             click_x = random.random()
             click_y = random.random()
             task.log_info(
