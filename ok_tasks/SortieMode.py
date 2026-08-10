@@ -48,6 +48,7 @@ class SortieMode(TriggerTask):
             "equipment": {
                 "names": ["", "", ""],
                 "descriptions": ["", "", ""],
+                "qualities": ["", "", ""],
             },
             "deck": {},
         }

@@ -64,6 +64,7 @@ class ChaosMode(TriggerTask):
             "equipment": {
                 "names": ["", "", ""],
                 "descriptions": ["", "", ""],
+                "qualities": ["", "", ""],
             },
             "deck": {},
         }

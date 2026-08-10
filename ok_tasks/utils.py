@@ -1333,6 +1333,11 @@ def handle_card_reward(task: TriggerTask):
 
 
 _EQUIPMENT_TYPE_SLOTS = {"攻击力": 0, "防御力": 1, "生命值": 2}
+_EQUIPMENT_QUALITY_RANKS = {"": 0, "普通": 1, "史诗": 2, "传说": 3}
+_EQUIPMENT_NORMAL_RGB = (61, 76, 138)
+_EQUIPMENT_EPIC_RGB = (160, 88, 69)
+_EQUIPMENT_EMPTY_RGB = (15, 15, 15)
+_EQUIPMENT_RGB_TOLERANCE = 30
 
 
 def _equipment_slot(task: TriggerTask, type_text):
@@ -1349,7 +1354,11 @@ def _equipment_priority(task: TriggerTask, slot):
 
 def _match_equipment_name(ocr_name, priority):
     """用双向包含匹配装备名，返回配置中的标准名称及优先级下标。"""
+    if not ocr_name:
+        return None, None
     for index, config_name in enumerate(priority):
+        if not config_name:
+            continue
         if ocr_name in config_name or config_name in ocr_name:
             return config_name, index
     return None, None
@@ -1369,11 +1378,19 @@ def _equipment_state(task: TriggerTask):
         task.member_status = member_status
     equipment = member_status.setdefault("equipment", {})
     if not isinstance(equipment, dict):
-        equipment = {"names": ["", "", ""], "descriptions": ["", "", ""]}
+        equipment = {
+            "names": ["", "", ""],
+            "descriptions": ["", "", ""],
+            "qualities": ["", "", ""],
+        }
         member_status["equipment"] = equipment
     elif "names" not in equipment or "descriptions" not in equipment:
         old_equipment = equipment
-        equipment = {"names": ["", "", ""], "descriptions": ["", "", ""]}
+        equipment = {
+            "names": ["", "", ""],
+            "descriptions": ["", "", ""],
+            "qualities": ["", "", ""],
+        }
         for equipment_name, description in old_equipment.items():
             for slot in range(3):
                 if _match_equipment_name(
@@ -1384,7 +1401,7 @@ def _equipment_state(task: TriggerTask):
                     equipment["descriptions"][slot] = description
                     break
         member_status["equipment"] = equipment
-    for key in ("names", "descriptions"):
+    for key in ("names", "descriptions", "qualities"):
         values = equipment.get(key)
         if not isinstance(values, list):
             values = []
@@ -1417,8 +1434,88 @@ def _current_equipment_for_slot(task: TriggerTask, equipment, slot):
     return equipment_name, _equipment_rank(equipment_name, priority)
 
 
+def _pixel_rgb(task: TriggerTask, point):
+    """读取归一化坐标的像素，并将 OpenCV BGR 转为 RGB。"""
+    if task.frame is None:
+        return None
+    x = min(task.width - 1, max(0, round(point[0] * task.width)))
+    y = min(task.height - 1, max(0, round(point[1] * task.height)))
+    blue, green, red = (int(value) for value in task.frame[y, x, :3])
+    return red, green, blue
+
+
+def _rgb_is_close(rgb, target, tolerance=_EQUIPMENT_RGB_TOLERANCE):
+    """判断 RGB 各通道是否均在指定容差内。"""
+    return rgb is not None and all(
+        abs(value - expected) <= tolerance
+        for value, expected in zip(rgb, target)
+    )
+
+
+def _equipment_quality_at(task: TriggerTask, point, allow_empty=False):
+    """按指定点颜色识别装备品质；安装槽位可额外识别空槽。"""
+    rgb = _pixel_rgb(task, point)
+    if rgb is None:
+        return None, None
+    if allow_empty and _rgb_is_close(rgb, _EQUIPMENT_EMPTY_RGB):
+        return "", rgb
+    if _rgb_is_close(rgb, _EQUIPMENT_NORMAL_RGB):
+        return "普通", rgb
+    if _rgb_is_close(rgb, _EQUIPMENT_EPIC_RGB):
+        return "史诗", rgb
+    return "传说", rgb
+
+
+def _member_equipment_qualities(task: TriggerTask, level_box):
+    """根据等级文本的相对位置读取该主战员三个装备槽的品质。"""
+    level_center_x = (level_box.x + level_box.width / 2) / task.width
+    level_center_y = (level_box.y + level_box.height / 2) / task.height
+    relative_offsets = (
+        (0.130, -0.0655),
+        (0.201, -0.0665),
+        (0.270, -0.0655),
+    )
+    qualities = []
+    for slot, (offset_x, offset_y) in enumerate(relative_offsets):
+        point = (level_center_x + offset_x, level_center_y + offset_y)
+        quality, rgb = _equipment_quality_at(task, point, allow_empty=True)
+        qualities.append(quality)
+        task.log_info(
+            f"第{slot + 1}号装备位颜色RGB={rgb}，"
+            f"识别品质={quality or '未安装'}"
+        )
+    return qualities
+
+
+def _should_install_equipment(task, current_name, current_quality, new_equipment):
+    """先比较配置装备优先级，优先级相同时再比较品质。"""
+    priority = new_equipment["priority"]
+    _, current_rank = _match_equipment_name(current_name, priority)
+    new_rank = new_equipment["rank"]
+    if new_rank is not None or current_rank is not None:
+        if new_rank is not None and (
+            current_rank is None or new_rank < current_rank
+        ):
+            return True, "配置优先级更高"
+        if current_rank is not None and (
+            new_rank is None or current_rank < new_rank
+        ):
+            return False, "当前装备配置优先级更高"
+
+    current_quality_rank = _EQUIPMENT_QUALITY_RANKS.get(current_quality or "", 0)
+    new_quality_rank = _EQUIPMENT_QUALITY_RANKS.get(
+        new_equipment.get("quality") or "", 0
+    )
+    return (
+        new_quality_rank > current_quality_rank,
+        f"品质{new_equipment.get('quality') or '未知'}"
+        f"{'高于' if new_quality_rank > current_quality_rank else '不高于'}"
+        f"{current_quality or '未安装'}",
+    )
+
+
 def _equipment_info(task: TriggerTask, name_point, type_point):
-    """从指定坐标读取装备名称、槽位和配置中的标准名称。"""
+    """从指定坐标读取装备名称、槽位、品质和配置中的标准名称。"""
     name_box = find_box_at_point(task, *name_point)
     type_box = find_box_at_point(task, *type_point)
     if not name_box or not type_box:
@@ -1428,12 +1525,15 @@ def _equipment_info(task: TriggerTask, name_point, type_point):
         return None
     priority = _equipment_priority(task, slot)
     canonical_name, rank = _match_equipment_name(name_box.name, priority)
+    quality, quality_rgb = _equipment_quality_at(task, (0.117, 0.409))
+    task.log_info(f"待选装备颜色RGB={quality_rgb}，识别品质={quality or '未知'}")
     return {
         "ocr_name": name_box.name,
         "name": canonical_name or name_box.name,
         "slot": slot,
         "priority": priority,
         "rank": rank,
+        "quality": quality,
     }
 
 
@@ -1501,13 +1601,6 @@ def handle_equipment(task: TriggerTask):
         equipment_desc = _get_region_text(task, (0.179, 0.492, 0.542, 0.668))
         task.log_info(f"待安装装备描述: 「{equipment_desc}」")
 
-        slot = new_equipment["slot"]
-        current_name, current_rank = _current_equipment_for_slot(task, equipment, slot)
-        new_rank = new_equipment["rank"]
-        should_install_first = not current_name or (
-            new_rank is not None and new_rank < current_rank
-        )
-
         px1, py1 = int(0.609 * task.width), int(0.290 * task.height)
         px2, py2 = int(0.652 * task.width), int(0.789 * task.height)
         lv_texts = sorted(
@@ -1527,11 +1620,55 @@ def handle_equipment(task: TriggerTask):
             target_member_index if tracks_target_member else (0 if lv_texts else None)
         )
 
+        slot = new_equipment["slot"]
+        current_name, _ = _current_equipment_for_slot(task, equipment, slot)
+        current_quality = equipment["qualities"][slot]
+        should_install_first = False
+        install_reason = "未找到目标主战员"
+        if preferred_member_index is not None:
+            live_qualities = _member_equipment_qualities(
+                task, lv_texts[preferred_member_index]
+            )
+            for equipment_slot, live_quality in enumerate(live_qualities):
+                if live_quality is None:
+                    continue
+                equipment["qualities"][equipment_slot] = live_quality
+                if not live_quality:
+                    if equipment["names"][equipment_slot]:
+                        task.log_info(
+                            f"第{equipment_slot + 1}号装备位实际为空，清除记录装备"
+                            f"「{equipment['names'][equipment_slot]}」"
+                        )
+                    equipment["names"][equipment_slot] = ""
+                    equipment["descriptions"][equipment_slot] = ""
+            current_name, _ = _current_equipment_for_slot(task, equipment, slot)
+            current_quality = equipment["qualities"][slot]
+            should_install_first, install_reason = _should_install_equipment(
+                task,
+                current_name,
+                current_quality,
+                new_equipment,
+            )
+            has_legendary_in_other_slot = any(
+                quality == "传说" and equipment_slot != slot
+                for equipment_slot, quality in enumerate(live_qualities)
+            )
+            if (
+                new_equipment["quality"] == "传说"
+                and has_legendary_in_other_slot
+            ):
+                should_install_first = False
+                install_reason = "该主战员其他装备位已有传说装备"
+                task.log_info(
+                    "目标主战员已安装传说装备，新传说装备改由其他主战员安装"
+                )
+
         if should_install_first and preferred_member_index is not None:
             chosen = lv_texts[preferred_member_index]
             if not tracks_target_member or target_member_index is not None:
                 equipment["names"][slot] = new_equipment["name"]
                 equipment["descriptions"][slot] = equipment_desc
+                equipment["qualities"][slot] = new_equipment["quality"] or ""
             member_label = (
                 "刷存档主战员"
                 if target_member_index is not None
@@ -1539,6 +1676,7 @@ def handle_equipment(task: TriggerTask):
             )
             task.log_info(
                 f"{slot + 1}号位装备「{new_equipment['name']}」优于当前装备「{current_name}」，"
+                f"原因={install_reason}，"
                 f"安装给{member_label}"
             )
             _move_and_click(task, 0.756, (chosen.y + chosen.height / 2) / task.height)
@@ -1555,7 +1693,8 @@ def handle_equipment(task: TriggerTask):
                 task.log_info("未识别到刷存档主战员，随机安装给其他主战员")
             else:
                 task.log_info(
-                    f"{slot + 1}号位已有更高或相同优先级装备「{current_name}」，"
+                    f"{slot + 1}号位无需替换当前装备「{current_name}」，"
+                    f"原因={install_reason}，"
                     "随机安装给其他主战员"
                 )
             _move_and_click(task, 0.756, (chosen.y + chosen.height / 2) / task.height)
@@ -1901,6 +2040,18 @@ def handle_event_task(task: TriggerTask):
     tasks_info = recognize_event_options(task, page="事件任务页面")
     if not tasks_info:
         return False
+
+    check_feature = task.find_one(
+        feature_name="check",
+        box=task.box_of_screen(0.396, 0.286, 0.960, 0.718),
+    )
+    if check_feature:
+        task.log_info(
+            f"事件任务页面检测到check特征，相似度={check_feature.confidence:.4f}，优先点击"
+        )
+        task.click_box(check_feature)
+        task.sleep(1)
+        return True
 
     def click_event_option(event_task):
         left, top, right, bottom = event_task["description_region"]
@@ -2428,6 +2579,7 @@ def _initial_member_status():
         "equipment": {
             "names": ["", "", ""],
             "descriptions": ["", "", ""],
+            "qualities": ["", "", ""],
         },
         "deck": {},
     }
