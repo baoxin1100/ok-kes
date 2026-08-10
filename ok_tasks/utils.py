@@ -997,8 +997,8 @@ def handle_stuck_log(task: TriggerTask):
         if now - last_click_time >= 10:
             from utils_sortie import handle_secret_enemy
             handle_secret_enemy(task)
-            click_x = random.random()
-            click_y = random.random()
+            click_x = random.uniform(0.059, 0.985)
+            click_y = random.uniform(0.129, 0.981)
             task.log_info(
                 f"画面卡住，已持续{stuck_seconds}秒，随机点击({click_x:.3f}, {click_y:.3f})"
             )
