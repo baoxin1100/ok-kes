@@ -583,6 +583,51 @@ def _card_has_type_below(task: TriggerTask, box):
     return False
 
 
+def region_white_ratio(task: TriggerTask, region):
+    """计算指定区域内白色像素占比。"""
+    if task.frame is None:
+        return 1.0
+    region_box = task.box_of_screen(*region)
+    pixels = task.frame[
+        region_box.y:region_box.y + region_box.height,
+        region_box.x:region_box.x + region_box.width,
+        :3,
+    ]
+    if pixels.size == 0:
+        return 1.0
+    channel_min = pixels.min(axis=2)
+    channel_max = pixels.max(axis=2)
+    white_mask = (channel_min >= 240) & ((channel_max - channel_min) <= 15)
+    return float(np.count_nonzero(white_mask)) / white_mask.size
+
+
+def _point_is_white(task: TriggerTask, x, y, page):
+    """判断指定点是否为选牌页面滚动条使用的白色。"""
+    pixel_x = min(task.width - 1, max(0, round(x * task.width)))
+    pixel_y = min(task.height - 1, max(0, round(y * task.height)))
+    blue, green, red = (
+        int(value) for value in task.frame[pixel_y, pixel_x, :3]
+    )
+    is_white = min(blue, green, red) >= 240 and (
+        max(blue, green, red) - min(blue, green, red)
+    ) <= 15
+    task.log_info(
+        f"{page}: 点({x:.3f}, {y:.3f})颜色="
+        f"B{blue}/G{green}/R{red}，是否白色={is_white}"
+    )
+    return is_white
+
+
+def _scroll_card_page(task: TriggerTask, x, y, amount, page):
+    """将鼠标移到选牌区域后滚动。"""
+    direction = "向下" if amount < 0 else "向上"
+    task.log_info(f"{page}: 在({x:.3f}, {y:.3f}){direction}滚动")
+    task.move_relative(x, y)
+    task.sleep(0.05)
+    task.scroll_relative(x, y, amount)
+    task.sleep(0.5)
+
+
 def select_card(task: TriggerTask, card_names, count=1, action=""):
     """使用卡组特征识别选择卡牌，支持滚动查找、基础牌移除和兜底选择。"""
     selected = 0
@@ -597,45 +642,6 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
     def refresh_cards():
         task.all_texts = _simplify_texts(task.ocr())
         return recognize_cards_in_deck(task, page=page)
-
-    def point_is_white(x, y):
-        pixel_x = min(task.width - 1, max(0, round(x * task.width)))
-        pixel_y = min(task.height - 1, max(0, round(y * task.height)))
-        blue, green, red = (
-            int(value) for value in task.frame[pixel_y, pixel_x, :3]
-        )
-        is_white = min(blue, green, red) >= 240 and (
-            max(blue, green, red) - min(blue, green, red)
-        ) <= 15
-        task.log_info(
-            f"{page}: 点({x:.3f}, {y:.3f})颜色="
-            f"B{blue}/G{green}/R{red}，是否白色={is_white}"
-        )
-        return is_white
-
-    def region_white_ratio(region):
-        if task.frame is None:
-            return 1.0
-        region_box = task.box_of_screen(*region)
-        pixels = task.frame[
-            region_box.y:region_box.y + region_box.height,
-            region_box.x:region_box.x + region_box.width,
-            :3,
-        ]
-        if pixels.size == 0:
-            return 1.0
-        channel_min = pixels.min(axis=2)
-        channel_max = pixels.max(axis=2)
-        white_mask = (channel_min >= 240) & ((channel_max - channel_min) <= 15)
-        return float(np.count_nonzero(white_mask)) / white_mask.size
-
-    def scroll_cards(x, y, amount):
-        direction = "向下" if amount < 0 else "向上"
-        task.log_info(f"{page}: 在({x:.3f}, {y:.3f}){direction}滚动")
-        task.move_relative(x, y)
-        task.sleep(0.05)
-        task.scroll_relative(x, y, amount)
-        task.sleep(0.5)
 
     def click_cards(cards, predicate, reason):
         nonlocal selected
@@ -704,7 +710,9 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         task.log_info(f"{page}: 未识别到任何卡牌，终止选卡")
         return False
     sync_visible_selected(cards)
-    scrollbar_white_ratio = region_white_ratio((0.976, 0.119, 0.988, 0.858))
+    scrollbar_white_ratio = region_white_ratio(
+        task, (0.976, 0.119, 0.988, 0.858)
+    )
     single_page = scrollbar_white_ratio < 0.01
     task.log_info(
         f"{page}: 滚动条区域白色像素占比={scrollbar_white_ratio:.2%}，"
@@ -722,7 +730,7 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
             task.log_info(f"{page}: 当前仅一页卡牌，不执行向下滚动")
             break
 
-        if point_is_white(0.982, 0.846):
+        if _point_is_white(task, 0.982, 0.846, page):
             task.log_info(f"{page}: 检测到已到达卡牌底部")
             break
 
@@ -730,7 +738,7 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
             task.log_info(f"{page}: 向下滚动已达到{max_scrolls}次限制")
             break
 
-        scroll_cards(0.251, 0.735, -3)
+        _scroll_card_page(task, 0.251, 0.735, -3, page)
         down_scrolls += 1
         cards = refresh_cards()
         if not cards:
@@ -776,7 +784,7 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
 
         up_scrolls = 0
         while not single_page:
-            if point_is_white(0.982, 0.128):
+            if _point_is_white(task, 0.982, 0.128, page):
                 task.log_info(f"{page}: 检测到已到达卡牌顶部")
                 break
 
@@ -784,7 +792,7 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
                 task.log_info(f"{page}: 向上滚动已达到{max_scrolls}次限制")
                 break
 
-            scroll_cards(0.252, 0.179, 3)
+            _scroll_card_page(task, 0.252, 0.179, 3, page)
             up_scrolls += 1
             cards = refresh_cards()
             if not cards:
@@ -1778,6 +1786,53 @@ _SELECT_CARD_CONFIG_KEYS = {
 }
 
 
+def _scroll_to_target_member_for_card_removal(task: TriggerTask):
+    """移除卡牌前滚动成员列表，直到目标成员出现或到达底部。"""
+    feature_name = "target_member_in_select_card"
+    page = "移除卡牌目标主战员查找"
+    if not task.feature_exists(feature_name):
+        task.log_info(f"{page}: 尚未保存{feature_name}特征，跳过查找")
+        return
+
+    search_region = (0.079, 0.092, 0.209, 0.675)
+    search_box = task.box_of_screen(*search_region)
+    scroll_x = (search_region[0] + search_region[2]) / 2
+    scroll_y = (search_region[1] + search_region[3]) / 2
+    scrollbar_white_ratio = region_white_ratio(
+        task, (0.976, 0.119, 0.988, 0.858)
+    )
+    single_page = scrollbar_white_ratio < 0.01
+    task.log_info(
+        f"{page}: 滚动条区域白色像素占比={scrollbar_white_ratio:.2%}，"
+        f"是否仅一页卡牌={single_page}"
+    )
+
+    max_scrolls = 20
+    scroll_count = 0
+    while True:
+        target_member = task.find_one(
+            feature_name=feature_name,
+            box=search_box,
+            threshold=0.6,
+        )
+        if target_member:
+            task.log_info(
+                f"{page}: 找到目标主战员，相似度={target_member.confidence:.4f}"
+            )
+            return
+        if single_page:
+            task.log_info(f"{page}: 当前仅一页，未找到目标主战员")
+            return
+        if _point_is_white(task, 0.982, 0.846, page):
+            task.log_info(f"{page}: 已到达底部，未找到目标主战员")
+            return
+        if scroll_count >= max_scrolls:
+            task.log_info(f"{page}: 向下滚动已达到{max_scrolls}次限制")
+            return
+        _scroll_card_page(task, scroll_x, scroll_y, -3, page)
+        scroll_count += 1
+
+
 def handle_select_card(task: TriggerTask):
     """统一卡牌选择页面: 在(0.198,0.039)处检测文本，按移除/复制/闪光等关键字匹配配置并选择卡牌。"""
     box = find_box_at_point(task, 0.198, 0.039)
@@ -1798,6 +1853,9 @@ def handle_select_card(task: TriggerTask):
     action_tip = find_box_at_point(task, 0.945, 0.918)
     if action_tip:
         task.log_info(f"右下角选牌操作提示: 「{action_tip.name}」")
+
+    if action == "移除":
+        _scroll_to_target_member_for_card_removal(task)
 
     select_card(task, _get_card_list(task, config_key), count=count, action=action)
     return True

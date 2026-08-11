@@ -129,6 +129,17 @@ def handle_archive_target_member(task: TriggerTask):
                 )
                 _save_runtime_feature(
                     task,
+                    "target_member_in_select_card",
+                    member_regions[index],
+                    target_region=(
+                        0.117708333,
+                        0.178703704,
+                        0.175520833,
+                        0.278703704,
+                    ),
+                )
+                _save_runtime_feature(
+                    task,
                     "target_member_tiny",
                     member_regions[index],
                     target_region=(
@@ -650,7 +661,7 @@ def handle_go_to_chaos_core(task: TriggerTask):
 
 def handle_chaos_reward_claim(task: TriggerTask):
     """卡厄思模式奖励领取页面: 如果0.568,0.711处文本包含"获得"，则为奖励领取页面。
-    识别0.959,0.281处"\d/\d"作为当前/最大战利品验证卡，
+    识别0.959,0.281处"\\d/\\d"作为当前/最大战利品验证卡，
     如果验证卡大于0则点击获得，否则重置"领取奖励(只使用验证卡)"为False并取消。"""
     claim_box = find_box_at_point(task, 0.568, 0.711)
     if not (claim_box and "获得" in claim_box.name):
