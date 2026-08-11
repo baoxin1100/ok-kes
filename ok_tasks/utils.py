@@ -3,6 +3,7 @@ from ok import TriggerTask
 import re
 import random
 import time
+import sys
 import cv2
 import os
 import numpy as np
@@ -42,6 +43,10 @@ def is_subsequence(first: str, second: str) -> bool:
 
 def _move_and_click(task: TriggerTask, x, y):
     """先将鼠标移动到目标位置，等待界面响应后再点击。"""
+    page_handler = sys._getframe(1).f_code.co_name
+    task.log_info(
+        f"页面处理「{page_handler}」触发点击事件，点击目标坐标=({x:.3f}, {y:.3f})"
+    )
     task.move_relative(x, y)
     task.sleep(0.5)
     task.click(x, y)
@@ -1152,6 +1157,7 @@ def handle_skip(task: TriggerTask):
     """"跳过"按钮。"""
     box = find_box_at_point(task, 0.941, 0.917)
     if box and _clean_match(box.name, "跳过"):
+        task.log_info("跳过页面触发跳过事件，点击「跳过」按钮")
         task.click_box(box)
         task.sleep(1)
         return True
@@ -1322,6 +1328,7 @@ def handle_card_reward(task: TriggerTask):
                          and 0.883 <= (b.y + b.height / 2) / task.height <= 0.983
                          and "跳过" in b.name), None)
         if skip_box:
+            task.log_info("卡牌奖励页面触发跳过事件，点击「跳过」按钮")
             task.click_box(skip_box)
         else:
             task.log_info("未找到跳过按钮，点击固定位置")
@@ -1330,6 +1337,7 @@ def handle_card_reward(task: TriggerTask):
         return True
 
     if chosen_card:
+        task.log_info(f"卡牌奖励页面触发选卡事件，点击「{chosen_card['name']}」")
         _move_and_click(task, chosen_card["x"], chosen_card["y"])
         task.sleep(1)
         return True

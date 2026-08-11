@@ -883,6 +883,7 @@ def handle_return_to_draw_pile(task: TriggerTask):
         task.log_info("未找到手牌")
         return False
     chosen = cards[0]
+    task.log_info(f"返回抽牌堆页面触发选卡事件，点击「{chosen.name}」")
     task.click_box(chosen)
     task.sleep(1)
     # _move_and_click(task, 0.934, 0.883)
