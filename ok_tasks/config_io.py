@@ -77,6 +77,25 @@ def _import_config_from_text(task, encoded_text):
         task.log_info("无效的配置数据格式")
         return False
     _migrate_flash_priority(data)
+
+    # 旧版分享配置可能包含当前版本已经删除的字段。ConfigCard 会根据
+    # default_config 判断控件类型，废弃字段没有默认值，会被解析为 None。
+    allowed_config = getattr(task, "default_config", {})
+    ignored_keys = []
+    sanitized_data = {}
+    for key, value in data.items():
+        if key not in allowed_config:
+            ignored_keys.append(key)
+            continue
+        default_value = allowed_config[key]
+        if type(value) is not type(default_value):
+            ignored_keys.append(key)
+            continue
+        sanitized_data[key] = value
+    if ignored_keys:
+        task.log_info(f"导入配置时忽略无效或已废弃字段: {', '.join(ignored_keys)}")
+    data = sanitized_data
+
     # 写入配置文件
     config_file = task.config.config_file
     try:
@@ -88,11 +107,19 @@ def _import_config_from_text(task, encoded_text):
                     existing = json.load(f)
             except Exception:
                 pass
+        existing = {
+            key: value
+            for key, value in existing.items()
+            if key.startswith('_') or key in allowed_config
+        }
         for k, v in data.items():
             existing[k] = v
         with open(config_file, 'w', encoding='utf-8') as f:
             json.dump(existing, f, ensure_ascii=False, indent=2)
         # 刷新 task.config 缓存
+        for key in list(task.config):
+            if not key.startswith('_') and key not in allowed_config:
+                dict.pop(task.config, key, None)
         task.config.update(data)
         # 触发 UI 刷新
         communicate.task_list_updated.emit()
