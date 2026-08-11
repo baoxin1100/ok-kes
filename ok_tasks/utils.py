@@ -1197,7 +1197,7 @@ def _prioritize_target_member_click(task: TriggerTask, click_positions, search_r
     target_member = task.find_one(
         feature_name="target_member_large",
         box=task.box_of_screen(*search_region),
-        threshold=0.6,
+        threshold=0.5,
     )
     if not target_member:
         return click_positions
@@ -1315,23 +1315,19 @@ def handle_card_reward(task: TriggerTask):
             break
 
     if chosen_card is None and cards:
-        # 检查"跳过非优先级卡牌"配置
-        if _get_config_value(task, '跳过非优先级卡牌', True):
-            task.log_info("未命中优先级卡牌，跳过非优先级卡牌")
-            # 在区域(0.620,0.883,0.990,0.983)内查找包含"跳过"的box并点击
-            skip_box = next((b for b in task.all_texts
-                             if 0.620 <= (b.x + b.width / 2) / task.width <= 0.990
-                             and 0.883 <= (b.y + b.height / 2) / task.height <= 0.983
-                             and "跳过" in b.name), None)
-            if skip_box:
-                task.click_box(skip_box)
-            else:
-                task.log_info("未找到跳过按钮，点击固定位置")
-                _move_and_click(task, 0.745, 0.933)
-            task.sleep(0.5)
-            return True
-        chosen_card = random.choice(cards)
-        task.log_info(f"未命中优先级，随机选择卡牌: {chosen_card['name']}")
+        task.log_info("未命中优先级卡牌，跳过非优先级卡牌")
+        # 在区域(0.620,0.883,0.990,0.983)内查找包含"跳过"的box并点击
+        skip_box = next((b for b in task.all_texts
+                         if 0.620 <= (b.x + b.width / 2) / task.width <= 0.990
+                         and 0.883 <= (b.y + b.height / 2) / task.height <= 0.983
+                         and "跳过" in b.name), None)
+        if skip_box:
+            task.click_box(skip_box)
+        else:
+            task.log_info("未找到跳过按钮，点击固定位置")
+            _move_and_click(task, 0.745, 0.933)
+        task.sleep(0.5)
+        return True
 
     if chosen_card:
         _move_and_click(task, chosen_card["x"], chosen_card["y"])
@@ -2745,7 +2741,7 @@ def handle_card_assign(task: TriggerTask):
             task.log_info(f"剩余刷新次数: {refresh_count[0]}/{refresh_count[1]}，点击刷新")
             task.click_box(refresh_box)
             return True
-        if _get_config_value(task, '跳过非优先级卡牌', True) and skip_box:
+        if skip_box:
             task.log_info("无可用刷新或刷新次数，点击跳过非优先级卡牌")
             task.click_box(skip_box)
             return True

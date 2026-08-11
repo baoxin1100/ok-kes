@@ -128,7 +128,7 @@ python main_debug.py
 
 ## 💬 Join Us
 
-- **QQ Group**: `901988096`
+- **QQ Group**: `1040800032` (Join answer: `烟火焚`)
 - **QQ Channel**: [Click to join](https://pd.qq.com/s/eopggnxcu)
 
 This project is developed based on the [ok-script](https://github.com/ok-oldking/ok-script) framework. It is simple and easy to maintain. Developers interested in creating their own automation projects are welcome to use [ok-script](https://github.com/ok-oldking/ok-script).

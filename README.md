@@ -131,7 +131,7 @@ python main_debug.py
 
 ## 💬 加入我们
 
-- **QQ 交流群**: `901988096` (入群答案: `烟火焚`)
+- **QQ 交流群**: `1040800032` (入群答案: `烟火焚`)
 - **QQ 频道**: [点击加入](https://pd.qq.com/s/eopggnxcu)
 - **ok-kes 官网**: [https://ok-script.com/ok-kes](https://ok-script.com/ok-kes)
 

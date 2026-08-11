@@ -25,6 +25,7 @@ from utils import (
     _finish_only_first_layer,
     handle_auto_stop,
 )
+from utils_chaos import handle_archive_target_member
 
 import re
 import random
@@ -553,16 +554,9 @@ def handle_get_card(task: TriggerTask):
             task.sleep(0.5)
             _move_and_click(task, 0.912, 0.931)
             return True
-    if _get_config_value(task, '跳过非优先级卡牌', True):
-        task.log_info("获得卡牌: 未命中任何优先级卡牌，跳过非优先级卡牌")
-        _move_and_click(task, 0.749, 0.931)
-        task.sleep(1)
-        return True
-    chosen = random.choice(cards)
-    task.log_info(f"获得卡牌: 跳过非优先级卡牌配置为False，随机选择「{chosen['name']}」")
-    _move_and_click(task, chosen["x"], chosen["y"])
+    task.log_info("获得卡牌: 未命中任何优先级卡牌，跳过非优先级卡牌")
+    _move_and_click(task, 0.749, 0.931)
     task.sleep(1)
-    # _move_and_click(task, 0.912, 0.931)
     return True
 
 
@@ -1002,6 +996,7 @@ PAGE_HANDLERS = [
     handle_ether_supply,
     handle_refine_equipment_credit, #提炼装备信用点页面，优先于确认按钮
     handle_center_confirm,
+    handle_archive_target_member, #信息统计页面，避免出击模式卡住
     handle_equipment, #装备选择
     handle_card_assign,
     handle_confirm, #确认按钮

@@ -34,7 +34,6 @@ class SortieMode(TriggerTask):
         self.default_config["任务优先级"] = ["选取随机3条命运","信用点增加", "移除"]
         self.default_config["拉黑任务"] = ["咒术卡牌", "压力"]
         self.default_config["拉黑主战员"] = ["黛安娜", "阿黛尔海特"]
-        self.default_config["跳过非优先级卡牌"] = True
         self.default_config["优先移除基础牌"] = True
         self.default_config["生命值大于多少优先闪光(百分比)"] = "60"
         self.default_config["只打第一层"] = True
@@ -43,7 +42,7 @@ class SortieMode(TriggerTask):
         # self.default_config["从右往左出牌"] = True
         self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, 
                             "total_rounds": 0, "success_rounds": 0, "node_count": 0, "enter_new_node": False, "node_type": "",
-                            "is_escaped": False}
+                            "is_escaped": False, "save_target_member": False}
         self.member_status = {
             "equipment": {
                 "names": ["", "", ""],

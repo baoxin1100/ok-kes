@@ -153,7 +153,7 @@ def handle_archive_target_member(task: TriggerTask):
                     task,
                     "target_member_large",
                     member_regions[index],
-                    target_region=(0.218, 0.320, 0.291958, 0.446852),
+                    target_region=(0.218, 0.320, 0.28675, 0.439444444),
                 )
                 task.log_info(
                     f"第{index + 1}个主战员「{member_name}」命中刷存档主战员「{target_name}」"
@@ -165,6 +165,7 @@ def handle_archive_target_member(task: TriggerTask):
 
     task.log_info(f"三个主战员均未命中刷存档主战员「{target_name}」")
     _move_and_click(task, 0.960, 0.054)
+    task.node_status["save_target_member"] = True
     task.sleep(1)
     return True
 

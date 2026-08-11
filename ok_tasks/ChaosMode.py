@@ -53,7 +53,6 @@ class ChaosMode(TriggerTask):
         self.default_config['只打第一层'] = False
         self.default_config['卡牌奖励优先级'] = ["梦之边境"]
         self.default_config['刷初始卡牌'] = ""
-        self.default_config['跳过非优先级卡牌'] = True
         self.default_config['路线优先级'] = ["休息", "事件", "小怪", "精英"]
         self.default_config['几轮后停止(0为不停止)'] = 0
         self.default_config['第几层boss前自动暂停'] = "不暂停"
