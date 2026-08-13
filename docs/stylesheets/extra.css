@@ -338,24 +338,3 @@
     width: 100%;
   }
 }
-.sponsor-codes {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 2rem;
-  margin-top: 2rem;
-}
-
-.sponsor-codes figure {
-  margin: 0;
-  text-align: center;
-}
-
-.sponsor-codes img {
-  width: min(320px, 80vw);
-  border-radius: 12px;
-}
-
-.sponsor-codes figcaption {
-  margin-top: 0.75rem;
-}

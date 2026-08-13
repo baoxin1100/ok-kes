@@ -8,4 +8,6 @@ requirements.txt
 README.md
 i18n
 assets
+docs/images/alipay_reward_code.png
+docs/images/wechat_reward_code.png
 pyappify.yml

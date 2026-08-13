@@ -188,7 +188,7 @@ config = {
                 'share': 'github：https://github.com/baoxin1100/ok-kes/releases；Mirror酱：https://mirrorchyan.com/zh/projects?rid=ok-kes；百度网盘：https://pan.baidu.com/s/156h76VWpUwPIffkZqFy_dw?pwd=okes；夸克网盘：https://pan.quark.cn/s/13b266aa8e80',
                 'qq_channel': 'https://pd.qq.com/s/eopggnxcu',
                 'faq': 'https://github.com/baoxin1100/ok-kes',
-                'sponsor': 'https://ok-script.com/ok-kes/sponsor/'
+                'sponsor': 'local'
             }
         },
     'screenshots_folder': "screenshots", #截图存放目录, 每次重新启动会清空目录
