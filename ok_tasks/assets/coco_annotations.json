@@ -233,6 +233,12 @@
             "file_name": "images/1.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 142,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -963,6 +969,58 @@
             ],
             "area": 14946,
             "iscrowd": 0
+        },
+        {
+            "id": 57,
+            "image_id": 142,
+            "category_id": 57,
+            "bbox": [
+                474,
+                877,
+                39,
+                46
+            ],
+            "area": 1794,
+            "iscrowd": 0
+        },
+        {
+            "id": 58,
+            "image_id": 142,
+            "category_id": 58,
+            "bbox": [
+                924,
+                809,
+                28,
+                27
+            ],
+            "area": 756,
+            "iscrowd": 0
+        },
+        {
+            "id": 59,
+            "image_id": 142,
+            "category_id": 61,
+            "bbox": [
+                1298,
+                791,
+                28,
+                27
+            ],
+            "area": 756,
+            "iscrowd": 0
+        },
+        {
+            "id": 60,
+            "image_id": 142,
+            "category_id": 59,
+            "bbox": [
+                1673,
+                761,
+                28,
+                27
+            ],
+            "area": 756,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -1244,6 +1302,26 @@
         {
             "id": 56,
             "name": "secret_enemy",
+            "supercategory": ""
+        },
+        {
+            "id": 57,
+            "name": "credit_icon",
+            "supercategory": ""
+        },
+        {
+            "id": 58,
+            "name": "attack_in_shop",
+            "supercategory": ""
+        },
+        {
+            "id": 59,
+            "name": "enhance_in_shop",
+            "supercategory": ""
+        },
+        {
+            "id": 61,
+            "name": "skill_in_shop",
             "supercategory": ""
         }
     ]

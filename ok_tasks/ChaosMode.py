@@ -58,7 +58,8 @@ class ChaosMode(TriggerTask):
         self.default_config['第几层boss前自动暂停'] = "不暂停"
         self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, 
                             "total_rounds": 0, "success_rounds": 0, "node_count": 0, "enter_new_node": False, "node_type": "",
-                            "is_escaped": False, "save_target_member": False}
+                            "is_escaped": False, "save_target_member": False,
+                            "target_mask_card_position": -1}
         self.member_status = {
             "equipment": {
                 "names": ["", "", ""],

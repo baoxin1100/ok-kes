@@ -175,6 +175,18 @@ def _get_current_credit(task: TriggerTask):
     return credit
 
 
+def _parse_discounted_price(price_text):
+    """解析可能将折扣前后价格连在一起的 OCR 数字。"""
+    price_text = price_text.strip()
+    if not re.fullmatch(r"\d+", price_text):
+        return None
+    if len(price_text) == 6:
+        return int(price_text[-3:])
+    if len(price_text) in (4, 5):
+        return int(price_text[-2:])
+    return int(price_text)
+
+
 def _get_current_hp_percent(task: TriggerTask):
     """读取当前生命值百分比，无法识别时返回 False。"""
     hp_box = find_box_at_point(task, 0.209, 0.040)
@@ -221,8 +233,8 @@ def _recognize_cards_by_features(
     page,
     feature_types,
     min_feature_distance,
-    name_offset,
-    type_offset,
+    name_offsets,
+    type_offsets,
     description_offsets,
     name_only_feature_thresholds=None,
     allow_empty_type_threshold=None,
@@ -265,22 +277,28 @@ def _recognize_cards_by_features(
     for feature_name, feature_type, feature_box in filtered_features:
         center_x = (feature_box.x + feature_box.width / 2) / task.width
         center_y = (feature_box.y + feature_box.height / 2) / task.height
-        name_x = center_x + name_offset[0]
-        name_y = center_y + name_offset[1]
-        type_x = center_x + type_offset[0]
-        type_y = center_y + type_offset[1]
+        name_region = (
+            max(0.0, center_x + name_offsets[0]),
+            max(0.0, center_y + name_offsets[1]),
+            min(1.0, center_x + name_offsets[2]),
+            min(1.0, center_y + name_offsets[3]),
+        )
+        type_region = (
+            max(0.0, center_x + type_offsets[0]),
+            max(0.0, center_y + type_offsets[1]),
+            min(1.0, center_x + type_offsets[2]),
+            min(1.0, center_y + type_offsets[3]),
+        )
         desc_region = (
             max(0.0, center_x + description_offsets[0]),
             max(0.0, center_y + description_offsets[1]),
             min(1.0, center_x + description_offsets[2]),
             min(1.0, center_y + description_offsets[3]),
         )
-        name_box = find_box_at_point(task, name_x, name_y)
-        card_name = name_box.name.strip() if name_box else ""
+        card_name = _get_region_text(task, name_region).strip()
         if not card_name:
             continue
-        type_box = find_box_at_point(task, type_x, type_y)
-        card_type = type_box.name.strip() if type_box else ""
+        card_type = _get_region_text(task, type_region).strip()
         description = _get_region_text(task, desc_region)
         name_only_threshold = (name_only_feature_thresholds or {}).get(
             feature_name
@@ -305,8 +323,10 @@ def _recognize_cards_by_features(
             "feature_type": feature_type,
             "confidence": feature_box.confidence,
             "feature_box": feature_box,
-            "x": name_x,
-            "y": name_y,
+            "x": (name_region[0] + name_region[2]) / 2,
+            "y": (name_region[1] + name_region[3]) / 2,
+            "name_region": name_region,
+            "type_region": type_region,
             "description_region": desc_region,
         })
     cards.sort(key=lambda card: card["feature_box"].x)
@@ -342,8 +362,8 @@ def recognize_cards(
         min_feature_distance=(
             (0.618 - 0.454) ** 2 + (0.304 - 0.306) ** 2
         ) ** 0.5,
-        name_offset=(0.0185, -0.0350),
-        type_offset=(0.0265, -0.0010),
+        name_offsets=(-0.0150, -0.0635, 0.1450, -0.0175),
+        type_offsets=(0.0120, -0.0205, 0.1090, 0.0245),
         description_offsets=(-0.0565, 0.1190, 0.1495, 0.4900),
     )
 
@@ -368,8 +388,8 @@ def recognize_cards_in_deck(
         min_feature_distance=(
             (0.464 - 0.326) ** 2 + (0.175 - 0.175) ** 2
         ) ** 0.5,
-        name_offset=(0.0130, -0.0265),
-        type_offset=(0.0250, 0.0015),
+        name_offsets=(-0.0090, -0.0435, 0.0900, -0.0105),
+        type_offsets=(0.0070, -0.0175, 0.0880, 0.0175),
         description_offsets=(-0.0370, 0.0515, 0.1000, 0.3295),
         name_only_feature_thresholds={
             "hex_in_deck": 0.90,
@@ -1002,8 +1022,18 @@ def is_frame_stuck(task: TriggerTask, stuck_threshold_seconds=30, change_thresho
 
 
 def handle_stuck_log(task: TriggerTask):
-    """画面卡住超过10秒时随机点击，仍不阻断其他页面处理。"""
-    if is_frame_stuck(task, stuck_threshold_seconds=10):
+    """画面卡住超过20秒时随机点击；存在确认按钮时不按卡住处理。"""
+    confirm_box = next(
+        (box for box in task.all_texts
+         if 0.791 <= (box.x + box.width / 2) / task.width <= 0.988
+         and 0.883 <= (box.y + box.height / 2) / task.height <= 0.978
+         and "确认" in box.name),
+        None,
+    )
+    if confirm_box:
+        return False
+
+    if is_frame_stuck(task, stuck_threshold_seconds=20):
         stuck_seconds = int(time.time() - task._last_change_time)
         now = time.time()
         last_click_time = getattr(task, "_last_stuck_click_time", 0)
@@ -1526,22 +1556,25 @@ def _should_install_equipment(task, current_name, current_quality, new_equipment
     )
 
 
-def _equipment_info(task: TriggerTask, name_point, type_point):
-    """从指定坐标读取装备名称、槽位、品质和配置中的标准名称。"""
-    name_box = find_box_at_point(task, *name_point)
-    type_box = find_box_at_point(task, *type_point)
-    if not name_box or not type_box:
+def _equipment_info(task: TriggerTask, name_region, type_region, description_region):
+    """从指定区域读取装备名称、类型和描述，并解析槽位、品质与配置优先级。"""
+    ocr_name = _get_region_text(task, name_region).strip()
+    type_text = _get_region_text(task, type_region).strip()
+    description = _get_region_text(task, description_region).strip()
+    if not ocr_name or not type_text:
         return None
-    slot = _equipment_slot(task, type_box.name)
+    slot = _equipment_slot(task, type_text)
     if slot is None:
         return None
     priority = _equipment_priority(task, slot)
-    canonical_name, rank = _match_equipment_name(name_box.name, priority)
+    canonical_name, rank = _match_equipment_name(ocr_name, priority)
     quality, quality_rgb = _equipment_quality_at(task, (0.117, 0.409))
     task.log_info(f"待选装备颜色RGB={quality_rgb}，识别品质={quality or '未知'}")
     return {
-        "ocr_name": name_box.name,
-        "name": canonical_name or name_box.name,
+        "ocr_name": ocr_name,
+        "name": canonical_name or ocr_name,
+        "type": type_text,
+        "description": description,
         "slot": slot,
         "priority": priority,
         "rank": rank,
@@ -1594,6 +1627,42 @@ def handle_equipment(task: TriggerTask):
 
     if equip_hint and _get_game_text(task, '请选择主战员') in equip_hint.name:
         task.log_info("检测到安装装备界面")
+        purchase_bottom_boxes = [
+            box for box in task.all_texts
+            if 0.013 <= (box.x + box.width / 2) / task.width <= 0.992
+            and 0.881 <= (box.y + box.height / 2) / task.height <= 0.994
+            and box.name.strip()
+        ]
+        cancel_box = next(
+            (box for box in purchase_bottom_boxes if "取消" in box.name), None
+        )
+        purchase_box = next(
+            (box for box in purchase_bottom_boxes if "购买" in box.name), None
+        )
+        price_box = next(
+            (box for box in purchase_bottom_boxes
+             if re.fullmatch(r"\d+", box.name.strip())),
+            None,
+        )
+        is_purchase_page = bool(cancel_box and purchase_box and price_box)
+        equipment_price = None
+        current_credit = None
+        if is_purchase_page:
+            task.log_info("检测到购买装备页面")
+            equipment_price = _parse_discounted_price(price_box.name)
+            current_credit = _get_current_credit(task)
+            task.log_info(
+                f"购买装备页面: 当前信用点={current_credit}，"
+                f"OCR价格=「{price_box.name}」，实际价格={equipment_price}"
+            )
+            if equipment_price is None or equipment_price > current_credit:
+                task.log_info(
+                    f"装备价格{equipment_price}大于当前信用点{current_credit}，点击「取消」"
+                )
+                task.click_box(cancel_box)
+                task.sleep(1)
+                return True
+
         bottom_buttons = [
             box for box in task.all_texts
             if 0.563 <= (box.x + box.width / 2) / task.width <= 0.998
@@ -1606,11 +1675,21 @@ def handle_equipment(task: TriggerTask):
             task.click_box(refine_boxes[0])
             return True
 
-        new_equipment = _equipment_info(task, (0.245, 0.412), (0.202, 0.465))
+        new_equipment = _equipment_info(
+            task,
+            (0.217, 0.379, 0.469, 0.436),
+            (0.188, 0.444, 0.323, 0.489),
+            (0.179, 0.492, 0.542, 0.668),
+        )
         if not new_equipment:
             task.log_info("未能识别待安装装备的名称或类型")
+            if is_purchase_page:
+                task.log_info("购买装备无法识别装备信息，点击「取消」")
+                task.click_box(cancel_box)
+                task.sleep(1)
+                return True
             return False
-        equipment_desc = _get_region_text(task, (0.179, 0.492, 0.542, 0.668))
+        equipment_desc = new_equipment["description"]
         task.log_info(f"待安装装备描述: 「{equipment_desc}」")
 
         px1, py1 = int(0.609 * task.width), int(0.290 * task.height)
@@ -1693,6 +1772,14 @@ def handle_equipment(task: TriggerTask):
             )
             _move_and_click(task, 0.756, (chosen.y + chosen.height / 2) / task.height)
             task.sleep(1)
+            if is_purchase_page:
+                task.log_info(
+                    f"购买装备分配完成，价格={equipment_price}，"
+                    f"当前信用点={current_credit}，点击「购买」"
+                )
+                task.click_box(purchase_box)
+                task.sleep(1)
+                return True
             return False
 
         other_members = [
@@ -1711,7 +1798,21 @@ def handle_equipment(task: TriggerTask):
                 )
             _move_and_click(task, 0.756, (chosen.y + chosen.height / 2) / task.height)
             task.sleep(1)
+            if is_purchase_page:
+                task.log_info(
+                    f"购买装备分配给其他主战员，价格={equipment_price}，"
+                    f"当前信用点={current_credit}，点击「购买」"
+                )
+                task.click_box(purchase_box)
+                task.sleep(1)
+                return True
             return False
+
+        if is_purchase_page:
+            task.log_info("购买装备无法分配给任何主战员，点击「取消」")
+            task.click_box(cancel_box)
+            task.sleep(1)
+            return True
 
         refine_box = next(
             (b for b in task.all_texts
@@ -1731,11 +1832,23 @@ def handle_equipment(task: TriggerTask):
 
     candidates = []
     candidate_specs = [
-        ((0.452, 0.246), (0.412, 0.297), (0.518, 0.454)),
-        ((0.448, 0.578), (0.412, 0.633), (0.521, 0.600)),
+        (
+            (0.409, 0.219, 0.678, 0.276),
+            (0.384, 0.275, 0.562, 0.319),
+            (0.382, 0.324, 0.723, 0.496),
+            (0.518, 0.454),
+        ),
+        (
+            (0.410, 0.551, 0.699, 0.608),
+            (0.384, 0.613, 0.573, 0.653),
+            (0.380, 0.658, 0.720, 0.836),
+            (0.521, 0.600),
+        ),
     ]
-    for name_point, type_point, click_position in candidate_specs:
-        candidate = _equipment_info(task, name_point, type_point)
+    for name_region, type_region, description_region, click_position in candidate_specs:
+        candidate = _equipment_info(
+            task, name_region, type_region, description_region
+        )
         if candidate:
             candidate["click_position"] = click_position
             candidates.append(candidate)
@@ -1773,7 +1886,7 @@ def handle_equipment(task: TriggerTask):
             )
         else:
             task.log_info("候选装备均未命中升级条件且对应位置均非空，随机选择一个装备")
-            click_position = random.choice([spec[2] for spec in candidate_specs])
+            click_position = random.choice([spec[3] for spec in candidate_specs])
     else:
         click_position = candidates[chosen_index]["click_position"]
     _move_and_click(task, *click_position)
@@ -2480,7 +2593,7 @@ def handle_rest(task: TriggerTask):
 
 
 def handle_shop(task: TriggerTask):
-    """德朗商店: 若信用点足够则点击移除卡牌。"""
+    """德朗商店: 优先移除卡牌，其次按配置购买卡牌或装备，最后尝试免费刷新。"""
     box = find_box_at_point(task, 0.729, 0.261)
     soldout = find_box_at_point(task, 0.727, 0.286)
     if (box and "移除卡牌" in box.name) or (soldout and "售" in soldout.name):
@@ -2488,30 +2601,122 @@ def handle_shop(task: TriggerTask):
         if soldout and "售" in soldout.name:
             task.log_info(f"德朗商店: 移除卡牌已售罄")
             task.node_status['shop'] = False
-            return False
-        current_credit = _get_current_credit(task)
-        task.log_info(f"handle_shop: 当前信用点={current_credit}")
-        if current_credit <= 0:
-            task.log_info("handle_shop: 信用点读取失败，return False")
-            task.node_status['shop'] = False
-            return False
-
-        cost_box = find_box_at_point(task, 0.724, 0.319)
-        task.log_info(f"handle_shop: 0.724,0.319处费用文本='{cost_box.name if cost_box else None}'")
-        if not (cost_box and cost_box.name.isdigit()):
-            task.log_info("handle_shop: 费用读取失败，return False")
-            task.node_status['shop'] = False
-            return False
-        cost = int(cost_box.name)
-        if cost <= current_credit and task.node_status['shop'] is True:
-            task.log_info(f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，足够，点击移除")
-            task.click_box(box)
-            task.node_status['shop'] = False
-            return True
         else:
-            task.log_info(f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，不足，跳过")
+            current_credit = _get_current_credit(task)
+            task.log_info(f"handle_shop: 当前信用点={current_credit}")
+            cost_box = find_box_at_point(task, 0.724, 0.319)
+            task.log_info(f"handle_shop: 0.724,0.319处费用文本='{cost_box.name if cost_box else None}'")
+            if cost_box and cost_box.name.isdigit():
+                cost = int(cost_box.name)
+                if cost <= current_credit and task.node_status['shop'] is True:
+                    task.log_info(f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，足够，点击移除")
+                    task.click_box(box)
+                    task.sleep(1)
+                    task.node_status['shop'] = False
+                    return True
+                task.log_info(f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，不足，继续挑选其他商品")
+            else:
+                task.log_info("handle_shop: 移除卡牌费用读取失败，继续挑选其他商品")
             task.node_status['shop'] = False
-            return False
+
+        current_credit = _get_current_credit(task)
+        task.log_info(f"德朗商店挑选商品: 当前信用点={current_credit}")
+        credit_icons = sorted(
+        task.find_feature(
+            feature_name="credit_icon",
+            box=task.box_of_screen(0.019, 0.761, 0.979, 0.890),
+        ) or [],
+        key=lambda feature: feature.x,
+        )
+
+        card_type_features = []
+        card_type_region = task.box_of_screen(0.032, 0.669, 0.968, 0.799)
+        for feature_name in (
+            "attack_in_shop",
+            "skill_in_shop",
+            "enhance_in_shop",
+        ):
+            for feature in task.find_feature(
+            feature_name=feature_name,
+            box=card_type_region,
+            ) or []:
+                card_type_features.append((feature_name, feature))
+
+        card_icon_indexes = set()
+        for feature_name, feature in card_type_features:
+            if not credit_icons:
+                break
+            feature_x = feature.x + feature.width / 2
+            feature_y = feature.y + feature.height / 2
+            closest_index = min(
+            range(len(credit_icons)),
+            key=lambda index: (
+                credit_icons[index].x + credit_icons[index].width / 2 - feature_x
+            ) ** 2 + (
+                credit_icons[index].y + credit_icons[index].height / 2 - feature_y
+            ) ** 2,
+            )
+            card_icon_indexes.add(closest_index)
+            task.log_info(f"德朗商店: {feature_name}特征绑定第{closest_index + 1}个信用点图标")
+
+        card_priority = _get_card_reward_priority(task)
+        equipment_priorities = [_equipment_priority(task, slot) for slot in range(3)]
+        for index, credit_icon in enumerate(credit_icons):
+            icon_x = (credit_icon.x + credit_icon.width / 2) / task.width
+            icon_y = (credit_icon.y + credit_icon.height / 2) / task.height
+            price_box = find_box_at_point(task, icon_x + 0.099, icon_y - 0.001)
+            price = int(price_box.name.strip()) if (
+            price_box and re.fullmatch(r"\d+", price_box.name.strip())
+            ) else None
+            item_name = _get_region_text(task, (
+            max(0.0, icon_x - 0.013),
+            max(0.0, icon_y - 0.247),
+            min(1.0, icon_x + 0.120),
+            min(1.0, icon_y - 0.105),
+            )).strip()
+            is_card = index in card_icon_indexes
+            item_type = "卡牌" if is_card else "装备"
+            task.log_info(f"德朗商店第{index + 1}个商品: 类型={item_type}，名称=「{item_name}」，价格={price}")
+            if not item_name or price is None or price >= current_credit:
+                continue
+
+            if is_card:
+                matched_name = next(
+                (name for name in card_priority
+                 if name and (name in item_name or item_name in name)),
+                None,
+                )
+            else:
+                matched_name = next(
+                (canonical_name
+                 for priority in equipment_priorities
+                 for canonical_name, rank in [_match_equipment_name(item_name, priority)]
+                 if rank is not None),
+                None,
+                )
+            if not matched_name:
+                continue
+
+            task.log_info(
+            f"德朗商店: {item_type}「{item_name}」命中配置「{matched_name}」，"
+            f"价格{price}小于当前信用点{current_credit}，点击信用点图标"
+            )
+            task.click_box(credit_icon)
+            task.sleep(1)
+            return True
+
+        free_box = next(
+        (text_box for text_box in task.all_texts
+         if 0.012 <= (text_box.x + text_box.width / 2) / task.width <= 0.258
+         and 0.892 <= (text_box.y + text_box.height / 2) / task.height <= 0.979
+         and "免费" in text_box.name),
+        None,
+        )
+        if free_box:
+            task.log_info("德朗商店没有符合要求的商品，点击「免费」刷新")
+            task.click_box(free_box)
+            task.sleep(1)
+            return True
     return False
 
 
@@ -2562,7 +2767,10 @@ def handle_view_original(task: TriggerTask):
 def handle_escape(task: TriggerTask):
     """逃脱页面: 检测到逃脱按钮后点击逃脱。"""
     escape_box = find_box_at_point(task, 0.952, 0.928)
-    if escape_box and _get_game_text(task, '逃脱') in escape_box.name:
+    if escape_box and (
+        _get_game_text(task, '逃脱') in escape_box.name
+        or "脱逃" in escape_box.name
+    ):
         task.log_info("检测到逃脱页面，点击逃脱")
         task.click_box(escape_box)
         task.node_status["is_escaped"] = True
@@ -2632,7 +2840,7 @@ def _initial_node_status():
     return {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False,
             "pass_final_boss_count": 0, "total_rounds": 0, "success_rounds": 0,
             "node_count": 0, "enter_new_node": False, "node_type": "", "is_escaped": False,
-            "save_target_member": False}
+            "save_target_member": False, "target_mask_card_position": -1}
 
 
 def _initial_member_status():
@@ -2686,12 +2894,14 @@ def reset_layer_status(task: TriggerTask):
         keep = {'pass_final_boss_count': ns.get('pass_final_boss_count', 0),
                 'total_rounds': ns.get('total_rounds', 0),
                 'success_rounds': ns.get('success_rounds', 0),
-                'save_target_member': ns.get('save_target_member', False)}
+                'save_target_member': ns.get('save_target_member', False),
+                'target_mask_card_position': ns.get('target_mask_card_position', -1)}
         task.node_status = _initial_node_status()
         task.node_status['pass_final_boss_count'] = keep['pass_final_boss_count']
         task.node_status['total_rounds'] = keep['total_rounds']
         task.node_status['success_rounds'] = keep['success_rounds']
         task.node_status['save_target_member'] = keep['save_target_member']
+        task.node_status['target_mask_card_position'] = keep['target_mask_card_position']
 
 
 def handle_close_button(task: TriggerTask):
@@ -2714,9 +2924,55 @@ def handle_card_assign(task: TriggerTask):
 
     task.log_info("检测到卡牌分配页面")
 
-    card_name_box = find_box_at_point(task, 0.184, 0.272)
-    card_name = card_name_box.name.strip() if card_name_box else ""
-    card_desc = _get_region_text(task, (0.118, 0.349, 0.324, 0.807))
+    purchase_title_region = (0.326, 0.057, 0.671, 0.210)
+    purchase_title_boxes = [
+        b for b in task.all_texts
+        if purchase_title_region[0] <= (b.x + b.width / 2) / task.width <= purchase_title_region[2]
+        and purchase_title_region[1] <= (b.y + b.height / 2) / task.height <= purchase_title_region[3]
+    ]
+    is_purchase_page = any("购买卡牌" in b.name for b in purchase_title_boxes)
+    purchase_box = None
+    cancel_box = None
+    card_price = None
+    current_credit = None
+    if is_purchase_page:
+        task.log_info("检测到购买卡牌页面")
+        current_credit = _get_current_credit(task)
+        purchase_bottom_boxes = [
+            b for b in task.all_texts
+            if 0.016 <= (b.x + b.width / 2) / task.width <= 0.995
+            and 0.878 <= (b.y + b.height / 2) / task.height <= 0.996
+        ]
+        cancel_box = next((b for b in purchase_bottom_boxes if "取消" in b.name), None)
+        purchase_box = next((b for b in purchase_bottom_boxes if "购买" in b.name), None)
+        price_box = next(
+            (b for b in purchase_bottom_boxes if re.fullmatch(r"\d+", b.name.strip())),
+            None,
+        )
+        if price_box:
+            card_price = _parse_discounted_price(price_box.name)
+        task.log_info(
+            f"购买卡牌页面: 当前信用点={current_credit}，"
+            f"OCR价格=「{price_box.name if price_box else ''}」，实际价格={card_price}"
+        )
+
+        if not (cancel_box and purchase_box and card_price is not None):
+            task.log_info("购买卡牌页面未完整识别取消、购买和价格文本")
+            if cancel_box:
+                task.log_info("购买卡牌页面触发识别失败取消事件，点击「取消」")
+                task.click_box(cancel_box)
+                task.sleep(1)
+                return True
+            return False
+
+    assigned_cards = recognize_cards(
+        task,
+        region=(0.101, 0.217, 0.291, 0.365),
+        page="卡牌分配页面",
+    )
+    assigned_card = assigned_cards[0] if assigned_cards else None
+    card_name = assigned_card["name"] if assigned_card else ""
+    card_desc = assigned_card["description"] if assigned_card else ""
     task.log_info(f"待分配卡牌: 名称=「{card_name}」，描述=「{card_desc}」")
 
     bottom_boxes = [
@@ -2745,6 +3001,11 @@ def handle_card_assign(task: TriggerTask):
         task.log_info(f"卡牌「{card_name}」命中奖励优先级「{matched_card_name}」")
     else:
         task.log_info(f"卡牌「{card_name}」未命中奖励优先级")
+        if is_purchase_page:
+            task.log_info("购买卡牌未命中奖励优先级，点击「取消」")
+            task.click_box(cancel_box)
+            task.sleep(1)
+            return True
         if refresh_box and refresh_count and refresh_count[0] > 0:
             task.log_info(f"剩余刷新次数: {refresh_count[0]}/{refresh_count[1]}，点击刷新")
             task.click_box(refresh_box)
@@ -2764,6 +3025,11 @@ def handle_card_assign(task: TriggerTask):
     )
     if not lv_texts:
         task.log_info("未找到主战员等级信息")
+        if is_purchase_page:
+            task.log_info("购买卡牌页面未找到可分配战员，点击「取消」")
+            task.click_box(cancel_box)
+            task.sleep(1)
+            return True
         return False
 
     target_member_index = _find_target_member_index(
@@ -2786,6 +3052,11 @@ def handle_card_assign(task: TriggerTask):
 
     if not available_members:
         task.log_info("所有主战员均无法获得该卡牌")
+        if is_purchase_page:
+            task.log_info("购买卡牌无法分配给任何战员，点击「取消」")
+            task.click_box(cancel_box)
+            task.sleep(1)
+            return True
         if skip_box:
             task.log_info("尝试点击跳过")
             task.click_box(skip_box)
@@ -2802,6 +3073,15 @@ def handle_card_assign(task: TriggerTask):
         task.log_info(f"优先选择刷存档主战员（第{chosen_idx + 1}号）接受卡牌")
     else:
         task.log_info(f"优先选择第{chosen_idx + 1}号主战员接受卡牌")
+
+    if is_purchase_page and current_credit <= card_price:
+        task.log_info(
+            f"购买卡牌需要{card_price}信用点，当前{current_credit}，信用点不足，点击「取消」"
+        )
+        task.click_box(cancel_box)
+        task.sleep(1)
+        return True
+
     tracks_target_member = "刷存档主战员" in getattr(task, "default_config", {})
     if (
         target_member_index is not None and chosen_idx == target_member_index
@@ -2812,6 +3092,13 @@ def handle_card_assign(task: TriggerTask):
         deck[matched_card_name or card_name] = card_desc
     _move_and_click(task, 0.756, (chosen_lv.y + chosen_lv.height / 2) / task.height)
     task.sleep(1)
+    if is_purchase_page:
+        task.log_info(
+            f"购买卡牌需要{card_price}信用点，当前{current_credit}，点击「购买」"
+        )
+        task.click_box(purchase_box)
+        task.sleep(1)
+        return True
     return False
 
 def handle_held_cards_page(task: TriggerTask):

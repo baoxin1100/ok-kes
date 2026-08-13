@@ -112,6 +112,17 @@
 
 ---
 
+## 💖 赞赏支持
+
+如果喜欢这个工具，可以赞赏up主持续开发~感谢
+
+<p align="center">
+  <img src="docs/images/wechat_reward_code.png" alt="微信赞赏码" width="300">
+  <img src="docs/images/alipay_reward_code.png" alt="支付宝赞赏码" width="300">
+</p>
+
+---
+
 ## 💻 开发者专区
 
 ### 从源码运行 (Python)

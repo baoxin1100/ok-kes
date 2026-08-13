@@ -2,7 +2,7 @@ from ok import TriggerTask
 
 from utils import (
     _move_and_click, _simplify_texts, _get_config_value, _get_card_list, _get_card_reward_priority, _get_route_priority, _get_game_text, _get_region_text, _get_current_hp_percent, _finish_only_first_layer,
-    find_box_at_point, find_text, find_exact_text,
+    find_box_at_point, find_text, find_exact_text, recognize_cards,
     _card_has_type_below, select_card,
     log_credit, log_node_status, handle_battle_crash, handle_close_page, handle_refine_equipment_credit,
     handle_center_confirm, handle_settlement, handle_skip,
@@ -151,6 +151,17 @@ def handle_archive_target_member(task: TriggerTask):
                 )
                 _save_runtime_feature(
                     task,
+                    "target_member_in_mask_card",
+                    member_regions[index],
+                    target_region=(
+                        0.663635417,
+                        0.481148148,
+                        0.694364583,
+                        0.534851852,
+                    ),
+                )
+                _save_runtime_feature(
+                    task,
                     "target_member_large",
                     member_regions[index],
                     target_region=(0.218, 0.320, 0.28675, 0.439444444),
@@ -249,32 +260,28 @@ def handle_desire_card_inheritance(task: TriggerTask):
         return False
 
     task.log_info("检测到欲望卡牌继承页面")
-    card_positions = [(0.290, 0.277), (0.666, 0.277)]
-    cards = [
-        (find_box_at_point(task, x, y), (x, y))
-        for x, y in card_positions
-    ]
+    cards = recognize_cards(task, page="欲望卡牌继承页面")
+    if not cards:
+        task.log_info("欲望卡牌继承页面未识别到卡牌")
+        return False
     priority = _get_card_reward_priority(task)
 
     for config_name in priority:
-        for card_box, position in cards:
-            card_name = card_box.name.strip() if card_box else ""
+        for card in cards:
+            card_name = card["name"]
             if card_name and config_name and (
                 config_name in card_name or card_name in config_name
             ):
                 task.log_info(
                     f"欲望卡牌「{card_name}」命中奖励优先级「{config_name}」，点击该卡牌"
                 )
-                task.click_box(card_box)
+                _move_and_click(task, card["x"], card["y"])
                 return True
 
-    card_box, position = random.choice(cards)
-    card_name = card_box.name.strip() if card_box else ""
+    card = random.choice(cards)
+    card_name = card["name"]
     task.log_info(f"欲望卡牌未命中奖励优先级，随机选择「{card_name}」")
-    if card_box:
-        task.click_box(card_box)
-    else:
-        _move_and_click(task, *position)
+    _move_and_click(task, card["x"], card["y"])
     return True
 
 
@@ -486,14 +493,9 @@ def handle_mask_card(task: TriggerTask):
 
     task.log_info("检测到面具卡牌获得页面")
 
-    # 检测0.120,0.228,0.945,0.418范围内是否有人格面具文本（三个）
-    person_mask_boxes = [
-        b for b in task.all_texts
-        if 0.120 <= (b.x + b.width / 2) / task.width <= 0.945
-        and 0.228 <= (b.y + b.height / 2) / task.height <= 0.418
-        and "人格面具" in b.name
-    ]
-    if len(person_mask_boxes) < 3:
+    cards = recognize_cards(task, page="人格面具卡牌获得页面")
+    mask_cards = [card for card in cards if "人格面具" in card["name"]]
+    if len(mask_cards) < 3:
         task.log_info("已选择过人格面具，点击跳过")
         skip_box = find_text(task, r'跳过')
         if skip_box:
@@ -502,30 +504,77 @@ def handle_mask_card(task: TriggerTask):
             # _move_and_click(task, 0.654, 0.626)
         return True
 
-    task.log_info("检测到3张人格面具，提取卡牌描述")
+    task.log_info("检测到3张人格面具卡牌")
 
-    # 三张卡牌描述区域（暂只启用第一张）
-    desc_regions = [
-        (0.141, 0.586, 0.325, 0.779),
-        # (0.427, 0.606, 0.615, 0.782),
-        # (0.716, 0.547, 0.902, 0.779),
-    ]
+    mask_position = task.node_status.get("target_mask_card_position", -1)
+    if mask_position == -1:
+        close_region = (0.363, 0.878, 0.638, 0.983)
+        target_region = task.box_of_screen(0.006, 0.010, 0.081, 0.131)
+        for index, card in enumerate(mask_cards):
+            task.log_info(
+                f"人格面具卡牌归属检测: 长按从左到右第{index + 1}张卡牌"
+            )
+            click_x = int(card["x"] * task.width)
+            click_y = int(card["y"] * task.height)
+            task.move_relative(card["x"], card["y"])
+            task.mouse_down(click_x, click_y, key="left")
+            task.sleep(1)
+            close_boxes = task.wait_ocr(
+                close_region[0], close_region[1],
+                to_x=close_region[2], to_y=close_region[3],
+                match=re.compile(r"关闭"), time_out=4,
+            )
+            task.mouse_up(key="left")
+            task.sleep(1)
+            if not close_boxes:
+                task.log_info(
+                    f"人格面具卡牌归属检测: 第{index + 1}张卡牌详情未出现关闭按钮，结束本轮处理"
+                )
+                return True
+
+            target_member = task.find_one(
+                feature_name="target_member_in_mask_card",
+                box=target_region,
+                threshold=0.6,
+            ) if task.feature_exists("target_member_in_mask_card") else None
+            if target_member:
+                task.node_status["target_mask_card_position"] = index
+                mask_position = index
+                task.log_info(
+                    f"人格面具卡牌归属检测: 第{index + 1}张属于目标主战员，"
+                    f"相似度={target_member.confidence:.4f}"
+                )
+            else:
+                task.log_info(
+                    f"人格面具卡牌归属检测: 第{index + 1}张不属于目标主战员"
+                )
+
+            close_box = close_boxes[0]
+            task.log_info("人格面具卡牌详情页面触发关闭事件，点击「关闭」")
+            _move_and_click(
+                task,
+                (close_box.x + close_box.width / 2) / task.width,
+                (close_box.y + close_box.height / 2) / task.height,
+            )
+            task.sleep(2)
+            if target_member:
+                break
+
+    if not 0 <= mask_position < len(mask_cards):
+        task.log_info("未识别到目标主战员的人格面具卡牌，默认启用第一张")
+        mask_position = 0
+    enabled_mask_cards = [mask_cards[mask_position]]
+    task.log_info(f"本次启用从左到右第{mask_position + 1}张人格面具卡牌")
 
     specify_text = _get_config_value(task, '指定面具卡牌', "丢弃最多2张卡牌")
-    for i, (rx1, ry1, rx2, ry2) in enumerate(desc_regions):
-        desc_texts = [
-            b.name.strip() for b in task.all_texts
-            if rx1 <= (b.x + b.width / 2) / task.width <= rx2
-            and ry1 <= (b.y + b.height / 2) / task.height <= ry2
-            and b.name.strip()
-        ]
-        desc_text = "".join(desc_texts)
-        task.log_info(f"卡牌{i+1}描述: {desc_text}")
+    for card in enabled_mask_cards:
+        desc_text = card["description"]
+        task.log_info(f"卡牌{mask_position + 1}描述: {desc_text}")
         if specify_text in desc_text:
-            task.log_info(f"卡牌{i+1}描述包含「{specify_text}」，点击该卡牌")
-            click_x = (rx1 + rx2) / 2
-            click_y = (ry1 + ry2) / 2
-            _move_and_click(task, click_x, click_y)
+            task.log_info(
+                f"卡牌{mask_position + 1}描述包含「{specify_text}」，点击该卡牌"
+            )
+            _move_and_click(task, card["x"], card["y"])
             task.sleep(0.5)
             return True
 
