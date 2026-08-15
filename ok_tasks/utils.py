@@ -12,7 +12,6 @@ from opencc import OpenCC
 _jp2t = OpenCC('jp2t')  # 日文新字体转繁体
 _t2s = OpenCC('t2s')  # 繁体转简体
 
-
 def _normalize_text(text):
     """先将日文汉字字形转繁体，再统一转换为简体。"""
     return _t2s.convert(_jp2t.convert(text))
@@ -274,6 +273,7 @@ def _recognize_cards_by_features(
         filtered_features.append(candidate)
 
     cards = []
+    log_prefix = f"{page}: " if page else ""
     for feature_name, feature_type, feature_box in filtered_features:
         center_x = (feature_box.x + feature_box.width / 2) / task.width
         center_y = (feature_box.y + feature_box.height / 2) / task.height
@@ -296,7 +296,18 @@ def _recognize_cards_by_features(
             min(1.0, center_y + description_offsets[3]),
         )
         card_name = _get_region_text(task, name_region).strip()
+        task.log_info(
+            f"{log_prefix}卡牌识别调试: 特征={feature_name}，"
+            f"特征中心=({center_x:.4f},{center_y:.4f})，"
+            f"特征置信度={feature_box.confidence:.4f}，"
+            f"名称区域={tuple(round(value, 4) for value in name_region)}，"
+            f"名称OCR={_region_text_debug_info(task, name_region)}，"
+            f"类型区域={tuple(round(value, 4) for value in type_region)}，"
+            f"类型OCR={_region_text_debug_info(task, type_region)}，"
+            f"描述区域={tuple(round(value, 4) for value in desc_region)}"
+        )
         if not card_name:
+            task.log_info(f"{log_prefix}卡牌识别调试: 因名称为空排除该特征")
             continue
         card_type = _get_region_text(task, type_region).strip()
         description = _get_region_text(task, desc_region)
@@ -314,6 +325,10 @@ def _recognize_cards_by_features(
         if not allow_name_only and (
             not description or (not card_type and not allow_empty_type)
         ):
+            task.log_info(
+                f"{log_prefix}卡牌识别调试: 因类型或描述缺失排除该特征，"
+                f"类型=「{card_type}」，描述=「{description}」"
+            )
             continue
         cards.append({
             "name": card_name,
@@ -331,7 +346,6 @@ def _recognize_cards_by_features(
         })
     cards.sort(key=lambda card: card["feature_box"].x)
     if cards:
-        log_prefix = f"{page}: " if page else ""
         task.log_info(f"{log_prefix}卡牌识别到{len(cards)}张卡牌")
         for index, card in enumerate(cards, 1):
             task.log_info(
@@ -358,6 +372,7 @@ def recognize_cards(
             "skill": "技能/基础技能",
             "enhance": "强化",
             "hex": "咒术",
+            "abnormal": "状态异常",
         },
         min_feature_distance=(
             (0.618 - 0.454) ** 2 + (0.304 - 0.306) ** 2
@@ -586,6 +601,22 @@ def _get_region_text(task: TriggerTask, region):
     return "".join(texts)
 
 
+def _region_text_debug_info(task: TriggerTask, region):
+    """返回参与区域文本拼接的OCR框信息，用于排查相对区域偏移。"""
+    x1, y1, x2, y2 = region
+    matched = []
+    for box in task.all_texts:
+        center_x = (box.x + box.width / 2) / task.width
+        center_y = (box.y + box.height / 2) / task.height
+        if x1 <= center_x <= x2 and y1 <= center_y <= y2 and box.name.strip():
+            matched.append(
+                f"「{box.name.strip()}」"
+                f"(中心={center_x:.4f},{center_y:.4f},"
+                f"置信度={box.confidence:.4f})"
+            )
+    return "，".join(matched) if matched else "无"
+
+
 _CARD_TYPE_KEYWORDS = {
     "攻击", "强化", "技能", "技", "咒术", "诅咒",
     "攻", "击", "基础", "基本", "状态", "异常",
@@ -643,14 +674,23 @@ def _point_is_white(task: TriggerTask, x, y, page):
     return is_white
 
 
-def _scroll_card_page(task: TriggerTask, x, y, amount, page):
+def _scroll_card_page(task: TriggerTask, x, y, amount, page, distance=0.25):
     """将鼠标移到选牌区域后滚动。"""
     direction = "向下" if amount < 0 else "向上"
-    task.log_info(f"{page}: 在({x:.3f}, {y:.3f}){direction}滚动")
-    task.move_relative(x, y)
-    task.sleep(0.05)
-    task.scroll_relative(x, y, amount)
-    task.sleep(0.5)
+    if task.is_adb():
+        to_y = max(0.05, y - distance) if amount < 0 else min(0.95, y + distance)
+        task.log_info(
+            f"{page}: ADB从({x:.3f}, {y:.3f})滑动到({x:.3f}, {to_y:.3f})，"
+            f"{direction}浏览卡牌"
+        )
+        task.swipe_relative(x, y, x, to_y, duration=1, settle_time=1)
+        task.sleep(1)
+    else:
+        task.log_info(f"{page}: 在({x:.3f}, {y:.3f}){direction}滚动")
+        task.move_relative(x, y)
+        task.sleep(0.05)
+        task.scroll_relative(x, y, amount)
+        task.sleep(0.5)
 
 
 def select_card(task: TriggerTask, card_names, count=1, action=""):
@@ -1022,31 +1062,39 @@ def is_frame_stuck(task: TriggerTask, stuck_threshold_seconds=30, change_thresho
 
 
 def handle_stuck_log(task: TriggerTask):
-    """画面卡住超过20秒时随机点击；存在确认按钮时不按卡住处理。"""
-    confirm_box = next(
-        (box for box in task.all_texts
-         if 0.791 <= (box.x + box.width / 2) / task.width <= 0.988
-         and 0.883 <= (box.y + box.height / 2) / task.height <= 0.978
-         and "确认" in box.name),
-        None,
-    )
-    if confirm_box:
+    """画面卡住超过10秒时依次处理关闭页、特殊怪物、卡牌或未知页面。"""
+    if not is_frame_stuck(task, stuck_threshold_seconds=10):
         return False
 
-    if is_frame_stuck(task, stuck_threshold_seconds=20):
-        stuck_seconds = int(time.time() - task._last_change_time)
-        now = time.time()
-        last_click_time = getattr(task, "_last_stuck_click_time", 0)
-        if now - last_click_time >= 10:
-            from utils_sortie import handle_secret_enemy
-            handle_secret_enemy(task)
-            click_x = random.uniform(0.059, 0.985)
-            click_y = random.uniform(0.129, 0.981)
-            task.log_info(
-                f"画面卡住，已持续{stuck_seconds}秒，随机点击({click_x:.3f}, {click_y:.3f})"
-            )
-            _move_and_click(task, click_x, click_y)
-            task._last_stuck_click_time = now
+    stuck_seconds = int(time.time() - task._last_change_time)
+    close_page = task.find_one(
+        feature_name="close_page",
+        box=task.box_of_screen(0.921, 0.003, 0.998, 0.100),
+    )
+    if close_page:
+        task.log_info(
+            f"画面卡住已持续{stuck_seconds}秒，检测到close_page特征，点击关闭页面"
+        )
+        task.click_box(close_page)
+        task.sleep(1)
+        return True
+
+    from utils_sortie import handle_secret_enemy
+    handle_secret_enemy(task)
+    cards = recognize_cards(task, page="画面卡住兜底")
+    if cards:
+        chosen_card = random.choice(cards)
+        task.log_info(
+            f"画面卡住兜底: 随机点击卡牌「{chosen_card['name']}」"
+        )
+        _move_and_click(task, chosen_card["x"], chosen_card["y"])
+    else:
+        handle_unknown_page(task)
+    # 普通随机点屏幕兜底暂时停用。
+    # click_x = random.uniform(0.059, 0.985)
+    # click_y = random.uniform(0.129, 0.981)
+    # _move_and_click(task, click_x, click_y)
+    task.log_info(f"画面卡住，已持续{stuck_seconds}秒")
     return False
 
 
@@ -1294,8 +1342,8 @@ def handle_main_member_flash(task: TriggerTask):
 
 def handle_card_reward(task: TriggerTask):
     """卡牌奖励页面: 按类型特征识别卡牌，并按优先级选择。"""
-    box = find_box_at_point(task, 0.498, 0.129)
-    if not (box and "卡牌奖励" in box.name):
+    page_title = _get_region_text(task, (0.345, 0.012, 0.642, 0.141))
+    if "卡牌奖励" not in page_title:
         return False
 
     task.log_info("检测到卡牌奖励页面")
@@ -1349,6 +1397,21 @@ def handle_card_reward(task: TriggerTask):
                 f"按优先级选择卡牌: {chosen_card['name']}（配置: {pri_name}）"
             )
             break
+
+    if chosen_card is None:
+        refresh_boxes = []
+        for box in task.all_texts:
+            match = re.fullmatch(r"\s*(\d+)\s*/\s*(\d+)\s*", box.name)
+            if match and int(match.group(1)) != 0:
+                refresh_boxes.append((box, int(match.group(1)), int(match.group(2))))
+        if refresh_boxes:
+            for refresh_box, remaining, maximum in refresh_boxes:
+                task.log_info(
+                    f"卡牌奖励页面未命中优先级卡牌，"
+                    f"点击刷新次数「{remaining}/{maximum}」刷新卡牌"
+                )
+                task.click_box(refresh_box)
+            return True
 
     if chosen_card is None and cards:
         task.log_info("未命中优先级卡牌，跳过非优先级卡牌")
@@ -1849,9 +1912,11 @@ def handle_equipment(task: TriggerTask):
         candidate = _equipment_info(
             task, name_region, type_region, description_region
         )
-        if candidate:
-            candidate["click_position"] = click_position
-            candidates.append(candidate)
+        if not candidate:
+            task.log_info("选择装备界面的候选装备信息不完整，等待下轮重新识别")
+            return True
+        candidate["click_position"] = click_position
+        candidates.append(candidate)
     task.log_info(
         f"检测到选择装备界面，候选装备: "
         f"{[(candidate['ocr_name'], candidate['slot'] + 1) for candidate in candidates]}"
@@ -1890,7 +1955,7 @@ def handle_equipment(task: TriggerTask):
     else:
         click_position = candidates[chosen_index]["click_position"]
     _move_and_click(task, *click_position)
-    task.sleep(1)
+    task.sleep(2)
     return False
 
 
@@ -1946,7 +2011,14 @@ def _scroll_to_target_member_for_card_removal(task: TriggerTask):
         if scroll_count >= max_scrolls:
             task.log_info(f"{page}: 向下滚动已达到{max_scrolls}次限制")
             return
-        _scroll_card_page(task, scroll_x, scroll_y, -3, page)
+        _scroll_card_page(
+            task,
+            scroll_x,
+            scroll_y,
+            -3,
+            page,
+            distance=(search_region[3] - search_region[1]) / 5,
+        )
         scroll_count += 1
 
 

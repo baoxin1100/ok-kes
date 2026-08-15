@@ -1,7 +1,7 @@
 from ok import TriggerTask
 
 from utils import (
-    _move_and_click, _simplify_texts, _get_config_value, _get_card_list, _get_card_reward_priority, _get_route_priority, _get_game_text, _get_region_text, _get_current_hp_percent, _finish_only_first_layer,
+    _move_and_click, _simplify_texts, _get_config_value, _get_card_list, _get_route_priority, _get_game_text, _get_region_text, _get_current_hp_percent, _finish_only_first_layer,
     find_box_at_point, find_text, find_exact_text, recognize_cards,
     _card_has_type_below, select_card,
     log_credit, log_node_status, handle_battle_crash, handle_close_page, handle_refine_equipment_credit,
@@ -14,7 +14,7 @@ from utils import (
     handle_event_task, handle_route_selection, handle_obtain_reward,
     handle_leave, handle_next_step, handle_select, handle_rest, handle_view_original, handle_weakness_info,
     handle_close_button,
-    handle_card_assign, handle_non_battle_page, handle_minimizemap, handle_held_cards_page, handle_unknown_page, handle_craft,
+    handle_card_assign, handle_non_battle_page, handle_minimizemap, handle_held_cards_page, handle_craft,
     handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_convert,
     handle_equipment_recast,
     handle_stuck_log, handle_expedition_result,
@@ -247,44 +247,6 @@ def handle_discovery_select(task: TriggerTask): #忘了按个页面要用
     return True
 
 
-def handle_desire_card_inheritance(task: TriggerTask):
-    """欲望卡牌继承页面: 优先选择命中奖励优先级的卡牌，否则随机选择。"""
-    title_box = find_box_at_point(task, 0.500, 0.086)
-    prompt_box = find_box_at_point(task, 0.524, 0.143)
-    if not (
-        title_box
-        and title_box.name == "卡牌奖励"
-        and prompt_box
-        and _get_game_text(task, "请选择要继承的") in prompt_box.name
-    ):
-        return False
-
-    task.log_info("检测到欲望卡牌继承页面")
-    cards = recognize_cards(task, page="欲望卡牌继承页面")
-    if not cards:
-        task.log_info("欲望卡牌继承页面未识别到卡牌")
-        return False
-    priority = _get_card_reward_priority(task)
-
-    for config_name in priority:
-        for card in cards:
-            card_name = card["name"]
-            if card_name and config_name and (
-                config_name in card_name or card_name in config_name
-            ):
-                task.log_info(
-                    f"欲望卡牌「{card_name}」命中奖励优先级「{config_name}」，点击该卡牌"
-                )
-                _move_and_click(task, card["x"], card["y"])
-                return True
-
-    card = random.choice(cards)
-    card_name = card["name"]
-    task.log_info(f"欲望卡牌未命中奖励优先级，随机选择「{card_name}」")
-    _move_and_click(task, card["x"], card["y"])
-    return True
-
-
 def handle_zero_system_home(task: TriggerTask):
     """零式系统首页: 点击法典。"""
     title = find_box_at_point(task, 0.120, 0.046)
@@ -508,7 +470,7 @@ def handle_mask_card(task: TriggerTask):
 
     mask_position = task.node_status.get("target_mask_card_position", -1)
     if mask_position == -1:
-        close_region = (0.363, 0.878, 0.638, 0.983)
+        detail_title_region = (0.371, 0.018, 0.624, 0.149)
         target_region = task.box_of_screen(0.006, 0.010, 0.081, 0.131)
         for index, card in enumerate(mask_cards):
             task.log_info(
@@ -519,16 +481,17 @@ def handle_mask_card(task: TriggerTask):
             task.move_relative(card["x"], card["y"])
             task.mouse_down(click_x, click_y, key="left")
             task.sleep(1)
-            close_boxes = task.wait_ocr(
-                close_region[0], close_region[1],
-                to_x=close_region[2], to_y=close_region[3],
-                match=re.compile(r"关闭"), time_out=4,
+            detail_title_boxes = task.wait_ocr(
+                detail_title_region[0], detail_title_region[1],
+                to_x=detail_title_region[2], to_y=detail_title_region[3],
+                match=re.compile(r"查看详情"), time_out=4,
             )
             task.mouse_up(key="left")
             task.sleep(1)
-            if not close_boxes:
+            if not detail_title_boxes:
                 task.log_info(
-                    f"人格面具卡牌归属检测: 第{index + 1}张卡牌详情未出现关闭按钮，结束本轮处理"
+                    f"人格面具卡牌归属检测: 第{index + 1}张卡牌详情未出现"
+                    "「查看详情」，结束本轮处理"
                 )
                 return True
 
@@ -549,13 +512,8 @@ def handle_mask_card(task: TriggerTask):
                     f"人格面具卡牌归属检测: 第{index + 1}张不属于目标主战员"
                 )
 
-            close_box = close_boxes[0]
-            task.log_info("人格面具卡牌详情页面触发关闭事件，点击「关闭」")
-            _move_and_click(
-                task,
-                (close_box.x + close_box.width / 2) / task.width,
-                (close_box.y + close_box.height / 2) / task.height,
-            )
+            task.log_info("人格面具卡牌详情页面触发关闭事件，点击固定关闭位置")
+            _move_and_click(task, 0.513, 0.931)
             task.sleep(2)
             if target_member:
                 break
@@ -601,21 +559,64 @@ def handle_mask_card(task: TriggerTask):
 
 
 def handle_data_collected(task: TriggerTask):
-    """存储数据收集完成页面: 删除存档。"""
+    """存储数据收集完成页面：按存档价值阈值决定是否删除。"""
     box = find_box_at_point(task, 0.505, 0.111)
     if box and _get_game_text(task, '存储数据收集完成') in box.name:
-        if not _get_config_value(task, '保留存档', False):
-            task.log_info("保留存档配置为False，删除存档")
-            for feature_name in ["deletecards", "deletecards2", "deletecards3"]:
-                features = task.find_feature(feature_name=feature_name)
-                if features:
-                    task.log_info(f"找到{feature_name}特征，点击删除")
-                    task.click_box(features[0])
-                    task.sleep(1)
-                    return True
+        retain_threshold = _get_config_value(
+            task, '保留大于多少TB的存档', 62000
+        )
+        if retain_threshold <= 0:
+            task.log_info("保留大于多少TB的存档设置为0，保留全部存档")
+            return False
+
+        for feature_name in ["deletecards", "deletecards2", "deletecards3"]:
+            features = task.find_feature(feature_name=feature_name) or []
+            for feature in features:
+                feature_center_x = (feature.x + feature.width / 2) / task.width
+                feature_center_y = (feature.y + feature.height / 2) / task.height
+                value_box = find_box_at_point(
+                    task,
+                    feature_center_x - 0.107,
+                    feature_center_y - 0.025,
+                )
+                value_match = (
+                    re.search(r'\d+', value_box.name.replace(',', ''))
+                    if value_box else None
+                )
+                archive_value = int(value_match.group()) if value_match else None
+                if archive_value is not None and archive_value > retain_threshold:
+                    task.log_info(
+                        f"{feature_name}对应存档价值{archive_value}TB高于保留阈值"
+                        f"{retain_threshold}TB，跳过删除"
+                    )
+                    continue
+                if archive_value is None:
+                    task.log_info(
+                        f"{feature_name}未识别到存档价值，按原逻辑点击删除"
+                    )
+                else:
+                    task.log_info(
+                        f"{feature_name}对应存档价值{archive_value}TB不高于阈值"
+                        f"{retain_threshold}TB，点击删除"
+                    )
+                task.click_box(feature)
+                task.sleep(1)
+                return True
         task.log_info("检测到存储数据收集完成，由通用按钮处理")
         return False
     return False
+
+
+def handle_stage_end_data_details(task: TriggerTask):
+    """关卡结束数据详情页面：检测到存储数据后关闭详情。"""
+    page_text = _get_region_text(task, (0.111, 0.103, 0.338, 0.243))
+    if "存储数据" not in page_text:
+        return False
+
+    task.log_info("检测到关卡结束数据详情页面，点击关闭")
+    _move_and_click(task, 0.883, 0.156)
+    task.sleep(1)
+    return True
 
 
 # def handle_cares_tip(task: TriggerTask):
@@ -781,7 +782,7 @@ PAGE_HANDLERS = [
     # handle_stage_clear,
     log_credit,
     log_node_status,
-    handle_stuck_log, #画面卡住检测，仅输出日志
+    handle_stuck_log, #画面卡住检测及兜底处理
 
     handle_refine_equipment_credit, #提炼装备信用点页面，优先于确认按钮
     handle_center_confirm, #页面中央确认按钮
@@ -790,7 +791,6 @@ PAGE_HANDLERS = [
     handle_equipment, #装备选择
     handle_card_assign,
     handle_confirm, #确认按钮
-    handle_desire_card_inheritance, #欲望卡牌继承页面，优先级低于确认按钮
     handle_mask_card, #面具卡牌获得页面
     handle_convert, #转换按钮
     handle_shop, #德朗商店
@@ -848,5 +848,5 @@ PAGE_HANDLERS = [
     handle_event_task,
     handle_held_cards_page,
     handle_escape,
-    handle_unknown_page,
+    handle_stage_end_data_details, #关卡结束数据详情页面，低优先级
 ]

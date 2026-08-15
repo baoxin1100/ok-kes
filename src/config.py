@@ -156,7 +156,7 @@ config = {
         }
     },
     'windows': {  # Windows游戏请填写此设置
-        # 'exe': ['ssr-xcent.exe'],
+        'exe': ['ssr-xcent.exe', 'ssr-stove-shield.exe'],
         # optional, if set, will search the exe only
         # 'hwnd_class': 'UnrealWindow', #增加重名检查准确度
         'interaction': ['Pynput', 'PostMessage', 'Genshin', 'PyDirect','ForegroundPostMessage'], # Genshin:某些操作可以后台, 部分游戏支持 PostMessage:可后台点击, 极少游戏支持 ForegroundPostMessage:前台使用PostMessage Pynput/PyDirect:仅支持前台使用
@@ -178,8 +178,8 @@ config = {
     },
     'supported_resolution': {
         'ratio': '16:9', #支持的游戏分辨率
-        'min_size': (3840, 2160), #设4K，当前任何低于4K的分辨率都会触发try_resize_to缩放到1920x1080
-        'resize_to': [(1920, 1080), (1600, 900), (1280, 720)], #优先1920x1080，1080p屏幕放不下则回退至1600x900
+        'resize_to': [(2560, 1440), (1920, 1080), (1600, 900), (1280, 720)], #比例或最低分辨率不满足时，按顺序尝试调整Windows窗口
+        'min_size': (1280, 720), #只要求16:9且不低于720p，满足条件时不强制调整窗口
         'force_ratio': True, #不弹分辨率报错弹窗，由resize_to处理
     },
     'links': { # 关于里显示的链接, 可选

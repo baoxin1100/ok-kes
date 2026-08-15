@@ -7,7 +7,11 @@ from config_io import (
     migrate_flash_priority_config_file,
 )
 from config_sync import check_upload_if_needed, show_hot_configs_dialog
-from utils import reset_all_status, _migrate_route_boss_to_elite, _simplify_texts
+from utils import (
+    reset_all_status,
+    _migrate_route_boss_to_elite,
+    _simplify_texts,
+)
 
 class ChaosMode(TriggerTask):
 
@@ -46,7 +50,7 @@ class ChaosMode(TriggerTask):
         self.default_config['治疗崩溃'] = True
         self.default_config['优先移除基础牌'] = True
         self.default_config['进入商店'] = False
-        self.default_config['保留存档'] = False
+        self.default_config['保留大于多少TB的存档'] = 62000
         self.default_config['领取奖励(只使用验证卡)'] = False
         self.default_config['指定面具卡牌'] = "丢弃最多2张卡牌"
         self.default_config['面具卡牌刻印'] = "自身攻击卡牌伤害总量提升30%"

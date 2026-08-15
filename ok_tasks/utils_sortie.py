@@ -16,8 +16,8 @@ from utils import (
     handle_close_button,
     handle_card_assign, handle_non_battle_page,
     handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_convert, handle_equipment_recast, handle_weakness_info, handle_minimizemap,
-    handle_held_cards_page, handle_unknown_page,
-    is_frame_stuck, handle_stuck_log, is_button_active, _clean_match,
+    handle_held_cards_page,
+    handle_stuck_log, is_button_active, _clean_match,
     handle_shop, handle_expedition_result,
     handle_escape,
     _get_current_credit, _get_current_hp_percent, _find_rest_feature, _wait_for_rest_confirm,
@@ -360,8 +360,14 @@ def _select_battle_member(task: TriggerTask, max_scrolls=5):
                     task.log_info(f"出战主战员优先级匹配失败: 「{name}」未在当前列出的{len(boxes)}个主战员中")
         if scroll_index < max_scrolls:
             task.log_info(f"第{scroll_index + 1}次未匹配到任何优先级角色, 向下滚动重试")
-            task.move_relative(0.5, 0.5)
-            task.scroll_relative(0.5, 0.7, -3)
+            if task.is_adb():
+                task.log_info("ADB从(0.500, 0.700)滑动到(0.500, 0.300)，向下浏览主战员")
+                task.swipe_relative(
+                    0.5, 0.7, 0.5, 0.3, duration=0.4, settle_time=0.3
+                )
+            else:
+                task.move_relative(0.5, 0.5)
+                task.scroll_relative(0.5, 0.7, -3)
             task.sleep(0.5)
             task.all_texts = _simplify_texts(task.ocr())
     boxes = _battle_member_boxes(task)
@@ -439,15 +445,6 @@ def handle_battle_page(task: TriggerTask):
     if hasattr(task, 'node_status') and task.node_status.get('reach_final_boss', False):
         task.node_status['final_boss_battle'] = True
         task.log_info("检测到最终boss战斗开始，final_boss_battle=True")
-
-    # 检测战斗画面是否卡住
-    if is_frame_stuck(task):
-        task.log_info("战斗画面卡住，从手牌区拖拽一张卡牌尝试恢复")
-        hand_x = random.uniform(0.200, 0.800)
-        hand_y = random.uniform(0.700, 0.830)
-        task.swipe_relative(hand_x, hand_y, 0.5, 0.3, duration=0.3)
-        task.sleep(1)
-        return True
 
     # 检测 EP 能量条是否满（0.032,0.947 处 RGB 接近 (193,255,255)）
     ep_px = int(0.032 * task.width)
@@ -1057,6 +1054,5 @@ PAGE_HANDLERS = [
     handle_minimizemap,
     handle_held_cards_page,
     handle_escape,
-    handle_unknown_page,
     handle_unrecognized_card_selection,
 ]

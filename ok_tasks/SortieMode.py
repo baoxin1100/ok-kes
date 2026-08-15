@@ -3,7 +3,11 @@ from ok import TriggerTask, og
 import utils_sortie
 from config_io import make_export_callback, make_import_callback
 from config_sync import check_upload_if_needed, show_hot_configs_dialog
-from utils import reset_all_status, _migrate_route_boss_to_elite, _simplify_texts
+from utils import (
+    reset_all_status,
+    _migrate_route_boss_to_elite,
+    _simplify_texts,
+)
 
 
 class SortieMode(TriggerTask):

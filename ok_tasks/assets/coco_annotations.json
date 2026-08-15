@@ -239,6 +239,18 @@
             "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 150,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
+        },
+        {
+            "id": 151,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -1021,6 +1033,32 @@
             ],
             "area": 756,
             "iscrowd": 0
+        },
+        {
+            "id": 61,
+            "image_id": 150,
+            "category_id": 60,
+            "bbox": [
+                366,
+                337,
+                32,
+                32
+            ],
+            "area": 1024,
+            "iscrowd": 0
+        },
+        {
+            "id": 62,
+            "image_id": 151,
+            "category_id": 62,
+            "bbox": [
+                1813,
+                27,
+                62,
+                57
+            ],
+            "area": 3534,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -1320,8 +1358,18 @@
             "supercategory": ""
         },
         {
+            "id": 60,
+            "name": "abnormal",
+            "supercategory": ""
+        },
+        {
             "id": 61,
             "name": "skill_in_shop",
+            "supercategory": ""
+        },
+        {
+            "id": 62,
+            "name": "close_page",
             "supercategory": ""
         }
     ]
