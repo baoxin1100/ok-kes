@@ -772,8 +772,14 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
 
     cards = refresh_cards()
     if not cards:
-        task.log_info(f"{page}: 未识别到任何卡牌，终止选卡")
-        return False
+        if find_action_button():
+            task.log_info(
+                f"{page}: 首次识别卡牌漏识别，但仍存在「{action}」按钮，"
+                "继续执行选卡流程"
+            )
+        else:
+            task.log_info(f"{page}: 未识别到任何卡牌或操作按钮，终止选卡")
+            return False
     sync_visible_selected(cards)
     scrollbar_white_ratio = region_white_ratio(
         task, (0.976, 0.119, 0.988, 0.858)
@@ -1389,7 +1395,12 @@ def handle_card_reward(task: TriggerTask):
     chosen_card = None
     for pri_name in priority:
         chosen_card = next(
-            (card for card in cards if pri_name and pri_name in card["name"]),
+            (
+                card for card in cards
+                if pri_name
+                and pri_name in card["name"]
+                and _edit_distance(pri_name, card["name"], max_dist=1)
+            ),
             None,
         )
         if chosen_card:
@@ -2050,7 +2061,7 @@ def handle_select_card(task: TriggerTask):
     if action_tip:
         task.log_info(f"右下角选牌操作提示: 「{action_tip.name}」")
 
-    if action == "移除":
+    if action == "移除" and task.name == "自动卡厄思模式":
         _scroll_to_target_member_for_card_removal(task)
 
     select_card(task, _get_card_list(task, config_key), count=count, action=action)
@@ -2649,7 +2660,9 @@ def _wait_for_rest_confirm(task: TriggerTask):
 def handle_rest(task: TriggerTask):
     """休息界面: 检测rest特征并根据flash_or_rest状态决定是否点击。"""
     rest_feature = _find_rest_feature(task)
-    if rest_feature and hasattr(task, 'node_status') and task.node_status.get('flash_or_rest', False):
+    free_text = _get_region_text(task, (0.154, 0.602, 0.359, 0.847))
+    if (rest_feature and "免费" in free_text and hasattr(task, 'node_status')
+            and task.node_status.get('flash_or_rest', False)):
         task.log_info("检测到休息界面，点击休息")
         task.move_relative(
             (rest_feature.x + rest_feature.width / 2) / task.width,
@@ -2660,6 +2673,9 @@ def handle_rest(task: TriggerTask):
             return True
         task.node_status['flash_or_rest'] = False
         return True
+
+    if rest_feature and "免费" not in free_text:
+        task.log_info("检测到rest特征，但休息区域未找到「免费」，跳过点击休息")
 
     # 检测是否需要进入德朗商店
     shop_box = find_box_at_point(task, 0.360, 0.138)

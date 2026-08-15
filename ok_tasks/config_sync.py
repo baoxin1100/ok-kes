@@ -19,7 +19,11 @@ import uuid
 
 import requests
 from ok import TriggerTask
-from config_io import _import_config_from_text, _export_config_to_text
+from config_io import (
+    _import_config_from_text,
+    _export_config_to_text,
+    refresh_task_config_widgets,
+)
 
 # Supabase 配置
 SUPABASE_URL = "https://curzwmogotwmltaprmin.supabase.co"
@@ -472,6 +476,7 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
             success = _import_config_from_text(task, r["config_b64"])
             if success:
                 QMessageBox.information(dialog, "导入成功", "热门配置已成功应用！")
+                refresh_task_config_widgets(task)
                 dialog.accept()
             else:
                 QMessageBox.warning(dialog, "导入失败", "配置解析失败，请重试。")

@@ -3,9 +3,35 @@ import json
 import os
 
 from ok import og
-from ok.gui.Communicate import communicate
 from ok.util.config import Config
 from ok.util.file import get_relative_path, read_json_file, write_json_file
+
+
+def refresh_task_config_widgets(task):
+    """原位刷新任务卡片的配置控件，不删除或重建任务卡片。"""
+    main_window = getattr(og, "main_window", None)
+    trigger_tab = getattr(main_window, "trigger_tab", None)
+    if trigger_tab is None:
+        return
+
+    for task_card in getattr(trigger_tab, "card_widgets", []):
+        if getattr(task_card, "task", None) is not task:
+            continue
+        for widget in getattr(task_card, "config_widgets", []):
+            update_value = getattr(widget, "update_value", None)
+            if callable(update_value):
+                update_value()
+        apply_visibility = getattr(
+            task_card,
+            "_ConfigContentMixin__apply_sub_config_visibility",
+            None,
+        )
+        if callable(apply_visibility):
+            apply_visibility()
+        adjust_size = getattr(task_card, "_adjust_config_content_size", None)
+        if callable(adjust_size):
+            adjust_size()
+        break
 
 
 def _migrate_flash_priority(data):
@@ -121,8 +147,6 @@ def _import_config_from_text(task, encoded_text):
             if not key.startswith('_') and key not in allowed_config:
                 dict.pop(task.config, key, None)
         task.config.update(data)
-        # 触发 UI 刷新
-        communicate.task_list_updated.emit()
         return True
     except Exception as e:
         task.log_info(f"写入配置文件失败: {e}")
@@ -165,6 +189,7 @@ def make_import_callback(task):
         if success:
             QMessageBox.information(None, "导入成功", "配置已成功导入并应用！")
             task.log_info("配置导入成功")
+            refresh_task_config_widgets(task)
         else:
             QMessageBox.warning(None, "导入失败", "编码无效或写入失败，请检查后重试。")
     return import_config

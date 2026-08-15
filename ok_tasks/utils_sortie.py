@@ -20,7 +20,8 @@ from utils import (
     handle_stuck_log, is_button_active, _clean_match,
     handle_shop, handle_expedition_result,
     handle_escape,
-    _get_current_credit, _get_current_hp_percent, _find_rest_feature, _wait_for_rest_confirm,
+    _get_current_credit, _get_current_hp_percent, _get_region_text,
+    _find_rest_feature, _wait_for_rest_confirm,
     # handle_stage_clear,
     _finish_only_first_layer,
     handle_auto_stop,
@@ -948,13 +949,18 @@ def handle_rest_sortie(task: TriggerTask):
             task.log_info("不满足闪光条件，继续检测休息")
 
     rest_feature = _find_rest_feature(task)
-    if rest_feature and hasattr(task, 'node_status') and task.node_status.get('flash_or_rest', False):
+    free_text = _get_region_text(task, (0.154, 0.602, 0.359, 0.847))
+    if (rest_feature and "免费" in free_text and hasattr(task, 'node_status')
+            and task.node_status.get('flash_or_rest', False)):
         task.log_info("检测到休息界面，点击休息")
         task.click_box(rest_feature)
         if not _wait_for_rest_confirm(task):
             return True
         task.node_status['flash_or_rest'] = False
         return True
+
+    if rest_feature and "免费" not in free_text:
+        task.log_info("检测到rest特征，但休息区域未找到「免费」，跳过点击休息")
 
     # 检测是否需要进入德朗商店
     shop_box = find_box_at_point(task, 0.360, 0.138)

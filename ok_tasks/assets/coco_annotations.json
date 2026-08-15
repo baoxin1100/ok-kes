@@ -251,6 +251,12 @@
             "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 154,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -1059,6 +1065,19 @@
             ],
             "area": 3534,
             "iscrowd": 0
+        },
+        {
+            "id": 63,
+            "image_id": 154,
+            "category_id": 63,
+            "bbox": [
+                615,
+                456,
+                52,
+                28
+            ],
+            "area": 1456,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -1370,6 +1389,11 @@
         {
             "id": 62,
             "name": "close_page",
+            "supercategory": ""
+        },
+        {
+            "id": 63,
+            "name": "xuanwo",
             "supercategory": ""
         }
     ]
