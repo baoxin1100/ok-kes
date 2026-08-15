@@ -257,6 +257,12 @@
             "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 156,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -1069,7 +1075,7 @@
         {
             "id": 63,
             "image_id": 154,
-            "category_id": 63,
+            "category_id": 64,
             "bbox": [
                 615,
                 456,
@@ -1077,6 +1083,19 @@
                 28
             ],
             "area": 1456,
+            "iscrowd": 0
+        },
+        {
+            "id": 64,
+            "image_id": 156,
+            "category_id": 63,
+            "bbox": [
+                470,
+                771,
+                55,
+                58
+            ],
+            "area": 3190,
             "iscrowd": 0
         }
     ],
@@ -1393,7 +1412,12 @@
         },
         {
             "id": 63,
-            "name": "xuanwo",
+            "name": "forbidden_event",
+            "supercategory": ""
+        },
+        {
+            "id": 64,
+            "name": "xuanwo_in_deck",
             "supercategory": ""
         }
     ]

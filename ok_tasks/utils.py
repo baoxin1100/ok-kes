@@ -2306,6 +2306,32 @@ def handle_event_task(task: TriggerTask):
     if not tasks_info:
         return False
 
+    selectable_tasks = []
+    for task_info in tasks_info:
+        event_x = task_info["x"]
+        event_y = task_info["y"]
+        forbidden_region = (
+            max(0.0, event_x - 0.131),
+            max(0.0, event_y - 0.257),
+            min(1.0, event_x - 0.090),
+            min(1.0, event_y - 0.189),
+        )
+        forbidden_feature = task.find_one(
+            feature_name="forbidden_event",
+            box=task.box_of_screen(*forbidden_region),
+        )
+        if forbidden_feature:
+            task.log_info(
+                f"事件选项已被禁止，过滤描述「{task_info['description']}」，"
+                f"forbidden_event相似度={forbidden_feature.confidence:.4f}"
+            )
+            continue
+        selectable_tasks.append(task_info)
+    tasks_info = selectable_tasks
+    if not tasks_info:
+        task.log_info("事件任务页面的所有选项均被禁止，跳过本次选择")
+        return False
+
     check_feature = task.find_one(
         feature_name="check",
         box=task.box_of_screen(0.396, 0.286, 0.960, 0.718),
