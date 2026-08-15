@@ -1401,9 +1401,16 @@ def handle_card_reward(task: TriggerTask):
     if chosen_card is None:
         refresh_boxes = []
         for box in task.all_texts:
-            match = re.fullmatch(r"\s*(\d+)\s*/\s*(\d+)\s*", box.name)
+            center_x = (box.x + box.width / 2) / task.width
+            center_y = (box.y + box.height / 2) / task.height
+            if not (
+                0.105 <= center_x <= 0.903
+                and 0.764 <= center_y <= 0.851
+            ):
+                continue
+            match = re.fullmatch(r"\s*(\d)\s*/\s*3\s*", box.name)
             if match and int(match.group(1)) != 0:
-                refresh_boxes.append((box, int(match.group(1)), int(match.group(2))))
+                refresh_boxes.append((box, int(match.group(1)), 3))
         if refresh_boxes:
             for refresh_box, remaining, maximum in refresh_boxes:
                 task.log_info(
