@@ -2017,7 +2017,7 @@ def _scroll_to_target_member_for_card_removal(task: TriggerTask):
             scroll_y,
             -3,
             page,
-            distance=(search_region[3] - search_region[1]) / 5,
+            distance=(search_region[3] - search_region[1]) / 4,
         )
         scroll_count += 1
 
