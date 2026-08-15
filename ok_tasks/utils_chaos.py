@@ -783,6 +783,7 @@ PAGE_HANDLERS = [
     log_credit,
     log_node_status,
     handle_stuck_log, #画面卡住检测及兜底处理
+    handle_close_page, #点击屏幕关闭页面，优先于其他普通页面处理
 
     handle_refine_equipment_credit, #提炼装备信用点页面，优先于确认按钮
     handle_center_confirm, #页面中央确认按钮
@@ -817,7 +818,6 @@ PAGE_HANDLERS = [
     handle_non_battle_page,
     handle_battle_crash,
     handle_battle_auto_check,
-    handle_close_page,
     handle_settlement,
     handle_destiny_choice,
     handle_main_member_flash,

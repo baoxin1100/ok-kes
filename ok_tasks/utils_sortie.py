@@ -996,6 +996,7 @@ PAGE_HANDLERS = [
     log_credit,
     log_node_status,
     handle_stuck_log,
+    handle_close_page, #点击屏幕关闭页面，优先于其他普通页面处理
 
     handle_ether_supply,
     handle_refine_equipment_credit, #提炼装备信用点页面，优先于确认按钮
@@ -1030,7 +1031,6 @@ PAGE_HANDLERS = [
     handle_return_to_draw_pile,
     handle_weakness_info,
     handle_battle_page,
-    handle_close_page,
     handle_settlement,
     handle_destiny_choice,
     handle_main_member_flash,
