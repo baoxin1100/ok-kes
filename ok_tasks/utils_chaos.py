@@ -505,7 +505,6 @@ def handle_mask_card(task: TriggerTask):
 
     mask_position = task.node_status.get("target_mask_card_position", -1)
     if mask_position == -1:
-        detail_title_region = (0.371, 0.018, 0.624, 0.149)
         target_region = task.box_of_screen(0.006, 0.010, 0.081, 0.131)
         for index, card in enumerate(mask_cards):
             task.log_info(
@@ -515,20 +514,9 @@ def handle_mask_card(task: TriggerTask):
             click_y = int(card["y"] * task.height)
             task.move_relative(card["x"], card["y"])
             task.mouse_down(click_x, click_y, key="left")
-            task.sleep(1)
-            detail_title_boxes = task.wait_ocr(
-                detail_title_region[0], detail_title_region[1],
-                to_x=detail_title_region[2], to_y=detail_title_region[3],
-                match=re.compile(r"查看详情"), time_out=4,
-            )
+            task.sleep(2)
             task.mouse_up(key="left")
             task.sleep(1)
-            if not detail_title_boxes:
-                task.log_info(
-                    f"人格面具卡牌归属检测: 第{index + 1}张卡牌详情未出现"
-                    "「查看详情」，结束本轮处理"
-                )
-                return True
 
             target_member = task.find_one(
                 feature_name="target_member_in_mask_card",
