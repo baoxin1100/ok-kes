@@ -487,6 +487,493 @@ def recognize_event_options(
     return event_options
 
 
+def recognize_map_connections(
+    task: TriggerTask,
+    region=(0.019, 0.633, 0.380, 0.972),
+    feature_threshold=0.85,
+    line_threshold=0.30,
+    special_feature_threshold=0.65,
+):
+    """识别小地图节点，并根据节点之间亮线的连续覆盖率生成连通关系。"""
+    if task.frame is None:
+        task.log_info("小地图连通关系识别失败：当前画面为空")
+        return {"nodes": [], "connections": [], "adjacency": {}}
+
+    node_types = {
+        "position_in_map": "当前位置",
+        "settlement_in_map": "结算",
+        "enemy_in_map": "小怪",
+        "safezoom_in_map": "休息",
+        "elite_in_map": "精英",
+        "event_in_map": "事件",
+    }
+    # 值大于0表示优先进入，小于0表示降低进入优先级；后续新增标志只需
+    # 在这里登记，不需要改动识别和绑定逻辑。
+    special_feature_priorities = {
+        "kalei_in_map": 1,
+        "shop_in_map": 1,
+        "seal_in_map": 1,
+        "hard_in_map": -1,
+    }
+    search_box = task.box_of_screen(*region)
+    candidates = []
+    for feature_name, node_type in node_types.items():
+        for feature_box in task.find_feature(
+            feature_name=feature_name,
+            box=search_box,
+            threshold=feature_threshold,
+        ) or []:
+            center_x = (feature_box.x + feature_box.width / 2) / task.width
+            center_y = (feature_box.y + feature_box.height / 2) / task.height
+            # 当前位置是水滴形图标，线路实际连接点在图标下方尖端而非中心。
+            if feature_name == "position_in_map":
+                center_y += (feature_box.height / task.height) * 0.36
+            candidates.append({
+                "feature_name": feature_name,
+                "type": node_type,
+                "x": center_x,
+                "y": center_y,
+                "confidence": float(feature_box.confidence),
+                "feature_box": feature_box,
+            })
+
+    # 同一节点可能被多个普通节点模板命中。按给定的两个参考点
+    # (0.229, 0.674)、(0.257, 0.674)之间的距离去重，只保留最高置信度。
+    feature_dedup_distance = (
+        (0.257 - 0.229) ** 2 + (0.674 - 0.674) ** 2
+    ) ** 0.5
+    nodes = []
+    for candidate in sorted(
+        candidates,
+        key=lambda item: item["confidence"],
+        reverse=True,
+    ):
+        if any(
+            (
+                (candidate["x"] - kept["x"]) ** 2
+                + (candidate["y"] - kept["y"]) ** 2
+            ) ** 0.5 < feature_dedup_distance
+            for kept in nodes
+        ):
+            continue
+        nodes.append(candidate)
+    # 小地图的推进方向是从左到右。先按横坐标聚类成列，再在每列内
+    # 从上到下排序，保证节点编号与实际可选顺序一致。
+    columns = []
+    for node in sorted(nodes, key=lambda item: item["x"]):
+        column = next(
+            (
+                existing
+                for existing in columns
+                if abs(node["x"] - existing["center_x"]) < 0.025
+            ),
+            None,
+        )
+        if column is None:
+            columns.append({"center_x": node["x"], "nodes": [node]})
+            continue
+        column["nodes"].append(node)
+        column["center_x"] = sum(
+            item["x"] for item in column["nodes"]
+        ) / len(column["nodes"])
+
+    nodes = []
+    for column_index, column in enumerate(columns):
+        column_nodes = sorted(column["nodes"], key=lambda item: item["y"])
+        for row_index, node in enumerate(column_nodes, start=1):
+            node["column"] = column_index
+            node["row"] = row_index
+            node["id"] = len(nodes)
+            node["special_features"] = []
+            node["special_priority"] = 0
+            nodes.append(node)
+
+    # 每个特殊标志只绑定到距离最近的一个节点。节点可以同时具有多个标志。
+    special_features = []
+    for feature_name, priority in special_feature_priorities.items():
+        for feature_box in task.find_feature(
+            feature_name=feature_name,
+            box=search_box,
+            threshold=special_feature_threshold,
+        ) or []:
+            special_features.append({
+                "feature_name": feature_name,
+                "priority": priority,
+                "x": (feature_box.x + feature_box.width / 2) / task.width,
+                "y": (feature_box.y + feature_box.height / 2) / task.height,
+                "confidence": float(feature_box.confidence),
+                "feature_box": feature_box,
+            })
+    filtered_special_features = []
+    for special_feature in sorted(
+        special_features,
+        key=lambda item: item["confidence"],
+        reverse=True,
+    ):
+        if any(
+            (
+                (special_feature["x"] - kept["x"]) ** 2
+                + (special_feature["y"] - kept["y"]) ** 2
+            ) ** 0.5 < feature_dedup_distance
+            for kept in filtered_special_features
+        ):
+            continue
+        filtered_special_features.append(special_feature)
+    special_features = filtered_special_features
+    for special_feature in special_features:
+        nearest_node = min(
+            nodes,
+            key=lambda node: (
+                (node["x"] - special_feature["x"]) ** 2
+                + (node["y"] - special_feature["y"]) ** 2
+            ),
+            default=None,
+        )
+        if nearest_node is None:
+            continue
+        distance = (
+            (nearest_node["x"] - special_feature["x"]) ** 2
+            + (nearest_node["y"] - special_feature["y"]) ** 2
+        ) ** 0.5
+        if distance > 0.035:
+            continue
+        special_feature["node_id"] = nearest_node["id"]
+        nearest_node["special_features"].append(special_feature)
+        nearest_node["special_priority"] += special_feature["priority"]
+
+    gray = cv2.cvtColor(task.frame[:, :, :3], cv2.COLOR_BGR2GRAY)
+    frame_height, frame_width = gray.shape[:2]
+    perpendicular_radius = max(2, round(frame_height * 0.004))
+
+    def line_brightness_ratio(first, second):
+        start_x = first["x"] * frame_width
+        start_y = first["y"] * frame_height
+        end_x = second["x"] * frame_width
+        end_y = second["y"] * frame_height
+        delta_x = end_x - start_x
+        delta_y = end_y - start_y
+        pixel_distance = (delta_x ** 2 + delta_y ** 2) ** 0.5
+        if pixel_distance <= 0:
+            return 0.0
+        perpendicular_x = -delta_y / pixel_distance
+        perpendicular_y = delta_x / pixel_distance
+        sample_count = max(8, round(pixel_distance * 0.40))
+        bright_samples = 0
+        for progress in np.linspace(0.30, 0.70, sample_count):
+            sample_x = start_x + delta_x * progress
+            sample_y = start_y + delta_y * progress
+            band_values = []
+            for offset in range(-perpendicular_radius, perpendicular_radius + 1):
+                pixel_x = int(round(sample_x + perpendicular_x * offset))
+                pixel_y = int(round(sample_y + perpendicular_y * offset))
+                if 0 <= pixel_x < frame_width and 0 <= pixel_y < frame_height:
+                    band_values.append(gray[pixel_y, pixel_x])
+            if band_values and max(band_values) >= 110:
+                bright_samples += 1
+        return bright_samples / sample_count
+
+    connections = []
+    adjacency = {node["id"]: [] for node in nodes}
+
+    def has_intermediate_node(first, second):
+        vector_x = second["x"] - first["x"]
+        vector_y = second["y"] - first["y"]
+        vector_length_squared = vector_x ** 2 + vector_y ** 2
+        if vector_length_squared <= 0:
+            return False
+        for other in nodes:
+            if other is first or other is second:
+                continue
+            progress = (
+                (other["x"] - first["x"]) * vector_x
+                + (other["y"] - first["y"]) * vector_y
+            ) / vector_length_squared
+            if not 0.12 < progress < 0.88:
+                continue
+            projected_x = first["x"] + vector_x * progress
+            projected_y = first["y"] + vector_y * progress
+            if (
+                (other["x"] - projected_x) ** 2
+                + (other["y"] - projected_y) ** 2
+            ) ** 0.5 < 0.025:
+                return True
+        return False
+
+    def has_intermediate_special_feature(first, second):
+        """判断候选连线是否穿过属于第三个节点的特殊标志。"""
+        vector_x = second["x"] - first["x"]
+        vector_y = second["y"] - first["y"]
+        vector_length_squared = vector_x ** 2 + vector_y ** 2
+        if vector_length_squared <= 0:
+            return False
+        endpoint_ids = {first["id"], second["id"]}
+        for special_feature in special_features:
+            if special_feature.get("node_id") in endpoint_ids:
+                continue
+            progress = (
+                (special_feature["x"] - first["x"]) * vector_x
+                + (special_feature["y"] - first["y"]) * vector_y
+            ) / vector_length_squared
+            if not 0.12 < progress < 0.88:
+                continue
+            projected_x = first["x"] + vector_x * progress
+            projected_y = first["y"] + vector_y * progress
+            if (
+                (special_feature["x"] - projected_x) ** 2
+                + (special_feature["y"] - projected_y) ** 2
+            ) ** 0.5 < 0.015:
+                return True
+        return False
+
+    for first_index, first in enumerate(nodes):
+        for second in nodes[first_index + 1:]:
+            # 只保留当前列指向右侧相邻列的边，不生成反向邻接关系。
+            if second["column"] != first["column"] + 1:
+                continue
+            delta_x = abs(first["x"] - second["x"])
+            delta_y = abs(first["y"] - second["y"])
+            distance = (delta_x ** 2 + delta_y ** 2) ** 0.5
+            if not 0.035 <= distance <= 0.210 or delta_x > 0.125:
+                continue
+            # 地图连线为横线或斜线；不同排的同列节点不直接相连。
+            if delta_y > 0.025 and delta_x < 0.025:
+                continue
+            if has_intermediate_node(first, second):
+                continue
+            if has_intermediate_special_feature(first, second):
+                continue
+            brightness_ratio = line_brightness_ratio(first, second)
+            if brightness_ratio < line_threshold:
+                continue
+            connection = {
+                "from": first["id"],
+                "to": second["id"],
+                "brightness_ratio": brightness_ratio,
+            }
+            connections.append(connection)
+            adjacency[first["id"]].append(second["id"])
+
+    task.log_info(f"小地图识别到{len(nodes)}个节点、{len(connections)}条亮线连接")
+    for node in nodes:
+        task.log_info(
+            f"小地图节点{node['id']}: 类型={node['type']}，"
+            f"第{node['column'] + 1}列第{node['row']}个，"
+            f"位置=({node['x']:.4f}, {node['y']:.4f})，"
+            f"特征={node['feature_name']}，置信度={node['confidence']:.4f}，"
+            f"特殊标志={[item['feature_name'] for item in node['special_features']]}，"
+            f"特殊优先级={node['special_priority']}"
+        )
+    for connection in connections:
+        task.log_info(
+            f"小地图连接: 节点{connection['from']} -> 节点{connection['to']}，"
+            f"亮线覆盖率={connection['brightness_ratio']:.2%}"
+        )
+    task.log_info(f"小地图有向邻接关系: {adjacency}")
+    return {
+        "nodes": nodes,
+        "connections": connections,
+        "adjacency": adjacency,
+    }
+
+
+def find_best_map_route(map_info, target_node_type):
+    """寻找目标类型节点最多的有向路线，并返回下一列应选择的节点。"""
+    nodes = map_info.get("nodes", [])
+    adjacency = map_info.get("adjacency", {})
+    node_by_id = {node["id"]: node for node in nodes}
+    current_node = next(
+        (node for node in nodes if node["type"] == "当前位置"),
+        None,
+    )
+    if current_node is None:
+        return {
+            "target_type": target_node_type,
+            "target_count": 0,
+            "special_priority_score": 0,
+            "route": [],
+            "next_node_id": None,
+            "next_row": None,
+        }
+
+    route_cache = {}
+
+    def best_route_from(node_id):
+        if node_id in route_cache:
+            return route_cache[node_id]
+        node = node_by_id[node_id]
+        is_target = node["type"] == target_node_type
+        own_score = int(is_target)
+        own_special_score = node.get("special_priority", 0) if is_target else 0
+        next_node_ids = adjacency.get(node_id, [])
+        if not next_node_ids:
+            result = (own_score, own_special_score, [node_id])
+            route_cache[node_id] = result
+            return result
+
+        candidates = []
+        for next_node_id in next_node_ids:
+            child_score, child_special_score, child_route = best_route_from(
+                next_node_id
+            )
+            candidates.append((
+                own_score + child_score,
+                own_special_score + child_special_score,
+                node_by_id[next_node_id]["row"],
+                [node_id, *child_route],
+            ))
+        # 先比较目标节点数量，再比较目标节点携带的特殊优先级；仍相同时
+        # 选择下一节点更靠上的路线。
+        best_score, best_special_score, _, best_route = min(
+            candidates,
+            key=lambda item: (-item[0], -item[1], item[2]),
+        )
+        result = (best_score, best_special_score, best_route)
+        route_cache[node_id] = result
+        return result
+
+    target_count, special_priority_score, route = best_route_from(
+        current_node["id"]
+    )
+    next_node = node_by_id[route[1]] if len(route) > 1 else None
+    return {
+        "target_type": target_node_type,
+        "target_count": target_count,
+        "special_priority_score": special_priority_score,
+        "route": route,
+        "next_node_id": next_node["id"] if next_node else None,
+        "next_row": next_node["row"] if next_node else None,
+    }
+
+
+def find_best_map_route_by_priority(map_info, node_type_priority):
+    """按节点类型加权计算最优路线，并返回下一列应选择的节点。"""
+    nodes = map_info.get("nodes", [])
+    adjacency = map_info.get("adjacency", {})
+    node_by_id = {node["id"]: node for node in nodes}
+    current_node = next(
+        (node for node in nodes if node["type"] == "当前位置"),
+        None,
+    )
+    if current_node is None:
+        return None
+
+    route_cache = {}
+    priority_weights = {
+        node_type: len(node_type_priority) - index
+        for index, node_type in enumerate(node_type_priority)
+    }
+    highest_priority_weight = max(priority_weights.values(), default=1)
+    shop_bonus = highest_priority_weight * 2
+
+    def best_route_from(node_id):
+        if node_id in route_cache:
+            return route_cache[node_id]
+        node = node_by_id[node_id]
+        own_counts = tuple(
+            int(node["type"] == node_type)
+            for node_type in node_type_priority
+        )
+        own_shop_count = int(any(
+            item["feature_name"] == "shop_in_map"
+            for item in node.get("special_features", [])
+        ))
+        own_special_score = sum(
+            item["priority"]
+            for item in node.get("special_features", [])
+            if item["feature_name"] != "shop_in_map"
+        )
+        own_weighted_score = (
+            priority_weights.get(node["type"], 0)
+            + own_shop_count * shop_bonus
+            + own_special_score
+        )
+        next_node_ids = adjacency.get(node_id, [])
+        if not next_node_ids:
+            result = (
+                own_weighted_score,
+                own_shop_count,
+                own_counts,
+                own_special_score,
+                [node_id],
+            )
+            route_cache[node_id] = result
+            return result
+
+        candidates = []
+        for next_node_id in next_node_ids:
+            (
+                child_weighted_score,
+                child_shop_count,
+                child_counts,
+                child_special_score,
+                child_route,
+            ) = best_route_from(next_node_id)
+            total_counts = tuple(
+                own + child
+                for own, child in zip(own_counts, child_counts)
+            )
+            candidates.append((
+                own_weighted_score + child_weighted_score,
+                own_shop_count + child_shop_count,
+                total_counts,
+                own_special_score + child_special_score,
+                node_by_id[next_node_id]["row"],
+                [node_id, *child_route],
+            ))
+        (
+            best_weighted_score,
+            best_shop_count,
+            best_counts,
+            best_special_score,
+            _,
+            best_route,
+        ) = min(
+            candidates,
+            key=lambda item: (
+                -item[0],
+                -item[1],
+                tuple(-count for count in item[2]),
+                -item[3],
+                item[4],
+            ),
+        )
+        result = (
+            best_weighted_score,
+            best_shop_count,
+            best_counts,
+            best_special_score,
+            best_route,
+        )
+        route_cache[node_id] = result
+        return result
+
+    (
+        weighted_score,
+        shop_count,
+        type_counts,
+        special_priority_score,
+        route,
+    ) = best_route_from(current_node["id"])
+    next_node = node_by_id[route[1]] if len(route) > 1 else None
+    return {
+        "priority": list(node_type_priority),
+        "priority_weights": priority_weights,
+        "shop_bonus": shop_bonus,
+        "weighted_score": weighted_score,
+        "shop_count": shop_count,
+        "type_counts": dict(zip(node_type_priority, type_counts)),
+        "special_priority_score": special_priority_score,
+        "route": route,
+        "next_node_id": next_node["id"] if next_node else None,
+        "next_row": next_node["row"] if next_node else None,
+        "next_node_type": next_node["type"] if next_node else None,
+        "next_special_features": [
+            item["feature_name"]
+            for item in next_node.get("special_features", [])
+        ] if next_node else [],
+    }
+
+
 def _mark_selected_card_by_gold_border(
     task: TriggerTask,
     cards,
@@ -702,7 +1189,12 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         action == "移除"
         and _get_config_value(task, "优先移除基础牌", True)
     )
+    prefer_target_member_row = (
+        action == "移除"
+        and _get_config_value(task, "刷空档", False) is True
+    )
     base_card_type = _get_game_text(task, "基础")
+    target_member_box = task.box_of_screen(0.079, 0.092, 0.209, 0.675)
 
     def refresh_cards():
         task.all_texts = _simplify_texts(task.ocr())
@@ -751,6 +1243,32 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
                 clicked = True
         return clicked
 
+    def click_target_member_row_cards(cards):
+        """刷空档时优先移除目标主战员同一排的卡牌。"""
+        if not prefer_target_member_row or selected >= count:
+            return False
+        if not task.feature_exists("target_member_in_select_card"):
+            return False
+        target_member = task.find_one(
+            feature_name="target_member_in_select_card",
+            box=target_member_box,
+            threshold=0.6,
+        )
+        if not target_member:
+            return False
+        target_y = (
+            target_member.y + target_member.height / 2
+        ) / task.height
+        task.log_info(
+            f"{page}: 刷空档找到目标主战员，相似度="
+            f"{target_member.confidence:.4f}，中心Y={target_y:.4f}"
+        )
+        return click_cards(
+            cards,
+            lambda card: abs(card["y"] - target_y) <= 0.25,
+            "刷空档优先移除目标主战员同排卡牌，点击",
+        )
+
     def sync_visible_selected(cards):
         nonlocal selected
         if selected == 0:
@@ -792,6 +1310,10 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
 
     down_scrolls = 0
     while True:
+        click_target_member_row_cards(cards)
+        if selected >= count:
+            task.log_info(f"{page}: 已选中{selected}/{count}张卡牌")
+            return True
         click_priority_cards(cards)
         if selected >= count:
             task.log_info(f"{page}: 已选中{selected}/{count}张卡牌")
@@ -875,6 +1397,10 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
                     continue
                 task.log_info(f"{page}: 向上滚动后未识别到卡牌或操作按钮，终止选卡")
                 return False
+            click_target_member_row_cards(cards)
+            if selected >= count:
+                task.log_info(f"{page}: 已选中{selected}/{count}张卡牌")
+                return True
             bottom_to_top_cards = sorted(
                 cards,
                 key=lambda card: (card["y"], card["x"]),
@@ -1353,6 +1879,11 @@ def handle_card_reward(task: TriggerTask):
         return False
 
     task.log_info("检测到卡牌奖励页面")
+    cards = recognize_cards(task, page="卡牌奖励页面")
+    if not cards:
+        task.log_info("卡牌奖励页面未识别到卡牌，等待下一轮处理")
+        return True
+
     target_boxes, target_click_positions = find_target_card(task)
     if target_boxes:
         click_position = target_click_positions[0]
@@ -1363,8 +1894,6 @@ def handle_card_reward(task: TriggerTask):
         return True
 
     priority = _get_card_reward_priority(task)
-
-    cards = recognize_cards(task, page="卡牌奖励页面")
 
     initial_card_name = _get_config_value(task, "刷初始卡牌", "")
     initial_card_name = initial_card_name.strip() if isinstance(initial_card_name, str) else ""
@@ -2350,6 +2879,30 @@ def handle_event_task(task: TriggerTask):
         description_y = (top + bottom) / 2
         _move_and_click(task, description_x, description_y)
 
+    def handle_initial_node_task(description_keyword, purpose):
+        """初始节点按描述选择任务；未找到目标描述时点击ESC重新开始。"""
+        matched_task = next(
+            (
+                task_info
+                for task_info in tasks_info
+                if description_keyword in task_info["description"]
+            ),
+            None,
+        )
+        if matched_task:
+            task.log_info(
+                f"{purpose}：选择包含“{description_keyword}”的事件任务"
+            )
+            click_event_option(matched_task)
+        else:
+            task.log_info(
+                f"{purpose}：未找到包含“{description_keyword}”的事件任务，"
+                "点击ESC重新开始"
+            )
+            _move_and_click(task, 0.959, 0.053)
+        task.sleep(1)
+        return True
+
     upper_event_task = next(
         (task_info for task_info in tasks_info if task_info["y"] < 0.925),
         None,
@@ -2369,28 +2922,20 @@ def handle_event_task(task: TriggerTask):
         node_status.get("pass_final_boss_count", 0) == 0
         and node_status.get("node_count", 0) == 0
     )
-    if initial_card_name and is_initial_node:
-        legend_card_task = next(
-            (
-                task_info
-                for task_info in tasks_info
-                if "传说卡牌" in task_info["description"]
-            ),
-            None,
-        )
-        if legend_card_task:
-            task.log_info(
-                f"刷初始卡牌「{initial_card_name}」：选择包含“传说卡牌”的事件任务"
-            )
-            click_event_option(legend_card_task)
-            task.sleep(1)
-            return True
+    reroll_empty_deck = _get_config_value(task, "刷空档", False)
+    if initial_card_name and reroll_empty_deck is True and is_initial_node:
         task.log_info(
-            f"刷初始卡牌「{initial_card_name}」：未找到包含“传说卡牌”的事件任务，点击ESC重新开始"
+            "“刷初始卡牌”和“刷空档”不能同时进行，"
+            "本轮优先执行“刷初始卡牌”"
         )
-        _move_and_click(task, 0.959, 0.053)
-        task.sleep(1)
-        return True
+    if initial_card_name and is_initial_node:
+        return handle_initial_node_task(
+            "传说卡牌",
+            f"刷初始卡牌「{initial_card_name}」",
+        )
+
+    if reroll_empty_deck is True and is_initial_node:
+        return handle_initial_node_task("移除2张", "刷空档")
 
     # 检查任务区域中是否有 treasure 特征
     treasure_box = task.box_of_screen(0.477, 0.336, 0.841, 0.540)
@@ -2561,6 +3106,8 @@ def handle_route_selection(task: TriggerTask):
     priority_index = {node_type: index for index, node_type in enumerate(priority)}
 
     def sort_key(node):
+        # 商店节点是固定最高优先级，不受用户配置的节点类型顺序影响。
+        shop_priority = 0 if "shop" in node["special_features"] else 1
         if node["node_type"] == "结算":
             type_priority = len(priority) + 1
         else:
@@ -2570,10 +3117,51 @@ def handle_route_selection(task: TriggerTask):
             default=0,
         )
         center_x, center_y = relative_center(node["box"])
-        return type_priority, special_priority, center_y, center_x
+        return shop_priority, type_priority, special_priority, center_y, center_x
 
-    sorted_nodes = sorted(nodes, key=sort_key)
-    node = sorted_nodes[0]
+    # 先根据左下角小地图的完整连通关系规划路线，再用右侧当前可点击节点
+    # 校验规划结果。两边识别不一致时，使用当前节点识别结果兜底。
+    map_info = recognize_map_connections(task)
+    route_plan = find_best_map_route_by_priority(map_info, priority)
+    visible_nodes = sorted(nodes, key=lambda item: relative_center(item["box"])[1])
+    node = None
+    if route_plan and route_plan["next_row"] is not None:
+        planned_index = route_plan["next_row"] - 1
+        if 0 <= planned_index < len(visible_nodes):
+            planned_node = visible_nodes[planned_index]
+            expected_specials = {
+                name.removesuffix("_in_map")
+                for name in route_plan["next_special_features"]
+            }
+            actual_specials = set(planned_node["special_features"])
+            type_matches = (
+                planned_node["node_type"] == route_plan["next_node_type"]
+            )
+            specials_match = actual_specials == expected_specials
+            task.log_info(
+                f"小地图规划路线={route_plan['route']}，"
+                f"下一列第{route_plan['next_row']}个节点，"
+                f"预计={route_plan['next_node_type']}+{sorted(expected_specials)}，"
+                f"当前节点识别={planned_node['node_type']}+{sorted(actual_specials)}"
+            )
+            if type_matches and specials_match:
+                node = planned_node
+                task.log_info("小地图规划与当前节点识别一致，按规划结果进入")
+            else:
+                task.log_info(
+                    "小地图规划与当前节点识别不一致，"
+                    "改用当前节点的路线优先级兜底选择"
+                )
+        else:
+            task.log_info(
+                f"小地图规划要求进入下一列第{route_plan['next_row']}个节点，"
+                f"但当前仅识别到{len(visible_nodes)}个节点，改用优先级兜底"
+            )
+    else:
+        task.log_info("小地图路线规划失败，改用当前节点的路线优先级兜底")
+
+    if node is None:
+        node = sorted(nodes, key=sort_key)[0]
 
     # 更新 node_type 为最优先的节点类型
     if hasattr(task, 'node_status'):
@@ -2786,9 +3374,7 @@ def handle_shop(task: TriggerTask):
             icon_x = (credit_icon.x + credit_icon.width / 2) / task.width
             icon_y = (credit_icon.y + credit_icon.height / 2) / task.height
             price_box = find_box_at_point(task, icon_x + 0.099, icon_y - 0.001)
-            price = int(price_box.name.strip()) if (
-            price_box and re.fullmatch(r"\d+", price_box.name.strip())
-            ) else None
+            price = _parse_discounted_price(price_box.name) if price_box else None
             item_name = _get_region_text(task, (
             max(0.0, icon_x - 0.013),
             max(0.0, icon_y - 0.247),
@@ -3111,6 +3697,11 @@ def handle_card_assign(task: TriggerTask):
             refresh_count = (int(count_match.group(1)), int(count_match.group(2)))
             break
 
+    reward_priority_config = _get_card_list(task, "卡牌奖励优先级")
+    has_reward_priority = any(
+        isinstance(item, str) and item.strip()
+        for item in reward_priority_config
+    )
     priority = _get_card_reward_priority(task)
     matched_card_name = next(
         (config_name for config_name in priority
@@ -3127,7 +3718,12 @@ def handle_card_assign(task: TriggerTask):
             task.click_box(cancel_box)
             task.sleep(1)
             return True
-        if refresh_box and refresh_count and refresh_count[0] > 0:
+        if (
+            has_reward_priority
+            and refresh_box
+            and refresh_count
+            and refresh_count[0] > 0
+        ):
             task.log_info(f"剩余刷新次数: {refresh_count[0]}/{refresh_count[1]}，点击刷新")
             task.click_box(refresh_box)
             return True

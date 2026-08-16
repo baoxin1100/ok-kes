@@ -57,6 +57,7 @@ class ChaosMode(TriggerTask):
         self.default_config['只打第一层'] = False
         self.default_config['卡牌奖励优先级'] = ["梦之边境"]
         self.default_config['刷初始卡牌'] = ""
+        self.default_config['刷空档'] = False
         self.default_config['路线优先级'] = ["休息", "事件", "小怪", "精英"]
         self.default_config['几轮后停止(0为不停止)'] = 0
         self.default_config['第几层boss前自动暂停'] = "不暂停"
@@ -82,6 +83,12 @@ class ChaosMode(TriggerTask):
         }
         self.config_description['闪光优先级'] = (
             "卡牌名称和描述无需完整填写，输入几个关键字即可，但顺序须与游戏原文一致。"
+        )
+        self.config_description['刷初始卡牌'] = (
+            "填写目标卡牌名称后反复刷新初始卡牌；不能与“刷空档”同时使用。"
+        )
+        self.config_description['刷空档'] = (
+            "初始任务必须包含“移除2张”，否则重新开始；不能与“刷初始卡牌”同时使用。"
         )
 
     def load_config(self):

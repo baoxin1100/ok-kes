@@ -31,6 +31,41 @@ import random
 
 # ------------------------- 卡厄思模式独有页面处理函数 -------------------------
 
+
+def handle_disable_adaptation_distortion(task: TriggerTask):
+    """刷空档时关闭已启用的适应畸变。"""
+    if _get_config_value(task, "刷空档", False) is not True:
+        return False
+
+    page_text = _get_region_text(task, (0.480, 0.050, 0.573, 0.136))
+    if "适应畸变" not in page_text:
+        return False
+
+    relative_x, relative_y = 0.575, 0.093
+    pixel_x = min(task.width - 1, max(0, round(relative_x * task.width)))
+    pixel_y = min(task.height - 1, max(0, round(relative_y * task.height)))
+    blue, green, red = (
+        int(value) for value in task.frame[pixel_y, pixel_x, :3]
+    )
+    rgb = (red, green, blue)
+    target_rgb = (255, 186, 55)
+    color_matches = max(
+        abs(actual - target)
+        for actual, target in zip(rgb, target_rgb)
+    ) <= 35
+    task.log_info(
+        f"适应畸变开关颜色RGB={rgb}，"
+        f"是否接近{target_rgb}={color_matches}"
+    )
+    if not color_matches:
+        return False
+
+    task.log_info("刷空档检测到适应畸变已开启，点击关闭")
+    _move_and_click(task, relative_x, relative_y)
+    task.sleep(1)
+    return False
+
+
 def _save_runtime_feature(task: TriggerTask, feature_name: str, region, target_region=None):
     """将当前帧指定区域保存为运行时特征，可按目标区域尺寸缩放。"""
     import os
@@ -830,6 +865,7 @@ PAGE_HANDLERS = [
     handle_chaos_reward_settlement, #卡厄思奖励结算页面，优先级高于继续按钮
     handle_chaos_reward_claim, #卡厄思模式奖励领取页面
     handle_continue,
+    handle_disable_adaptation_distortion, #刷空档时关闭适应畸变，优先于进入按钮
     handle_enter,
     handle_obtain_reward,
     handle_view_original,

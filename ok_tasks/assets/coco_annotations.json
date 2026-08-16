@@ -122,7 +122,7 @@
         },
         {
             "id": 74,
-            "file_name": "images/1.png",
+            "file_name": "images/2.png",
             "width": 1920,
             "height": 1080
         },
@@ -260,7 +260,7 @@
         },
         {
             "id": 156,
-            "file_name": "images/0.png",
+            "file_name": "images/1.png",
             "width": 1920,
             "height": 1080
         }
@@ -1097,6 +1097,136 @@
             ],
             "area": 3190,
             "iscrowd": 0
+        },
+        {
+            "id": 65,
+            "image_id": 74,
+            "category_id": 65,
+            "bbox": [
+                197,
+                912,
+                30,
+                46
+            ],
+            "area": 1380,
+            "iscrowd": 0
+        },
+        {
+            "id": 66,
+            "image_id": 74,
+            "category_id": 67,
+            "bbox": [
+                311,
+                843,
+                30,
+                46
+            ],
+            "area": 1380,
+            "iscrowd": 0
+        },
+        {
+            "id": 67,
+            "image_id": 74,
+            "category_id": 66,
+            "bbox": [
+                312,
+                710,
+                30,
+                46
+            ],
+            "area": 1380,
+            "iscrowd": 0
+        },
+        {
+            "id": 68,
+            "image_id": 74,
+            "category_id": 68,
+            "bbox": [
+                425,
+                777,
+                30,
+                46
+            ],
+            "area": 1380,
+            "iscrowd": 0
+        },
+        {
+            "id": 69,
+            "image_id": 74,
+            "category_id": 70,
+            "bbox": [
+                655,
+                844,
+                30,
+                46
+            ],
+            "area": 1380,
+            "iscrowd": 0
+        },
+        {
+            "id": 70,
+            "image_id": 74,
+            "category_id": 69,
+            "bbox": [
+                579,
+                718,
+                23,
+                26
+            ],
+            "area": 598,
+            "iscrowd": 0
+        },
+        {
+            "id": 71,
+            "image_id": 74,
+            "category_id": 72,
+            "bbox": [
+                693,
+                988,
+                23,
+                26
+            ],
+            "area": 598,
+            "iscrowd": 0
+        },
+        {
+            "id": 72,
+            "image_id": 74,
+            "category_id": 71,
+            "bbox": [
+                83,
+                892,
+                34,
+                50
+            ],
+            "area": 1700,
+            "iscrowd": 0
+        },
+        {
+            "id": 73,
+            "image_id": 71,
+            "category_id": 73,
+            "bbox": [
+                238,
+                924,
+                21,
+                22
+            ],
+            "area": 462,
+            "iscrowd": 0
+        },
+        {
+            "id": 74,
+            "image_id": 6,
+            "category_id": 74,
+            "bbox": [
+                467,
+                786,
+                20,
+                24
+            ],
+            "area": 480,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -1418,6 +1548,56 @@
         {
             "id": 64,
             "name": "xuanwo_in_deck",
+            "supercategory": ""
+        },
+        {
+            "id": 65,
+            "name": "settlement_in_map",
+            "supercategory": ""
+        },
+        {
+            "id": 66,
+            "name": "safezoom_in_map",
+            "supercategory": ""
+        },
+        {
+            "id": 67,
+            "name": "event_in_map",
+            "supercategory": ""
+        },
+        {
+            "id": 68,
+            "name": "enemy_in_map",
+            "supercategory": ""
+        },
+        {
+            "id": 69,
+            "name": "kalei_in_map",
+            "supercategory": ""
+        },
+        {
+            "id": 70,
+            "name": "elite_in_map",
+            "supercategory": ""
+        },
+        {
+            "id": 71,
+            "name": "position_in_map",
+            "supercategory": ""
+        },
+        {
+            "id": 72,
+            "name": "shop_in_map",
+            "supercategory": ""
+        },
+        {
+            "id": 73,
+            "name": "hard_in_map",
+            "supercategory": ""
+        },
+        {
+            "id": 74,
+            "name": "seal_in_map",
             "supercategory": ""
         }
     ]

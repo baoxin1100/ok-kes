@@ -972,22 +972,6 @@ def handle_rest_sortie(task: TriggerTask):
     return False
 
 
-def handle_unrecognized_card_selection(task: TriggerTask):
-    """未知卡牌选择页面兜底: 识别到卡牌时随机点击一张。"""
-    cards = recognize_cards(task, page="未知卡牌选择页面兜底")
-    if not cards:
-        return False
-
-    chosen = random.choice(cards)
-    task.log_info(
-        f"未知卡牌选择页面兜底: 随机点击卡牌「{chosen['name']}」，"
-        f"类型「{chosen['type'] or chosen['feature_type']}」"
-    )
-    _move_and_click(task, chosen["x"], chosen["y"])
-    task.sleep(1)
-    return True
-
-
 # 出击模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
     handle_auto_stop,
@@ -1060,5 +1044,4 @@ PAGE_HANDLERS = [
     handle_minimizemap,
     handle_held_cards_page,
     handle_escape,
-    handle_unrecognized_card_selection,
 ]
