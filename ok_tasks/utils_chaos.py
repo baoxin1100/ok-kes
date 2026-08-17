@@ -15,7 +15,7 @@ from utils import (
     handle_leave, handle_next_step, handle_select, handle_rest, handle_view_original, handle_weakness_info,
     handle_close_button,
     handle_card_assign, handle_non_battle_page, handle_minimizemap, handle_held_cards_page, handle_craft,
-    handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_convert,
+    handle_remove, handle_three_choice_card_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_convert,
     handle_equipment_recast,
     handle_stuck_log, handle_expedition_result,
     is_button_active, _clean_match,
@@ -489,6 +489,15 @@ def handle_mask_card(task: TriggerTask):
         return False
 
     task.log_info("检测到面具卡牌获得页面")
+    specify_text = _get_config_value(task, '指定面具卡牌', "丢弃最多2张卡牌")
+    specify_text = specify_text.strip() if isinstance(specify_text, str) else ""
+    if not specify_text:
+        task.log_info("指定面具卡牌配置为空，直接点击跳过")
+        skip_box = find_text(task, r'跳过')
+        if skip_box:
+            task.click_box(skip_box)
+            task.sleep(0.5)
+        return True
 
     cards = recognize_cards(task, page="人格面具卡牌获得页面")
     mask_cards = [card for card in cards if "人格面具" in card["name"]]
@@ -547,7 +556,6 @@ def handle_mask_card(task: TriggerTask):
     enabled_mask_cards = [mask_cards[mask_position]]
     task.log_info(f"本次启用从左到右第{mask_position + 1}张人格面具卡牌")
 
-    specify_text = _get_config_value(task, '指定面具卡牌', "丢弃最多2张卡牌")
     for card in enabled_mask_cards:
         desc_text = card["description"]
         task.log_info(f"卡牌{mask_position + 1}描述: {desc_text}")
@@ -821,6 +829,7 @@ PAGE_HANDLERS = [
     handle_rest, #休息/商店入口
     handle_close_button, #关闭按钮
     handle_remove, #移除按钮
+    handle_three_choice_card_remove, #三选一卡牌移除页面（低优先级兜底）
     handle_flash, #闪光按钮
     handle_reflash, #重新闪光按钮
     handle_grant_flash, #赋予闪光按钮

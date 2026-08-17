@@ -2254,18 +2254,23 @@ def handle_equipment(task: TriggerTask):
              if re.fullmatch(r"\d+", box.name.strip())),
             None,
         )
-        is_purchase_page = bool(cancel_box and purchase_box and price_box)
+        is_purchase_page = bool(cancel_box and purchase_box)
         equipment_price = None
         current_credit = None
         if is_purchase_page:
             task.log_info("检测到购买装备页面")
-            equipment_price = _parse_discounted_price(price_box.name)
+            equipment_price = (
+                _parse_discounted_price(price_box.name) if price_box else None
+            )
             current_credit = _get_current_credit(task)
             task.log_info(
                 f"购买装备页面: 当前信用点={current_credit}，"
-                f"OCR价格=「{price_box.name}」，实际价格={equipment_price}"
+                f"OCR价格=「{price_box.name if price_box else ''}」，"
+                f"实际价格={equipment_price}"
             )
-            if equipment_price is None or equipment_price > current_credit:
+            if equipment_price is None:
+                task.log_info("购买装备页面未识别到价格，按价格低于当前信用点继续购买")
+            elif equipment_price > current_credit:
                 task.log_info(
                     f"装备价格{equipment_price}大于当前信用点{current_credit}，点击「取消」"
                 )
@@ -2736,6 +2741,28 @@ def handle_remove(task: TriggerTask):
             task.log_info("移除按钮未激活（灰色），跳过点击")
             return False
     return False
+
+def handle_three_choice_card_remove(task: TriggerTask):
+    """三选一卡牌移除页面：点击指定区域内已激活的“移除”按钮。"""
+    region = (0.507, 0.889, 0.740, 0.967)
+    remove_box = next(
+        (
+            box for box in task.all_texts
+            if region[0] <= (box.x + box.width / 2) / task.width <= region[2]
+            and region[1] <= (box.y + box.height / 2) / task.height <= region[3]
+            and "移除" in box.name
+        ),
+        None,
+    )
+    if not remove_box:
+        return False
+    if not is_button_active(task, remove_box):
+        task.log_info("三选一卡牌移除页面的移除按钮未激活（灰色），跳过点击")
+        return False
+
+    task.log_info("检测到三选一卡牌移除页面，点击移除")
+    task.click_box(remove_box)
+    return True
 
 def handle_flash(task: TriggerTask):
     """通用"闪光"按钮。"""
@@ -3663,14 +3690,16 @@ def handle_card_assign(task: TriggerTask):
             f"OCR价格=「{price_box.name if price_box else ''}」，实际价格={card_price}"
         )
 
-        if not (cancel_box and purchase_box and card_price is not None):
-            task.log_info("购买卡牌页面未完整识别取消、购买和价格文本")
+        if not (cancel_box and purchase_box):
+            task.log_info("购买卡牌页面未完整识别取消和购买按钮")
             if cancel_box:
                 task.log_info("购买卡牌页面触发识别失败取消事件，点击「取消」")
                 task.click_box(cancel_box)
                 task.sleep(1)
                 return True
             return False
+        if card_price is None:
+            task.log_info("购买卡牌页面未识别到价格，按价格低于当前信用点继续购买")
 
     assigned_cards = recognize_cards(
         task,
@@ -3791,7 +3820,11 @@ def handle_card_assign(task: TriggerTask):
     else:
         task.log_info(f"优先选择第{chosen_idx + 1}号主战员接受卡牌")
 
-    if is_purchase_page and current_credit <= card_price:
+    if (
+        is_purchase_page
+        and card_price is not None
+        and current_credit <= card_price
+    ):
         task.log_info(
             f"购买卡牌需要{card_price}信用点，当前{current_credit}，信用点不足，点击「取消」"
         )

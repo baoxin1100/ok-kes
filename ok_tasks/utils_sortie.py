@@ -15,7 +15,7 @@ from utils import (
     handle_leave, handle_next_step, handle_select, handle_view_original,
     handle_close_button,
     handle_card_assign, handle_non_battle_page,
-    handle_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_convert, handle_equipment_recast, handle_weakness_info, handle_minimizemap,
+    handle_remove, handle_three_choice_card_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_convert, handle_equipment_recast, handle_weakness_info, handle_minimizemap,
     handle_held_cards_page,
     handle_stuck_log, is_button_active, _clean_match,
     handle_shop, handle_expedition_result,
@@ -994,6 +994,7 @@ PAGE_HANDLERS = [
     handle_rest_sortie, #休息/商店入口
     handle_close_button, #关闭按钮
     handle_remove, #移除按钮
+    handle_three_choice_card_remove, #三选一卡牌移除页面（低优先级兜底）
     handle_flash, #闪光按钮
     handle_reflash, #重新闪光按钮
     handle_grant_flash, #赋予闪光按钮

@@ -87,7 +87,7 @@ game_language_option = ConfigOption('游戏语言', {
     '游戏语言': '简体中文',
 }, config_type={
     '游戏语言': {'type': 'drop_down', 'options': ['简体中文', '繁体中文', '日文', '英文']},
-}, description='选择游戏客户端语言，影响OCR文本匹配')
+}, description='选择游戏客户端语言，影响OCR文本匹配。\n国际服修改此处游戏语言')
 
 # 配置上传选项
 upload_config_option = ConfigOption('配置上传', {
