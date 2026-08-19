@@ -2264,6 +2264,49 @@ def _equipment_info(task: TriggerTask, name_region, type_region, description_reg
     }
 
 
+def _find_member_level_tags(task: TriggerTask, region, page="主战员选择页面"):
+    """在指定区域识别leveltag，按位置去重并从上到下返回最多三个。"""
+    level_tags = task.find_feature(
+        feature_name="leveltag",
+        box=task.box_of_screen(*region),
+    ) or []
+    deduplicated_level_tags = []
+    for level_tag in sorted(
+        level_tags,
+        key=lambda feature: feature.confidence,
+        reverse=True,
+    ):
+        level_center_x = level_tag.x + level_tag.width / 2
+        level_center_y = level_tag.y + level_tag.height / 2
+        if any(
+            (
+                (level_center_x - (kept.x + kept.width / 2)) ** 2
+                + (level_center_y - (kept.y + kept.height / 2)) ** 2
+            ) ** 0.5
+            < max(level_tag.width, level_tag.height, kept.width, kept.height)
+            for kept in deduplicated_level_tags
+        ):
+            continue
+        deduplicated_level_tags.append(level_tag)
+
+    kept_level_tags = sorted(
+        deduplicated_level_tags,
+        key=lambda feature: feature.y,
+    )[:3]
+    task.log_info(
+        f"{page}识别到{len(level_tags)}个leveltag特征，"
+        f"去重并限制后保留{len(kept_level_tags)}个"
+    )
+    for index, level_tag in enumerate(kept_level_tags, 1):
+        task.log_info(
+            f"第{index}号主战员leveltag: "
+            f"中心=({(level_tag.x + level_tag.width / 2) / task.width:.4f}, "
+            f"{(level_tag.y + level_tag.height / 2) / task.height:.4f})，"
+            f"置信度={level_tag.confidence:.4f}"
+        )
+    return kept_level_tags
+
+
 def _find_target_member_index(
     task: TriggerTask,
     lv_texts,
@@ -2379,13 +2422,10 @@ def handle_equipment(task: TriggerTask):
         equipment_desc = new_equipment["description"]
         task.log_info(f"待安装装备描述: 「{equipment_desc}」")
 
-        px1, py1 = int(0.609 * task.width), int(0.290 * task.height)
-        px2, py2 = int(0.652 * task.width), int(0.789 * task.height)
-        lv_texts = sorted(
-            [b for b in task.all_texts
-             if b.x >= px1 and b.y >= py1 and b.x + b.width <= px2 and b.y + b.height <= py2
-             and "等级" in b.name],
-            key=lambda b: b.y
+        lv_texts = _find_member_level_tags(
+            task,
+            (0.609, 0.290, 0.652, 0.789),
+            page="安装装备页面",
         )
         target_member_index = _find_target_member_index(
             task,
@@ -3862,16 +3902,13 @@ def handle_card_assign(task: TriggerTask):
             task.click_box(skip_box)
             return True
 
-    px1, py1 = int(0.426 * task.width), int(0.292 * task.height)
-    px2, py2 = int(0.473 * task.width), int(0.783 * task.height)
-    lv_texts = sorted(
-        [b for b in task.all_texts
-         if b.x >= px1 and b.y >= py1 and b.x + b.width <= px2 and b.y + b.height <= py2
-         and "等级" in b.name],
-        key=lambda b: b.y
+    lv_texts = _find_member_level_tags(
+        task,
+        (0.426, 0.292, 0.473, 0.783),
+        page="卡牌分配页面",
     )
     if not lv_texts:
-        task.log_info("未找到主战员等级信息")
+        task.log_info("未找到主战员leveltag特征")
         if is_purchase_page:
             task.log_info("购买卡牌页面未找到可分配战员，点击「取消」")
             task.click_box(cancel_box)

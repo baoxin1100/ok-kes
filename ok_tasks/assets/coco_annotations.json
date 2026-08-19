@@ -263,6 +263,12 @@
             "file_name": "images/1.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 168,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -1227,6 +1233,19 @@
             ],
             "area": 480,
             "iscrowd": 0
+        },
+        {
+            "id": 75,
+            "image_id": 168,
+            "category_id": 75,
+            "bbox": [
+                1187,
+                339,
+                44,
+                17
+            ],
+            "area": 748,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -1598,6 +1617,11 @@
         {
             "id": 74,
             "name": "seal_in_map",
+            "supercategory": ""
+        },
+        {
+            "id": 75,
+            "name": "leveltag",
             "supercategory": ""
         }
     ]
