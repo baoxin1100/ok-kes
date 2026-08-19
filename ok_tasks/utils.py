@@ -3126,7 +3126,7 @@ def handle_event_task(task: TriggerTask):
         if chosen is not None:
             break
 
-    if chosen is None:
+    if chosen is None and task.name == "自动卡厄思模式":
         attack_event_features = task.find_feature(
             feature_name="attack_event",
             threshold=0.9,
@@ -3144,6 +3144,7 @@ def handle_event_task(task: TriggerTask):
             task.sleep(1)
             return True
 
+    if chosen is None:
         chosen = random.choice(tasks_info)
         task.log_info(
             f"未命中优先级描述，从{len(tasks_info)}个可选任务中随机选择: "
