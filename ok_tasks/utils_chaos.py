@@ -32,13 +32,93 @@ import random
 # ------------------------- 卡厄思模式独有页面处理函数 -------------------------
 
 
+def _match_storage_data_value(task: TriggerTask, text: str):
+    """匹配当前游戏语言中的“存储数据价值+数字”，不要求末尾层级文本。"""
+    storage_data_text = re.escape(_get_game_text(task, "存储数据"))
+    return re.search(rf"{storage_data_text}价值\s*(\d+)", text)
+
+
+def handle_season_chaos_initial_page(task: TriggerTask):
+    """赛季卡厄思初始页面：存储数据价值层级不足时再次观测。"""
+    title_text = _get_region_text(task, (0.075, 0.014, 0.305, 0.090))
+    if "卡厄思" not in title_text:
+        return False
+
+    observe_region = (0.659, 0.715, 0.993, 0.851)
+    observe_boxes = [
+        box for box in task.all_texts
+        if observe_region[0] <= (box.x + box.width / 2) / task.width <= observe_region[2]
+        and observe_region[1] <= (box.y + box.height / 2) / task.height <= observe_region[3]
+        and "再次观测" in box.name
+    ]
+    if not observe_boxes:
+        return False
+
+    task.log_info("检测到赛季卡厄思初始页面")
+    value_text = _get_region_text(task, (0.684, 0.308, 0.982, 0.754))
+    value_match = _match_storage_data_value(task, value_text)
+    if not value_match:
+        task.log_info(f"未识别到存储数据价值层级，区域文本=「{value_text}」")
+        return False
+
+    data_value_level = int(value_match.group(1))
+    required_level = int(
+        _get_config_value(task, "存储数据价值大于等于多少层级", 12)
+    )
+    task.log_info(
+        f"当前存储数据价值={data_value_level}层级，"
+        f"要求大于等于{required_level}层级"
+    )
+    if data_value_level >= required_level:
+        return False
+
+    task.log_info("存储数据价值层级不足，点击再次观测")
+    task.click_box(observe_boxes[0])
+    task.sleep(1)
+    return True
+
+
+def handle_zero_system_initial_page(task: TriggerTask):
+    """零式系统初始页面：存储数据价值不足时进入重新合成。"""
+    title_text = _get_region_text(task, (0.076, 0.011, 0.291, 0.106))
+    if _get_game_text(task, "零式系统") not in title_text:
+        return False
+
+    enter_text = _get_region_text(task, (0.681, 0.850, 0.988, 0.972))
+    if "进入" not in enter_text:
+        return False
+
+    task.log_info("检测到零式系统初始页面")
+    value_text = _get_region_text(task, (0.685, 0.317, 0.980, 0.825))
+    value_match = _match_storage_data_value(task, value_text)
+    required_level = int(
+        _get_config_value(task, "存储数据价值大于等于多少层级", 12)
+    )
+    if value_match:
+        data_value_level = int(value_match.group(1))
+        task.log_info(
+            f"零式系统当前存储数据价值={data_value_level}层级，"
+            f"要求大于等于{required_level}层级"
+        )
+        if data_value_level >= required_level:
+            return False
+    else:
+        task.log_info(f"零式系统未识别到存储数据价值层级，区域文本=「{value_text}」")
+
+    task.log_info("存储数据价值未达要求，点击进入重新合成")
+    _move_and_click(task, 0.968, 0.153)
+    task.sleep(1)
+    return True
+
+
 def handle_disable_adaptation_distortion(task: TriggerTask):
     """刷空档时关闭已启用的适应畸变。"""
     if _get_config_value(task, "刷空档", False) is not True:
         return False
 
     page_text = _get_region_text(task, (0.480, 0.050, 0.573, 0.136))
-    if "适应畸变" not in page_text:
+    adaptation_text = _get_game_text(task, "适应畸变")
+    if adaptation_text not in page_text:
         return False
 
     relative_x, relative_y = 0.575, 0.093
@@ -265,20 +345,48 @@ def handle_battle_auto_check(task: TriggerTask):
 
 
 def handle_discovery_select(task: TriggerTask): #忘了按个页面要用
-    """发现选择页面: 随机选择一个发现并确认。"""
+    """发现选择页面：选择达到配置层级的存储数据，否则取消。"""
     title = find_box_at_point(task, 0.498, 0.078)
-    # confirm = find_box_at_point(task, 0.880, 0.921)
-    # if not (title and title.name == "获得法典" and confirm and confirm.name == "确认"):
     if not (title and title.name == "获得法典"):
         return False
 
-    task.log_info("检测到发现选择页面，随机选择一项")
-    positions = [(0.180, 0.519), (0.505, 0.514), (0.818, 0.519)]
-    chosen = random.choice(positions)
-    _move_and_click(task, *chosen)
+    task.log_info("检测到发现选择页面")
+    required_level = int(
+        _get_config_value(task, "存储数据价值大于等于多少层级", 12)
+    )
+    option_regions = [
+        (0.058, 0.358, 0.315, 0.800),
+        (0.370, 0.356, 0.629, 0.796),
+        (0.682, 0.356, 0.940, 0.796),
+    ]
+    for index, region in enumerate(option_regions):
+        option_text = _get_region_text(task, region)
+        level_match = _match_storage_data_value(task, option_text)
+        if not level_match:
+            task.log_info(
+                f"发现选项{index + 1}未识别到存储数据价值层级，"
+                f"区域文本=「{option_text}」"
+            )
+            continue
+
+        data_value_level = int(level_match.group(1))
+        task.log_info(
+            f"发现选项{index + 1}存储数据价值={data_value_level}层级，"
+            f"要求大于等于{required_level}层级"
+        )
+        if data_value_level < required_level:
+            continue
+
+        click_x = (region[0] + region[2]) / 2
+        click_y = (region[1] + region[3]) / 2
+        task.log_info(f"发现选项{index + 1}满足层级要求，点击该选项")
+        _move_and_click(task, click_x, click_y)
+        task.sleep(1)
+        return True
+
+    task.log_info("没有发现选项满足存储数据价值层级要求，点击取消")
+    _move_and_click(task, 0.663, 0.924)
     task.sleep(1)
-    # task.click_box(confirm)
-    # task.sleep(1)
     return True
 
 
@@ -862,6 +970,8 @@ PAGE_HANDLERS = [
     handle_chaos_reward_settlement, #卡厄思奖励结算页面，优先级高于继续按钮
     handle_chaos_reward_claim, #卡厄思模式奖励领取页面
     handle_continue,
+    handle_season_chaos_initial_page, #赛季卡厄思初始页面，优先于进入按钮
+    handle_zero_system_initial_page, #零式系统初始页面，优先于进入按钮
     handle_disable_adaptation_distortion, #刷空档时关闭适应畸变，优先于进入按钮
     handle_enter,
     handle_obtain_reward,

@@ -51,6 +51,7 @@ class ChaosMode(TriggerTask):
         self.default_config['优先移除基础牌'] = True
         self.default_config['进入商店'] = False
         self.default_config['保留大于多少TB的存档'] = 62000
+        self.default_config['存储数据价值大于等于多少层级'] = 12
         self.default_config['领取奖励(只使用验证卡)'] = False
         self.default_config['指定面具卡牌'] = "丢弃最多2张卡牌"
         self.default_config['面具卡牌刻印'] = "自身攻击卡牌伤害总量提升30%"
@@ -58,13 +59,15 @@ class ChaosMode(TriggerTask):
         self.default_config['卡牌奖励优先级'] = ["梦之边境"]
         self.default_config['刷初始卡牌'] = ""
         self.default_config['刷空档'] = False
+        self.default_config['首层刷特定闪光'] = False
         self.default_config['路线优先级'] = ["休息", "事件", "小怪", "精英"]
         self.default_config['几轮后停止(0为不停止)'] = 0
         self.default_config['第几层boss前自动暂停'] = "不暂停"
         self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, 
                             "total_rounds": 0, "success_rounds": 0, "node_count": 0, "enter_new_node": False, "node_type": "",
                             "is_escaped": False, "save_target_member": False,
-                            "target_mask_card_position": -1}
+                            "target_mask_card_position": -1,
+                            "get_specific_flash": False}
         self.member_status = {
             "equipment": {
                 "names": ["", "", ""],
@@ -80,6 +83,7 @@ class ChaosMode(TriggerTask):
             'import_config': {'type': 'button', 'text': '导入配置', 'callback': make_import_callback(self)},
             'hottest_config': {'type': 'button', 'text': '热门配置', 'callback': self._show_hot_configs},
             '第几层boss前自动暂停': {'type': 'drop_down', 'options': ['不暂停', '1', '2']},
+            '存储数据价值大于等于多少层级': {'min': 0, 'max': 15},
         }
         self.config_description['闪光优先级'] = (
             "卡牌名称和描述无需完整填写，输入几个关键字即可，但顺序须与游戏原文一致。"
@@ -89,6 +93,9 @@ class ChaosMode(TriggerTask):
         )
         self.config_description['刷空档'] = (
             "初始任务必须包含“移除2张”，否则重新开始；不能与“刷初始卡牌”同时使用。"
+        )
+        self.config_description['首层刷特定闪光'] = (
+            "默认刷闪光优先级第一张，可刷神闪，第一层没刷出自动逃脱"
         )
 
     def load_config(self):

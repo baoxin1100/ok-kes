@@ -537,6 +537,30 @@ def recognize_map_connections(
                 "feature_box": feature_box,
             })
 
+    position_candidates = [
+        candidate for candidate in candidates
+        if candidate["feature_name"] == "position_in_map"
+    ]
+    position_x = None
+    passed_feature_x_limit = None
+    if position_candidates:
+        position_x = max(
+            position_candidates,
+            key=lambda item: item["confidence"],
+        )["x"]
+        passed_feature_x_limit = position_x + 0.027
+        original_candidate_count = len(candidates)
+        candidates = [
+            candidate for candidate in candidates
+            if candidate["feature_name"] == "position_in_map"
+            or candidate["x"] >= passed_feature_x_limit
+        ]
+        task.log_info(
+            f"小地图当前位置X={position_x:.4f}，过滤X小于"
+            f"{passed_feature_x_limit:.4f}的已走过节点，"
+            f"排除{original_candidate_count - len(candidates)}个普通节点特征"
+        )
+
     # 同一节点可能被多个普通节点模板命中。按给定的两个参考点
     # (0.229, 0.674)、(0.257, 0.674)之间的距离去重，只保留最高置信度。
     feature_dedup_distance = (
@@ -596,14 +620,24 @@ def recognize_map_connections(
             box=search_box,
             threshold=special_feature_threshold,
         ) or []:
-            special_features.append({
+            special_feature = {
                 "feature_name": feature_name,
                 "priority": priority,
                 "x": (feature_box.x + feature_box.width / 2) / task.width,
                 "y": (feature_box.y + feature_box.height / 2) / task.height,
                 "confidence": float(feature_box.confidence),
                 "feature_box": feature_box,
-            })
+            }
+            if (
+                passed_feature_x_limit is not None
+                and special_feature["x"] < passed_feature_x_limit
+            ):
+                task.log_info(
+                    f"小地图特殊标志{feature_name}位于已走过区域，"
+                    f"X={special_feature['x']:.4f}，排除"
+                )
+                continue
+            special_features.append(special_feature)
     filtered_special_features = []
     for special_feature in sorted(
         special_features,
@@ -1195,10 +1229,43 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
     )
     base_card_type = _get_game_text(task, "基础")
     target_member_box = task.box_of_screen(0.079, 0.092, 0.209, 0.675)
+    flash_priority = (
+        _get_card_list(task, "闪光优先级")
+        if action in ("闪光", "灵光一闪")
+        else []
+    )
+
+    def filter_flash_priority_cards(cards):
+        """闪光时排除已命中闪光优先级的卡牌，避免重复选择。"""
+        if not flash_priority:
+            return cards
+
+        filtered_cards = []
+        for card in cards:
+            combined_text = f"{card['name']}：:{card['description']}"
+            matched_keyword = next(
+                (
+                    keyword.strip()
+                    for keyword in flash_priority
+                    if isinstance(keyword, str)
+                    and keyword.strip()
+                    and is_subsequence(keyword.strip(), combined_text)
+                ),
+                None,
+            )
+            if matched_keyword:
+                task.log_info(
+                    f"{page}: 卡牌「{card['name']}」的名称和描述命中"
+                    f"闪光优先级「{matched_keyword}」，排除该卡牌"
+                )
+                continue
+            filtered_cards.append(card)
+        return filtered_cards
 
     def refresh_cards():
         task.all_texts = _simplify_texts(task.ocr())
-        return recognize_cards_in_deck(task, page=page)
+        cards = recognize_cards_in_deck(task, page=page)
+        return filter_flash_priority_cards(cards)
 
     def click_cards(cards, predicate, reason):
         nonlocal selected
@@ -1432,6 +1499,7 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
             return True
 
     cards = recognize_cards_in_deck(task, page=f"{page}-兜底")
+    cards = filter_flash_priority_cards(cards)
     fallback_cards = sorted(
         cards,
         key=lambda card: (card["y"], card["x"]),
@@ -1681,6 +1749,10 @@ def log_node_status(task: TriggerTask):
         task.info_set("是否到达关底boss", f"{ns['reach_final_boss']}")
         task.info_set("是否进入关底boss战斗", f"{ns['final_boss_battle']}")
         task.info_set("是否已逃脱", f"{ns['is_escaped']}")
+        task.info_set(
+            "是否已获得特定闪光",
+            ns.get("get_specific_flash", False),
+        )
         task.info_set(
             "获取刷存档主战员头像",
             ns.get("save_target_member", False),
@@ -2595,7 +2667,10 @@ def handle_select_card(task: TriggerTask):
     if action_tip:
         task.log_info(f"右下角选牌操作提示: 「{action_tip.name}」")
 
-    if action == "移除" and task.name == "自动卡厄思模式":
+    if (
+        action in ("移除", "闪光", "灵光一闪")
+        and task.name == "自动卡厄思模式"
+    ):
         _scroll_to_target_member_for_card_removal(task)
 
     select_card(task, _get_card_list(task, config_key), count=count, action=action)
@@ -3461,15 +3536,6 @@ def handle_view_original(task: TriggerTask):
     if not ((box1 and (_get_game_text(task, '查看原件') in box1.name or _get_game_text(task, '查看之前的闪光') in box1.name)) or (box2 and (_get_game_text(task, '查看原件') in box2.name or _get_game_text(task, '查看之前的闪光') in box2.name))):
         return False
 
-    target_boxes, target_click_positions = find_target_card(task)
-    if target_boxes:
-        click_position = target_click_positions[0]
-        task.log_info(
-            f"卡牌闪光事件: 检测到target卡牌，点击位置{click_position}"
-        )
-        _move_and_click(task, *click_position)
-        return True
-
     cards = recognize_cards(task, page="卡牌闪光页面")
     if not cards:
         return False
@@ -3484,11 +3550,27 @@ def handle_view_original(task: TriggerTask):
             ):
                 chosen_card = card
                 task.log_info(f"优先选择「{card['name']}」({desc_keyword})")
+                if (
+                    _get_config_value(task, "首层刷特定闪光", False) is True
+                    and flash_priority
+                    and desc_keyword == flash_priority[0]
+                ):
+                    task.node_status["get_specific_flash"] = True
+                    task.log_info("已命中闪光优先级第一项，记录已获得特定闪光")
                 break
             if chosen_card:
                 break
         if chosen_card:
             break
+
+    target_boxes, target_click_positions = find_target_card(task)
+    if target_boxes:
+        click_position = target_click_positions[0]
+        task.log_info(
+            f"卡牌闪光事件: 检测到target卡牌，点击位置{click_position}"
+        )
+        _move_and_click(task, *click_position)
+        return True
 
     if not chosen_card:
         chosen_card = random.choice(cards)
@@ -3574,7 +3656,8 @@ def _initial_node_status():
     return {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False,
             "pass_final_boss_count": 0, "total_rounds": 0, "success_rounds": 0,
             "node_count": 0, "enter_new_node": False, "node_type": "", "is_escaped": False,
-            "save_target_member": False, "target_mask_card_position": -1}
+            "save_target_member": False, "target_mask_card_position": -1,
+            "get_specific_flash": False}
 
 
 def _initial_member_status():
@@ -3591,7 +3674,23 @@ def _initial_member_status():
 
 def _finish_only_first_layer(task: TriggerTask) -> bool:
     """检查并完成只打第一层的退出操作：如果 pass_final_boss_count >= 1 且配置'只打第一层'为 True，则成功次数+1、点击退出并返回 True。"""
-    if hasattr(task, 'node_status') and task.node_status.get('pass_final_boss_count', 0) >= 1 and _get_config_value(task, '只打第一层', False):
+    if not (
+        hasattr(task, 'node_status')
+        and task.node_status.get('pass_final_boss_count', 0) >= 1
+    ):
+        return False
+
+    if (
+        _get_config_value(task, "首层刷特定闪光", False) is True
+        and task.node_status.get("get_specific_flash", False) is False
+    ):
+        task.node_status['success_rounds'] += 1
+        task.log_info("未刷到指定闪光且已通关第一层，退出重刷")
+        _move_and_click(task, 0.959, 0.051)
+        task.sleep(1)
+        return True
+
+    if _get_config_value(task, '只打第一层', False):
         task.node_status['success_rounds'] += 1
         task.log_info(f"只打第一层任务已完成，success_rounds + 1 (当前: {task.node_status['success_rounds']}), 退出结算页面")
         _move_and_click(task, 0.959, 0.051)
@@ -3629,13 +3728,15 @@ def reset_layer_status(task: TriggerTask):
                 'total_rounds': ns.get('total_rounds', 0),
                 'success_rounds': ns.get('success_rounds', 0),
                 'save_target_member': ns.get('save_target_member', False),
-                'target_mask_card_position': ns.get('target_mask_card_position', -1)}
+                'target_mask_card_position': ns.get('target_mask_card_position', -1),
+                'get_specific_flash': ns.get('get_specific_flash', False)}
         task.node_status = _initial_node_status()
         task.node_status['pass_final_boss_count'] = keep['pass_final_boss_count']
         task.node_status['total_rounds'] = keep['total_rounds']
         task.node_status['success_rounds'] = keep['success_rounds']
         task.node_status['save_target_member'] = keep['save_target_member']
         task.node_status['target_mask_card_position'] = keep['target_mask_card_position']
+        task.node_status['get_specific_flash'] = keep['get_specific_flash']
 
 
 def handle_close_button(task: TriggerTask):
