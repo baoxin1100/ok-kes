@@ -269,6 +269,12 @@
             "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 169,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -1250,7 +1256,7 @@
         {
             "id": 76,
             "image_id": 7,
-            "category_id": 76,
+            "category_id": 77,
             "bbox": [
                 1747,
                 865,
@@ -1258,6 +1264,19 @@
                 147
             ],
             "area": 21315,
+            "iscrowd": 0
+        },
+        {
+            "id": 77,
+            "image_id": 169,
+            "category_id": 76,
+            "bbox": [
+                1373,
+                408,
+                51,
+                55
+            ],
+            "area": 2805,
             "iscrowd": 0
         }
     ],
@@ -1639,6 +1658,11 @@
         },
         {
             "id": 76,
+            "name": "check2",
+            "supercategory": ""
+        },
+        {
+            "id": 77,
             "name": "attack_event",
             "supercategory": ""
         }

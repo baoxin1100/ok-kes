@@ -2977,20 +2977,6 @@ def handle_event_task(task: TriggerTask):
     if not tasks_info:
         return False
 
-    attack_event_features = task.find_feature(feature_name="attack_event") or []
-    if attack_event_features:
-        attack_event = max(
-            attack_event_features,
-            key=lambda feature: feature.confidence,
-        )
-        task.log_info(
-            f"事件任务页面检测到attack_event特征，"
-            f"相似度={attack_event.confidence:.4f}，点击进入战斗任务"
-        )
-        task.click_box(attack_event)
-        task.sleep(1)
-        return True
-
     selectable_tasks = []
     for task_info in tasks_info:
         event_x = task_info["x"]
@@ -3017,9 +3003,16 @@ def handle_event_task(task: TriggerTask):
         task.log_info("事件任务页面的所有选项均被禁止，跳过本次选择")
         return False
 
-    check_feature = task.find_one(
-        feature_name="check",
-        box=task.box_of_screen(0.396, 0.286, 0.960, 0.718),
+    check_region = task.box_of_screen(0.396, 0.286, 0.960, 0.718)
+    check_features = [
+        feature
+        for feature_name in ("check", "check2")
+        if (feature := task.find_one(feature_name=feature_name, box=check_region))
+    ]
+    check_feature = max(
+        check_features,
+        key=lambda feature: feature.confidence,
+        default=None,
     )
     if check_feature:
         task.log_info(
@@ -3134,6 +3127,23 @@ def handle_event_task(task: TriggerTask):
             break
 
     if chosen is None:
+        attack_event_features = task.find_feature(
+            feature_name="attack_event",
+            threshold=0.9,
+        ) or []
+        if attack_event_features:
+            attack_event = max(
+                attack_event_features,
+                key=lambda feature: feature.confidence,
+            )
+            task.log_info(
+                f"未命中任务优先级，检测到attack_event特征，"
+                f"相似度={attack_event.confidence:.4f}，点击进入战斗任务"
+            )
+            task.click_box(attack_event)
+            task.sleep(1)
+            return True
+
         chosen = random.choice(tasks_info)
         task.log_info(
             f"未命中优先级描述，从{len(tasks_info)}个可选任务中随机选择: "

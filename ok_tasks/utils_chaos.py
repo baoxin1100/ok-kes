@@ -18,7 +18,7 @@ from utils import (
     handle_remove, handle_three_choice_card_remove, handle_flash, handle_reflash, handle_grant_flash, handle_copy, handle_convert,
     handle_equipment_recast,
     handle_stuck_log, handle_expedition_result,
-    is_button_active, _clean_match,
+    is_button_active, is_subsequence, _clean_match,
     handle_shop,
     handle_escape,
     # handle_stage_clear,
@@ -687,9 +687,9 @@ def handle_mask_card(task: TriggerTask):
     for card in enabled_mask_cards:
         desc_text = card["description"]
         task.log_info(f"卡牌{mask_position + 1}描述: {desc_text}")
-        if specify_text in desc_text:
+        if is_subsequence(specify_text, desc_text):
             task.log_info(
-                f"卡牌{mask_position + 1}描述包含「{specify_text}」，点击该卡牌"
+                f"卡牌{mask_position + 1}描述子序列命中「{specify_text}」，点击该卡牌"
             )
             _move_and_click(task, card["x"], card["y"])
             task.sleep(0.5)
