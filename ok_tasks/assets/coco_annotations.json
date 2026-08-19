@@ -38,7 +38,7 @@
         },
         {
             "id": 38,
-            "file_name": "images/0.png",
+            "file_name": "images/1.png",
             "width": 1920,
             "height": 1080
         },
@@ -50,7 +50,7 @@
         },
         {
             "id": 40,
-            "file_name": "images/0.png",
+            "file_name": "images/1.png",
             "width": 1920,
             "height": 1080
         },
@@ -80,7 +80,7 @@
         },
         {
             "id": 51,
-            "file_name": "images/1.png",
+            "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
         },
@@ -128,7 +128,7 @@
         },
         {
             "id": 75,
-            "file_name": "images/0.png",
+            "file_name": "images/1.png",
             "width": 1920,
             "height": 1080
         },
@@ -194,7 +194,7 @@
         },
         {
             "id": 97,
-            "file_name": "images/1.png",
+            "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
         },
@@ -1246,6 +1246,19 @@
             ],
             "area": 748,
             "iscrowd": 0
+        },
+        {
+            "id": 76,
+            "image_id": 7,
+            "category_id": 76,
+            "bbox": [
+                1747,
+                865,
+                145,
+                147
+            ],
+            "area": 21315,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -1622,6 +1635,11 @@
         {
             "id": 75,
             "name": "leveltag",
+            "supercategory": ""
+        },
+        {
+            "id": 76,
+            "name": "attack_event",
             "supercategory": ""
         }
     ]

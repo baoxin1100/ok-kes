@@ -318,6 +318,26 @@ def handle_battle_auto_check(task: TriggerTask):
     if not (box and re.search(r'\d+/10', box.name)):
         return False
 
+    attack_region = (0.394, 0.779, 0.600, 0.858)
+    attack_box = next(
+        (
+            text_box for text_box in task.all_texts
+            if attack_region[0]
+            <= (text_box.x + text_box.width / 2) / task.width
+            <= attack_region[2]
+            and attack_region[1]
+            <= (text_box.y + text_box.height / 2) / task.height
+            <= attack_region[3]
+            and "发起攻击" in text_box.name
+        ),
+        None,
+    )
+    if attack_box:
+        task.log_info("战斗页面检测到发起攻击按钮，点击发起攻击")
+        task.click_box(attack_box)
+        task.sleep(1)
+        return True
+
     from ok.feature.Box import Box
     from ok.util.color import calculate_color_percentage
     auto_box = Box(

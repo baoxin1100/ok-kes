@@ -2977,6 +2977,20 @@ def handle_event_task(task: TriggerTask):
     if not tasks_info:
         return False
 
+    attack_event_features = task.find_feature(feature_name="attack_event") or []
+    if attack_event_features:
+        attack_event = max(
+            attack_event_features,
+            key=lambda feature: feature.confidence,
+        )
+        task.log_info(
+            f"事件任务页面检测到attack_event特征，"
+            f"相似度={attack_event.confidence:.4f}，点击进入战斗任务"
+        )
+        task.click_box(attack_event)
+        task.sleep(1)
+        return True
+
     selectable_tasks = []
     for task_info in tasks_info:
         event_x = task_info["x"]
