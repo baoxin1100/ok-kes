@@ -1099,11 +1099,6 @@ def find_text(task: TriggerTask, pattern):
     return next((b for b in task.all_texts if re.search(pattern, b.name)), None)
 
 
-def find_exact_text(task: TriggerTask, text):
-    """查找名称（清理符号后）完全等于 text 的第一个 box。"""
-    return next((b for b in task.all_texts if _clean_match(b.name, text)), None)
-
-
 def _clean_match(name, target):
     """去除OCR文本中的非中文/字母/数字符号后比较是否等于 target。"""
     cleaned = re.sub(r'[^\u4e00-\u9fff\w]', '', name)
@@ -2804,7 +2799,22 @@ def handle_negotiation(task: TriggerTask):
 
 def handle_continue(task: TriggerTask):
     """通用"继续"按钮。"""
-    box = find_exact_text(task, _get_game_text(task, '继续'))
+    continue_region = (0.459, 0.858, 0.992, 0.988)
+    continue_text = _get_game_text(task, '继续')
+    box = next(
+        (
+            text_box
+            for text_box in task.all_texts
+            if _clean_match(text_box.name, continue_text)
+            and continue_region[0]
+            <= (text_box.x + text_box.width / 2) / task.width
+            <= continue_region[2]
+            and continue_region[1]
+            <= (text_box.y + text_box.height / 2) / task.height
+            <= continue_region[3]
+        ),
+        None,
+    )
     if box:
         task.log_info("检测到下一步操作，点击继续")
         task.click_box(box)
@@ -2815,7 +2825,21 @@ def handle_continue(task: TriggerTask):
 
 def handle_confirm(task: TriggerTask):
     """通用"确认"按钮。"""
-    box = find_exact_text(task, "确认")
+    confirm_region = (0.267, 0.867, 0.991, 0.979)
+    box = next(
+        (
+            text_box
+            for text_box in task.all_texts
+            if _clean_match(text_box.name, "确认")
+            and confirm_region[0]
+            <= (text_box.x + text_box.width / 2) / task.width
+            <= confirm_region[2]
+            and confirm_region[1]
+            <= (text_box.y + text_box.height / 2) / task.height
+            <= confirm_region[3]
+        ),
+        None,
+    )
     if box:
         if is_button_active(task, box):
             task.log_info("检测到确认操作，点击确认")
@@ -2937,7 +2961,21 @@ def handle_copy(task: TriggerTask):
 
 def handle_enter(task: TriggerTask):
     """通用"进入"按钮。"""
-    box = find_exact_text(task, "进入")
+    enter_region = (0.459, 0.858, 0.992, 0.988)
+    box = next(
+        (
+            text_box
+            for text_box in task.all_texts
+            if _clean_match(text_box.name, "进入")
+            and enter_region[0]
+            <= (text_box.x + text_box.width / 2) / task.width
+            <= enter_region[2]
+            and enter_region[1]
+            <= (text_box.y + text_box.height / 2) / task.height
+            <= enter_region[3]
+        ),
+        None,
+    )
     if box:
         task.log_info("检测到进入按钮，点击进入")
         task.click_box(box)
@@ -3129,7 +3167,7 @@ def handle_event_task(task: TriggerTask):
     if chosen is None and task.name == "自动卡厄思模式":
         attack_event_features = task.find_feature(
             feature_name="attack_event",
-            threshold=0.9,
+            threshold=0.93,
         ) or []
         if attack_event_features:
             attack_event = max(

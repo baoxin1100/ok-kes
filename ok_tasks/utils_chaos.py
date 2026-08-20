@@ -2,7 +2,7 @@ from ok import TriggerTask
 
 from utils import (
     _move_and_click, _simplify_texts, _get_config_value, _get_card_list, _get_route_priority, _get_game_text, _get_region_text, _get_current_hp_percent, _finish_only_first_layer,
-    find_box_at_point, find_text, find_exact_text, recognize_cards,
+    find_box_at_point, find_text, recognize_cards,
     _card_has_type_below, select_card,
     log_credit, log_node_status, handle_battle_crash, handle_close_page, handle_refine_equipment_credit,
     handle_center_confirm, handle_settlement, handle_skip,
