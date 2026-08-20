@@ -2279,6 +2279,7 @@ def _find_member_level_tags(task: TriggerTask, region, page="主战员选择页�
     level_tags = task.find_feature(
         feature_name="leveltag",
         box=task.box_of_screen(*region),
+        threshold=0.7,
     ) or []
     deduplicated_level_tags = []
     for level_tag in sorted(
