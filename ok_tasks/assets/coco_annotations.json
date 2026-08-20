@@ -265,6 +265,12 @@
             "height": 1080
         },
         {
+            "id": 160,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
+        },
+        {
             "id": 168,
             "file_name": "images/0.png",
             "width": 1920,
@@ -1278,6 +1284,19 @@
             ],
             "area": 2805,
             "iscrowd": 0
+        },
+        {
+            "id": 78,
+            "image_id": 160,
+            "category_id": 78,
+            "bbox": [
+                796,
+                865,
+                43,
+                39
+            ],
+            "area": 1677,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -1664,6 +1683,11 @@
         {
             "id": 77,
             "name": "attack_event",
+            "supercategory": ""
+        },
+        {
+            "id": 78,
+            "name": "start_attack_event",
             "supercategory": ""
         }
     ]

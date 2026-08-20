@@ -1807,8 +1807,23 @@ def handle_refine_equipment_credit(task: TriggerTask):
 
 def handle_center_confirm(task: TriggerTask):
     """页面中央的"确认"按钮。"""
-    box = find_box_at_point(task, 0.667, 0.632)
-    if box and _clean_match(box.name, "确认"):
+    confirm_region = (0.137, 0.278, 0.848, 0.768)
+    box = next(
+        (
+            text_box
+            for text_box in task.all_texts
+            if _clean_match(text_box.name, "确认")
+            and confirm_region[0]
+            <= (text_box.x + text_box.width / 2) / task.width
+            <= confirm_region[2]
+            and confirm_region[1]
+            <= (text_box.y + text_box.height / 2) / task.height
+            <= confirm_region[3]
+        ),
+        None,
+    )
+    if box:
+        task.log_info("检测到页面中央确认按钮，点击确认")
         _move_and_click(task, 0.667, 0.632)
         task.sleep(1)
         return True
@@ -3167,7 +3182,7 @@ def handle_event_task(task: TriggerTask):
     if chosen is None and task.name == "自动卡厄思模式":
         attack_event_features = task.find_feature(
             feature_name="attack_event",
-            threshold=0.93,
+            threshold=0.95,
         ) or []
         if attack_event_features:
             attack_event = max(
