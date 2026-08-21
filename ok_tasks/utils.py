@@ -1807,7 +1807,7 @@ def handle_refine_equipment_credit(task: TriggerTask):
 
 def handle_center_confirm(task: TriggerTask):
     """页面中央的"确认"按钮。"""
-    confirm_region = (0.137, 0.278, 0.848, 0.768)
+    confirm_region = (0.009, 0.168, 0.977, 0.875)
     box = next(
         (
             text_box
