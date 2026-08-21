@@ -2977,7 +2977,7 @@ def handle_copy(task: TriggerTask):
 
 def handle_enter(task: TriggerTask):
     """通用"进入"按钮。"""
-    enter_region = (0.459, 0.858, 0.992, 0.988)
+    enter_region = (0.017, 0.771, 0.996, 0.992)
     box = next(
         (
             text_box
