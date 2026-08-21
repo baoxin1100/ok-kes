@@ -119,17 +119,17 @@ def _load_game_text_map(game_lang):
     return _LOADED_MAPS[game_lang]
 
 
-def _get_game_text(task: TriggerTask, default_text):
-    """根据全局配置的游戏语言，返回对应服务器版本的搜索文本。
-    
-    用户在工具左下角 Settings → Game Language Config 中设置，
-    无需在每个任务中单独配置。
-    """
+def _get_game_language(task: TriggerTask):
+    """获取当前模式配置的游戏语言。"""
     try:
-        lang_config = task.executor.global_config.get_config('游戏语言')
-        game_lang = lang_config.get('游戏语言', '简体中文')
+        return str(task.config.get('游戏语言', '简体中文')).strip() or '简体中文'
     except Exception:
-        game_lang = '简体中文'
+        return '简体中文'
+
+
+def _get_game_text(task: TriggerTask, default_text):
+    """根据当前模式配置的游戏语言，返回对应服务器版本的搜索文本。"""
+    game_lang = _get_game_language(task)
 
     if game_lang == '简体中文':
         return default_text
@@ -1731,12 +1731,7 @@ def log_node_status(task: TriggerTask):
     """记录当前胜率（仅记录, 不拦截后续处理）。"""
     ns = getattr(task, 'node_status', None)
     if ns:
-        try:
-            lang_config = task.executor.global_config.get_config('游戏语言')
-            game_lang = lang_config.get('游戏语言', '简体中文')
-        except Exception:
-            game_lang = '简体中文'
-        task.info_set("游戏语言", game_lang)
+        task.info_set("游戏语言", _get_game_language(task))
         total = ns.get('total_rounds', 0)
         node_count = ns.get('node_count', 0)
         node_type = ns.get('node_type', "")
@@ -1824,7 +1819,7 @@ def handle_center_confirm(task: TriggerTask):
     )
     if box:
         task.log_info("检测到页面中央确认按钮，点击确认")
-        _move_and_click(task, 0.667, 0.632)
+        task.click_box(box)
         task.sleep(1)
         return True
     return False

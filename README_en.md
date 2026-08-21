@@ -84,12 +84,11 @@ This software is open-source and free, intended for personal learning and commun
 ### General Features
 - 🖥️ **High-Resolution Support**: Supports 1920x1080 / 1600x900 / 1280x720 and other 16:9 resolutions
 - 🔄 **Background Mode**: Supports running in the background while the game window is minimized or obscured
-- 🌏 **Multi-Language Support**: Supports Simplified Chinese and Traditional Chinese game clients (set "Game Language" in the bottom-left settings page)
-  <img src="docs/images/image_2.png" alt="International Server Language Setting" />
+- 🌏 **Multi-Language Support**: Supports Simplified Chinese and Traditional Chinese game clients (set "Game Language" in each automation mode)
 
 ## 🔧 Usage Guide
 
-1. **International Server Players**: Set "Game Language" to "繁体中文" (Traditional Chinese) in the bottom-left settings page
+1. **International Server Players**: Set "Game Language" to "繁体中文" (Traditional Chinese) in the automation mode you use
 2. **Auto Battle**: Depends on keybind recognition; enable shortcut key display in game settings for better accuracy
 3. **Chaos Mode**: Enable auto-battle and auto-story features within the game
 4. **Story Mode**: Manually enable Sortie Mode for battle stages; manually enable Chaos Mode for chaos stages; battle stage teams must be configured manually

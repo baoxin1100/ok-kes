@@ -11,7 +11,7 @@
 
 1. 前往 [GitHub Releases](https://github.com/baoxin1100/ok-kes/releases) 下载最新的 `ok-kes-win32-portable-v*.exe`，不要下载 Source Code。
 2. 以管理员身份运行程序。
-3. 国际服玩家在软件左下角设置中将“游戏语言”设为繁体中文。
+3. 国际服玩家在所使用的自动模式配置中将“游戏语言”设为繁体中文。
 4. 根据使用场景启用自动卡厄思模式、自动出击模式或半自动剧情模式。
 
 ## 主要功能

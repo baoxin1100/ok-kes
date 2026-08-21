@@ -35,7 +35,7 @@ UPLOAD_INTERVAL = 300  # 5分钟
 
 # 有效数据最低场数（后期用户多了可以改大）
 MIN_ROUNDS = 5
-SUPPORTED_GAME_LANGUAGES = ("简体中文", "繁体中文", "日文", "英文")
+SUPPORTED_GAME_LANGUAGES = ("简体中文", "繁体中文")
 
 
 def _get_version():
@@ -122,13 +122,8 @@ def upload_config(task: TriggerTask, mode: str) -> bool:
     user_hash = _get_user_hash()
     config_ver = _get_version()
 
-    # 读取当前游戏语言
-    game_lang = "简体中文"
-    try:
-        lang_config = task.executor.global_config.get_config('游戏语言')
-        game_lang = lang_config.get('游戏语言', '简体中文')
-    except Exception:
-        pass
+    # 读取当前模式配置的游戏语言
+    game_lang = str(task.config.get('游戏语言', '简体中文')).strip() or '简体中文'
 
     # 出击模式记录首选主战员，卡厄思模式记录刷存档主战员
     first_member = ""

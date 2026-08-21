@@ -1,7 +1,13 @@
 from ok import TriggerTask, og
 
 import utils_sortie
-from config_io import make_export_callback, make_import_callback
+from config_io import (
+    make_export_callback,
+    make_import_callback,
+    make_save_local_config_callback,
+    make_switch_local_config_callback,
+    migrate_game_language_config_file,
+)
 from config_sync import check_upload_if_needed, show_hot_configs_dialog
 from utils import (
     reset_all_status,
@@ -15,14 +21,17 @@ class SortieMode(TriggerTask):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = "自动出击模式"
-        self.description = "1. 自动战斗依赖按键识别，请在游戏设置中打开快捷键显示，提升出牌准确率。\n2. 国际服玩家请到软件左下角设置页内将\"游戏语言\"设置为繁体中文。"
+        self.description = "1. 自动战斗依赖按键识别，请在游戏设置中打开快捷键显示，提升出牌准确率。\n2. 国际服玩家请将本模式配置中的\"游戏语言\"设置为繁体中文。"
         self.instructions = """<a href="https://github.com/ok-oldking/ok-py">ok-py</a>"""
         self.trigger_interval = 1
         self.all_texts = []
         self.default_config["_enabled"] = False
-        self.default_config["路线优先级"] = ["休息", "事件", "小怪", "精英"]
-        self.default_config["主战员优先级"] = ["米卡", "尼娅", "蒂菲拉", "麦格纳", "卡修斯"]
+        self.default_config["配置操作"] = ""
+        self.default_config["游戏语言"] = "简体中文"
         self.default_config["出战主战员优先级"] = ["海德玛丽", "九", "力", "绯"]
+        self.default_config["主战员优先级"] = ["米卡", "尼娅", "蒂菲拉", "麦格纳", "卡修斯"]
+        self.default_config["领取奖励"] = False
+        self.default_config["出牌优先级"] = ["剑雨", "水之源", "一缕光芒", "万众英雄","极光剑", "展开极光","解放极光"]
         self.default_config["获得卡牌优先级"] = ["展开极光", "剑雨", "一缕光芒","缕光芒","凝聚极光"]
         self.default_config["移除卡牌列表"] = ["剑幕"]
         self.default_config["复制卡牌列表"] = ["剑雨", "展开极光", "一缕光芒","缕光芒"]
@@ -30,18 +39,17 @@ class SortieMode(TriggerTask):
         self.default_config["装备1号位优先级"] = ["蚀化臂铠"]
         self.default_config["装备2号位优先级"] = ["拷问工具箱"]
         self.default_config["装备3号位优先级"] = ["异象石碑"]
-        self.default_config["领取奖励"] = False
-        self.default_config["出牌优先级"] = ["剑雨", "水之源", "一缕光芒", "万众英雄","极光剑", "展开极光","解放极光"]
-        self.default_config["丢弃卡牌优先级"] = ["展开极光", "极光剑", "凝聚极光"]
+        self.default_config["只打第一层"] = True
         self.default_config["进入商店"] = False
+        self.default_config["优先移除基础牌"] = True
+        self.default_config["几轮后停止(0为不停止)"] = 0
         self.default_config["卡牌奖励优先级"] = ["梦之边境", "装备包"]
+        self.default_config["丢弃卡牌优先级"] = ["展开极光", "极光剑", "凝聚极光"]
         self.default_config["任务优先级"] = ["选取随机3条命运","信用点增加", "移除"]
         self.default_config["拉黑任务"] = ["咒术卡牌", "压力"]
         self.default_config["拉黑主战员"] = ["黛安娜", "阿黛尔海特"]
-        self.default_config["优先移除基础牌"] = True
         self.default_config["生命值大于多少优先闪光(百分比)"] = "60"
-        self.default_config["只打第一层"] = True
-        self.default_config["几轮后停止(0为不停止)"] = 0
+        self.default_config["路线优先级"] = ["休息", "事件", "小怪", "精英"]
         self.default_config["第几层boss前自动暂停"] = "不暂停"
         # self.default_config["从右往左出牌"] = True
         self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, 
@@ -58,11 +66,24 @@ class SortieMode(TriggerTask):
 
         self._last_upload_time = 0
         self.config_type = {
-            'export_config': {'type': 'button', 'text': '导出配置', 'callback': make_export_callback(self)},
-            'import_config': {'type': 'button', 'text': '导入配置', 'callback': make_import_callback(self)},
-            'hottest_config': {'type': 'button', 'text': '热门配置', 'callback': self._show_hot_configs},
+            '游戏语言': {'type': 'drop_down', 'options': ['简体中文', '繁体中文']},
+            '配置操作': {
+                'type': 'button',
+                'buttons': [
+                    {'text': '导入配置码', 'callback': make_import_callback(self)},
+                    {'text': '导出配置码', 'callback': make_export_callback(self)},
+                    {'text': '热门配置', 'callback': self._show_hot_configs},
+                    {'text': '保存配置', 'callback': make_save_local_config_callback(self, 'sortie')},
+                    {'text': '切换配置', 'callback': make_switch_local_config_callback(self, 'sortie')},
+                ],
+            },
             '第几层boss前自动暂停': {'type': 'drop_down', 'options': ['不暂停', '1', '2', '3']},
         }
+        self.config_description['游戏语言'] = "国际服请设置为繁体中文"
+
+    def load_config(self):
+        migrate_game_language_config_file(self)
+        super().load_config()
 
     def enable(self):
         """开启出击模式时自动禁用卡厄思模式，重置状态并迁移配置。"""

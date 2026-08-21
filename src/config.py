@@ -82,13 +82,6 @@ key_config_option = ConfigOption('Game Hotkey Config', { #全局配置示例
     'Tool Key': 't',
 }, description='In Game Hotkey for Skills')
 
-# 游戏语言配置，全局共享，出击模式和卡厄思模式统一使用
-game_language_option = ConfigOption('游戏语言', {
-    '游戏语言': '简体中文',
-}, config_type={
-    '游戏语言': {'type': 'drop_down', 'options': ['简体中文', '繁体中文', '日文', '英文']},
-}, description='选择游戏客户端语言，影响OCR文本匹配。\n国际服修改此处游戏语言')
-
 # 配置上传选项
 upload_config_option = ConfigOption('配置上传', {
     '是否上传配置': True,
@@ -142,7 +135,7 @@ config = {
     'debug': False,  # Optional, default: False
     'use_gui': True, # 目前只支持True
     'config_folder': 'configs', #最好不要修改
-    'global_configs': [key_config_option, game_language_option, upload_config_option, ocr_backend_option],
+    'global_configs': [key_config_option, upload_config_option, ocr_backend_option],
     'screenshot_processor': make_bottom_right_black, # 在截图的时候对frame进行修改, 可选
     'gui_icon': 'icons/icon.png', #窗口图标, 最好不需要修改文件名
     'wait_until_before_delay': 0,
