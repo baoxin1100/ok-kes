@@ -1885,7 +1885,14 @@ def handle_destiny_choice(task: TriggerTask):
 
 def _prioritize_target_member_click(task: TriggerTask, click_positions, search_region):
     """匹配目标成员头像，并将距离最近的候选点击位置移到最前。"""
+    if not click_positions:
+        task.log_info("刷存档主战员匹配失败：没有可绑定的候选点击位置")
+        return click_positions
     if not task.feature_exists("target_member_large"):
+        task.log_info(
+            "刷存档主战员匹配跳过：尚未保存target_member_large头像特征，"
+            "保持原主战员点击顺序"
+        )
         return click_positions
     target_member = task.find_one(
         feature_name="target_member_large",
@@ -1893,6 +1900,11 @@ def _prioritize_target_member_click(task: TriggerTask, click_positions, search_r
         threshold=0.5,
     )
     if not target_member:
+        task.log_info(
+            "刷存档主战员头像匹配失败："
+            f"在区域{search_region}内未找到target_member_large（阈值=0.5），"
+            "保持原主战员点击顺序"
+        )
         return click_positions
 
     center_x = (target_member.x + target_member.width / 2) / task.width
