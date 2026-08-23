@@ -12,7 +12,7 @@
   </p>
   
   <p><i>通过 Windows 接口模拟用户进行操作，无内存读取、无文件修改</i></p>
-  <p><b>✅ 支持国际服繁体中文 & 国服 PC 客户端</b></p>
+  <p><b>✅ 支持国际服繁体中文、国服 PC 客户端及安卓模拟器</b></p>
 </div>
 
 <!-- Badges -->
@@ -20,12 +20,12 @@
   
 ![平台](https://img.shields.io/badge/platform-Windows-blue)
 [![GitHub release](https://img.shields.io/github/v/release/baoxin1100/ok-kes)](https://github.com/baoxin1100/ok-kes/releases)
-[![总下载量](https://img.shields.io/github/downloads/baoxin1100/ok-kes/total)](https://github.com/baoxin1100/ok-kes/releases)
-[![Discord](https://img.shields.io/discord/296598043787132928?color=5865f2&label=%20Discord)](https://discord.gg/vVyCatEBgA)
 
 </div>
 
 ### [English Readme](README_en.md) | 中文说明
+
+> 📖 **第一次使用？请先阅读：[完整使用文档](docs/zh-CN/usage-guide.md)**
 
 ---
 
@@ -39,12 +39,8 @@
 
 ## 🚀 快速开始
 
-1. **下载安装包**：从下方的"下载渠道"中选择一个，下载最新的安装文件。
-2. 运行程序：右击以管理员模式运行 `.exe` 文件（无需安装，首次启动会弹出防火墙提示，请允许通过）。
-
-## 📥 下载渠道
-
-* **[GitHub](https://github.com/baoxin1100/ok-kes/releases)**: 官方发布页。（**请下载 `ok-kes-win32-portable-v*.exe` 文件，而不是 `Source Code` 源码压缩包**）
+1. **下载安装包**：前往 [GitHub Releases](https://github.com/baoxin1100/ok-kes/releases) 下载最新的安装程序。
+2. **安装并运行**：安装程序，启动后会自动更新到最新版本；启动游戏并连接游戏窗口，然后选择需要的功能运行。
 
 ## ✨ 主要功能
 
@@ -126,8 +122,6 @@
 
 ### 从源码运行 (Python)
 
-本项目基于 conda 的 `oknikke` 环境（Python 3.12）。
-
 ```bash
 # 安装或更新依赖
 pip install -r requirements.txt --upgrade
@@ -149,13 +143,14 @@ python main_debug.py
 
 ## 🔗 使用ok-script的项目：
 
+* 卡厄思梦境 [https://github.com/baoxin1100/ok-kes](https://github.com/baoxin1100/ok-kes)
 * 鸣潮 [https://github.com/ok-oldking/ok-wuthering-wave](https://github.com/ok-oldking/ok-wuthering-waves)
-* 原神(停止维护, 但是后台过剧情可用) [https://github.com/ok-oldking/ok-genshin-impact](https://github.com/ok-oldking/ok-genshin-impact)
 * 少前2 [https://github.com/ok-oldking/ok-gf2](https://github.com/ok-oldking/ok-gf2)
-* 星铁 [https://github.com/Shasnow/ok-starrailassistant](https://github.com/Shasnow/ok-starrailassistant)
 * 星痕共鸣 [https://github.com/Sanheiii/ok-star-resonance](https://github.com/Sanheiii/ok-star-resonance)
 * 二重螺旋 [https://github.com/BnanZ0/ok-duet-night-abyss](https://github.com/BnanZ0/ok-duet-night-abyss)
-* 白荆回廊(停止更新) [https://github.com/ok-oldking/ok-baijing](https://github.com/ok-oldking/ok-baijing)
+* 明日方舟：终末地 [https://github.com/AliceJump/ok-end-field](https://github.com/AliceJump/ok-end-field)
+* 异环 [https://github.com/BnanZ0/ok-nte](https://github.com/BnanZ0/ok-nte)
+* 阴阳师 [https://ok-script.com/ok-onmyoji](https://ok-script.com/ok-onmyoji)
 
 ## ❤️ 致谢
 

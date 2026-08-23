@@ -2732,7 +2732,7 @@ def handle_select_card(task: TriggerTask):
         task.log_info(f"右下角选牌操作提示: 「{action_tip.name}」")
 
     if (
-        action in ("移除", "闪光", "灵光一闪")
+        action in ("移除", "复制", "闪光", "灵光一闪")
         and task.name == "自动卡厄思模式"
     ):
         _scroll_to_target_member_for_card_removal(task)

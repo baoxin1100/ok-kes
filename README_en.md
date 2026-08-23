@@ -17,12 +17,12 @@
   
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 [![GitHub release](https://img.shields.io/github/v/release/baoxin1100/ok-kes)](https://github.com/baoxin1100/ok-kes/releases)
-[![Total Downloads](https://img.shields.io/github/downloads/baoxin1100/ok-kes/total)](https://github.com/baoxin1100/ok-kes/releases)
-[![Discord](https://img.shields.io/discord/296598043787132928?color=5865f2&label=%20Discord)](https://discord.gg/vVyCatEBgA)
 
 </div>
 
 English | [中文说明](README.md)
+
+> 📖 **New user? Start with the [Complete Usage Guide (Chinese)](docs/zh-CN/usage-guide.md).**
 
 ---
 
@@ -36,12 +36,8 @@ This software is open-source and free, intended for personal learning and commun
 
 ## 🚀 Quick Start
 
-1. **Download the Installer**: From the "Downloads" section below, download the latest `卡厄思自动化工具v*.exe` file.
-2. **Run the Program**: Right-click the `.exe` file and select "Run as administrator" (no installation required; the first launch may trigger a firewall prompt, please allow access).
-
-## 📥 Downloads
-
-* **[GitHub](https://github.com/baoxin1100/ok-kes/releases)**: Official release page. (**Please download the `卡厄思自动化工具v*.exe` file, not the `Source Code` archive**).
+1. **Download the Installer**: Go to [GitHub Releases](https://github.com/baoxin1100/ok-kes/releases) and download the latest installer.
+2. **Install and Run**: Install the program. It updates automatically after launch; start the game, connect its window, and select a feature to run.
 
 ## ✨ Main Features
 
@@ -84,7 +80,7 @@ This software is open-source and free, intended for personal learning and commun
 ### General Features
 - 🖥️ **High-Resolution Support**: Supports 1920x1080 / 1600x900 / 1280x720 and other 16:9 resolutions
 - 🔄 **Background Mode**: Supports running in the background while the game window is minimized or obscured
-- 🌏 **Multi-Language Support**: Supports Simplified Chinese and Traditional Chinese game clients (set "Game Language" in each automation mode)
+- 🌏 **Client Support**: Supports Simplified Chinese and Traditional Chinese game clients, including Android emulators (set "Game Language" in each automation mode)
 
 ## 🔧 Usage Guide
 
@@ -112,8 +108,6 @@ If you encounter issues, please check the following steps one by one before aski
 
 ### Running from Source (Python)
 
-This project requires conda `oknikke` environment (Python 3.12).
-
 ```bash
 # Install or update dependencies
 pip install -r requirements.txt --upgrade
@@ -134,13 +128,14 @@ This project is developed based on the [ok-script](https://github.com/ok-oldking
 
 ## 🔗 Projects using ok-script:
 
+* Chaos Zero Nightmare: [https://github.com/baoxin1100/ok-kes](https://github.com/baoxin1100/ok-kes)
 * Wuthering Waves: [https://github.com/ok-oldking/ok-wuthering-waves](https://github.com/ok-oldking/ok-wuthering-waves)
-* Genshin Impact (No longer maintained, but can still be used for auto-skipping dialogue in the background): [https://github.com/ok-oldking/ok-genshin-impact](https://github.com/ok-oldking/ok-genshin-impact)
 * Girls' Frontline 2: [https://github.com/ok-oldking/ok-gf2](https://github.com/ok-oldking/ok-gf2)
-* Honkai: Star Rail: [https://github.com/Shasnow/ok-starrailassistant](https://github.com/Shasnow/ok-starrailassistant)
 * Starsee: [https://github.com/Sanheiii/ok-star-resonance](https://github.com/Sanheiii/ok-star-resonance)
 * Duet Night Abyss: [https://github.com/BnanZ0/ok-duet-night-abyss](https://github.com/BnanZ0/ok-duet-night-abyss)
-* Ash Echoes (Updates stopped): [https://github.com/ok-oldking/ok-baijing](https://github.com/ok-oldking/ok-baijing)
+* Arknights: Endfield: [https://github.com/AliceJump/ok-end-field](https://github.com/AliceJump/ok-end-field)
+* Neverness to Everness: [https://github.com/BnanZ0/ok-nte](https://github.com/BnanZ0/ok-nte)
+* Onmyoji: [https://ok-script.com/ok-onmyoji](https://ok-script.com/ok-onmyoji)
 
 ## ❤️ Credits
 
