@@ -1731,6 +1731,12 @@ def log_node_status(task: TriggerTask):
     """记录当前胜率（仅记录, 不拦截后续处理）。"""
     ns = getattr(task, 'node_status', None)
     if ns:
+        try:
+            from src.config import version
+            app_version = str(version).strip() or "dev"
+        except Exception:
+            app_version = "dev"
+        task.info_set("版本号", app_version)
         task.info_set("游戏语言", _get_game_language(task))
         total = ns.get('total_rounds', 0)
         node_count = ns.get('node_count', 0)
@@ -1897,12 +1903,12 @@ def _prioritize_target_member_click(task: TriggerTask, click_positions, search_r
     target_member = task.find_one(
         feature_name="target_member_large",
         box=task.box_of_screen(*search_region),
-        threshold=0.5,
+        threshold=0.35,
     )
     if not target_member:
         task.log_info(
             "刷存档主战员头像匹配失败："
-            f"在区域{search_region}内未找到target_member_large（阈值=0.5），"
+            f"在区域{search_region}内未找到target_member_large（阈值=0.35），"
             "保持原主战员点击顺序"
         )
         return click_positions
@@ -2677,7 +2683,7 @@ def _scroll_to_target_member_for_card_removal(task: TriggerTask):
         target_member = task.find_one(
             feature_name=feature_name,
             box=search_box,
-            threshold=0.6,
+            threshold=0.5,
         )
         if target_member:
             task.log_info(

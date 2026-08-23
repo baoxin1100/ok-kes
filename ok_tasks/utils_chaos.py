@@ -762,7 +762,7 @@ def handle_data_collected(task: TriggerTask):
 def handle_stage_end_data_details(task: TriggerTask):
     """关卡结束数据详情页面：检测到存储数据后关闭详情。"""
     page_text = _get_region_text(task, (0.111, 0.103, 0.338, 0.243))
-    if "存储数据" not in page_text:
+    if _get_game_text(task, "存储数据") not in page_text:
         return False
 
     task.log_info("检测到关卡结束数据详情页面，点击关闭")
