@@ -74,7 +74,9 @@ class ChaosMode(TriggerTask):
                             "total_rounds": 0, "success_rounds": 0, "node_count": 0, "enter_new_node": False, "node_type": "",
                             "is_escaped": False, "save_target_member": False,
                             "target_mask_card_position": -1,
-                            "get_specific_flash": False}
+                            "get_specific_flash": False,
+                            "removed_card_count": 0,
+                            "neutral_card_count": 0}
         self.member_status = {
             "equipment": {
                 "names": ["", "", ""],

@@ -174,6 +174,49 @@ def _get_current_credit(task: TriggerTask):
     return credit
 
 
+def _neutral_card_limit(task: TriggerTask):
+    """卡厄思模式每局最多允许在商店购买3张中立牌。"""
+    return 3 if task.name == "自动卡厄思模式" else None
+
+
+def _neutral_card_limit_reached(task: TriggerTask):
+    """判断本局获得的中立牌是否已达到固定上限。"""
+    limit = _neutral_card_limit(task)
+    if limit is None:
+        return False
+    acquired = getattr(task, "node_status", {}).get("neutral_card_count", 0)
+    return acquired >= limit
+
+
+def _record_removed_cards(task: TriggerTask, count=1):
+    """记录本局实际完成移除的卡牌数量。"""
+    node_status = getattr(task, "node_status", None)
+    if not isinstance(node_status, dict):
+        return
+    count = max(1, int(count))
+    node_status["removed_card_count"] = (
+        node_status.get("removed_card_count", 0) + count
+    )
+    task.log_info(
+        f"本局移除卡牌数量增加{count}，"
+        f"当前共{node_status['removed_card_count']}张"
+    )
+
+
+def _record_neutral_card(task: TriggerTask):
+    """记录本局实际获得一张中立牌。"""
+    node_status = getattr(task, "node_status", None)
+    if not isinstance(node_status, dict):
+        return
+    node_status["neutral_card_count"] = (
+        node_status.get("neutral_card_count", 0) + 1
+    )
+    task.log_info(
+        f"本局获得中立牌数量增加1，"
+        f"当前共{node_status['neutral_card_count']}张"
+    )
+
+
 def _parse_discounted_price(price_text):
     """解析可能将折扣前后价格连在一起的 OCR 数字。"""
     price_text = price_text.strip()
@@ -1230,6 +1273,12 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         else []
     )
 
+    def record_pending_removal():
+        if action == "移除":
+            task._pending_removed_card_count = (
+                getattr(task, "_pending_removed_card_count", 0) + 1
+            )
+
     def filter_flash_priority_cards(cards):
         """闪光时排除已命中闪光优先级的卡牌，避免重复选择。"""
         if not flash_priority:
@@ -1275,6 +1324,7 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
             task.sleep(0.3)
             card["selected"] = True
             selected += 1
+            record_pending_removal()
             clicked = True
         return clicked
 
@@ -1302,6 +1352,7 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
                 task.sleep(0.3)
                 card["selected"] = True
                 selected += 1
+                record_pending_removal()
                 clicked = True
         return clicked
 
@@ -1491,6 +1542,8 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         if button:
             task.log_info(f"{page}: 未找到足够卡牌，点击「{button_name}」")
             task.click_box(button)
+            if action == "移除":
+                task._pending_removed_card_count = 0
             return True
 
     cards = recognize_cards_in_deck(task, page=f"{page}-兜底")
@@ -1753,6 +1806,8 @@ def log_node_status(task: TriggerTask):
             "获取刷存档主战员头像",
             ns.get("save_target_member", False),
         )
+        task.info_set("本局已移除卡牌", ns.get("removed_card_count", 0))
+        task.info_set("本局已获得中立牌", ns.get("neutral_card_count", 0))
         equipment = _equipment_state(task)
         equipment_names = [
             _current_equipment_for_slot(task, equipment, slot)[0]
@@ -2942,6 +2997,12 @@ def handle_remove(task: TriggerTask):
         if is_button_active(task, box):
             task.log_info("检测到移除操作，点击移除")
             task.click_box(box)
+            removed_count = max(
+                1,
+                getattr(task, "_pending_removed_card_count", 0),
+            )
+            _record_removed_cards(task, removed_count)
+            task._pending_removed_card_count = 0
             task.sleep(1)
             return True
         else:
@@ -2969,6 +3030,8 @@ def handle_three_choice_card_remove(task: TriggerTask):
 
     task.log_info("检测到三选一卡牌移除页面，点击移除")
     task.click_box(remove_box)
+    _record_removed_cards(task, 1)
+    task._pending_removed_card_count = 0
     return True
 
 def handle_flash(task: TriggerTask):
@@ -3676,18 +3739,25 @@ def handle_shop(task: TriggerTask):
             task.node_status['shop'] = False
         else:
             current_credit = _get_current_credit(task)
+            removed_card_count = task.node_status.get("removed_card_count", 0)
             task.log_info(f"handle_shop: 当前信用点={current_credit}")
             cost_box = find_box_at_point(task, 0.724, 0.319)
             task.log_info(f"handle_shop: 0.724,0.319处费用文本='{cost_box.name if cost_box else None}'")
             if cost_box and cost_box.name.isdigit():
                 cost = int(cost_box.name)
-                if cost <= current_credit and task.node_status['shop'] is True:
+                if removed_card_count >= 5:
+                    task.log_info(
+                        f"本局已移除{removed_card_count}张卡牌，"
+                        "达到5张上限，不再使用信用点移除卡牌"
+                    )
+                elif cost <= current_credit and task.node_status['shop'] is True:
                     task.log_info(f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，足够，点击移除")
                     task.click_box(box)
                     task.sleep(1)
                     task.node_status['shop'] = False
                     return True
-                task.log_info(f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，不足，继续挑选其他商品")
+                else:
+                    task.log_info(f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，不足，继续挑选其他商品")
             else:
                 task.log_info("handle_shop: 移除卡牌费用读取失败，继续挑选其他商品")
             task.node_status['shop'] = False
@@ -3752,6 +3822,16 @@ def handle_shop(task: TriggerTask):
                 continue
 
             if is_card:
+                if _neutral_card_limit_reached(task):
+                    neutral_card_count = task.node_status.get(
+                        "neutral_card_count", 0,
+                    )
+                    neutral_card_limit = _neutral_card_limit(task)
+                    task.log_info(
+                        f"本局已获得{neutral_card_count}张中立牌，"
+                        f"达到固定上限{neutral_card_limit}张，跳过商店卡牌"
+                    )
+                    continue
                 matched_name = next(
                 (name for name in card_priority
                  if name and (name in item_name or item_name in name)),
@@ -3930,7 +4010,8 @@ def _initial_node_status():
             "pass_final_boss_count": 0, "total_rounds": 0, "success_rounds": 0,
             "node_count": 0, "enter_new_node": False, "node_type": "", "is_escaped": False,
             "save_target_member": False, "target_mask_card_position": -1,
-            "get_specific_flash": False}
+            "get_specific_flash": False, "removed_card_count": 0,
+            "neutral_card_count": 0}
 
 
 def _initial_member_status():
@@ -3978,6 +4059,7 @@ def reset_all_status(task: TriggerTask):
         task.node_status = _initial_node_status()
     task.member_status = _initial_member_status()
     _reset_meditation_state(task)
+    task._pending_removed_card_count = 0
 
 
 def reset_mission_status(task: TriggerTask):
@@ -3993,6 +4075,7 @@ def reset_mission_status(task: TriggerTask):
         task.node_status['save_target_member'] = keep['save_target_member']
     task.member_status = _initial_member_status()
     _reset_meditation_state(task)
+    task._pending_removed_card_count = 0
 
 
 def reset_layer_status(task: TriggerTask):
@@ -4004,7 +4087,9 @@ def reset_layer_status(task: TriggerTask):
                 'success_rounds': ns.get('success_rounds', 0),
                 'save_target_member': ns.get('save_target_member', False),
                 'target_mask_card_position': ns.get('target_mask_card_position', -1),
-                'get_specific_flash': ns.get('get_specific_flash', False)}
+                'get_specific_flash': ns.get('get_specific_flash', False),
+                'removed_card_count': ns.get('removed_card_count', 0),
+                'neutral_card_count': ns.get('neutral_card_count', 0)}
         task.node_status = _initial_node_status()
         task.node_status['pass_final_boss_count'] = keep['pass_final_boss_count']
         task.node_status['total_rounds'] = keep['total_rounds']
@@ -4012,6 +4097,8 @@ def reset_layer_status(task: TriggerTask):
         task.node_status['save_target_member'] = keep['save_target_member']
         task.node_status['target_mask_card_position'] = keep['target_mask_card_position']
         task.node_status['get_specific_flash'] = keep['get_specific_flash']
+        task.node_status['removed_card_count'] = keep['removed_card_count']
+        task.node_status['neutral_card_count'] = keep['neutral_card_count']
 
 
 def handle_close_button(task: TriggerTask):
@@ -4076,6 +4163,16 @@ def handle_card_assign(task: TriggerTask):
             return False
         if card_price is None:
             task.log_info("购买卡牌页面未识别到价格，按价格低于当前信用点继续购买")
+        if _neutral_card_limit_reached(task):
+            neutral_card_count = task.node_status.get("neutral_card_count", 0)
+            neutral_card_limit = _neutral_card_limit(task)
+            task.log_info(
+                f"本局已获得{neutral_card_count}张中立牌，"
+                f"达到固定上限{neutral_card_limit}张，点击「取消」"
+            )
+            task.click_box(cancel_box)
+            task.sleep(1)
+            return True
 
     assigned_cards = recognize_cards(
         task,
@@ -4220,8 +4317,10 @@ def handle_card_assign(task: TriggerTask):
             f"购买卡牌需要{card_price}信用点，当前{current_credit}，点击「购买」"
         )
         task.click_box(purchase_box)
+        _record_neutral_card(task)
         task.sleep(1)
         return True
+    _record_neutral_card(task)
     return False
 
 def handle_held_cards_page(task: TriggerTask):

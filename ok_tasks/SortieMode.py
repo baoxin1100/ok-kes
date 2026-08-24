@@ -54,7 +54,8 @@ class SortieMode(TriggerTask):
         # self.default_config["从右往左出牌"] = True
         self.node_status = {"shop": False, "flash_or_rest": False, "reach_final_boss": False, "final_boss_battle": False, "pass_final_boss_count": 0, 
                             "total_rounds": 0, "success_rounds": 0, "node_count": 0, "enter_new_node": False, "node_type": "",
-                            "is_escaped": False, "save_target_member": False}
+                            "is_escaped": False, "save_target_member": False,
+                            "removed_card_count": 0, "neutral_card_count": 0}
         self.member_status = {
             "equipment": {
                 "names": ["", "", ""],
