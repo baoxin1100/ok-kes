@@ -1765,6 +1765,10 @@ def log_node_status(task: TriggerTask):
                 for slot, name in enumerate(equipment_names)
             ),
         )
+        meditation_state = _member_deck_state(task).get("冥想", {})
+        if isinstance(meditation_state, dict):
+            for card_name, pending in meditation_state.items():
+                task.info_set(f"冥想：{card_name}", pending)
         if total > 0:
             task.info_set("当前胜率", f"{ns['success_rounds']}/{total} ({ns['success_rounds']*100//total}%)")
         else:
@@ -2169,6 +2173,41 @@ def _member_deck_state(task: TriggerTask):
         deck = {}
         member_status["deck"] = deck
     return deck
+
+
+def _reset_meditation_state(task: TriggerTask):
+    """按当前配置重建目标主战员的冥想状态。"""
+    configured_cards = _get_config_value(task, "需要冥想的卡牌", [])
+    if not isinstance(configured_cards, (list, tuple)):
+        configured_cards = []
+
+    meditation_state = {}
+    for card_name in configured_cards:
+        normalized_name = str(card_name).strip()
+        if normalized_name and normalized_name not in meditation_state:
+            meditation_state[normalized_name] = False
+
+    _member_deck_state(task)["冥想"] = meditation_state
+
+
+def _matching_meditation_card_names(task: TriggerTask, cards):
+    """返回与识别卡牌名称匹配的冥想配置名称。"""
+    meditation_state = _member_deck_state(task).get("冥想", {})
+    if not isinstance(meditation_state, dict):
+        return []
+
+    matched_names = []
+    for configured_name in meditation_state:
+        for card in cards:
+            recognized_name = str(card.get("name", "")).strip()
+            if (
+                recognized_name
+                and (configured_name in recognized_name or recognized_name in configured_name)
+                and _edit_distance(configured_name, recognized_name, max_dist=1)
+            ):
+                matched_names.append(configured_name)
+                break
+    return matched_names
 
 
 def _current_equipment_for_slot(task: TriggerTask, equipment, slot):
@@ -3155,7 +3194,11 @@ def handle_event_task(task: TriggerTask):
 
     # 检查任务区域中是否有 treasure 特征
     treasure_box = task.box_of_screen(0.477, 0.336, 0.841, 0.540)
-    treasure_features = task.find_feature(feature_name="treasure", box=treasure_box)
+    treasure_features = task.find_feature(
+        feature_name="treasure",
+        box=treasure_box,
+        threshold=0.7,
+    )
     if treasure_features:
         task.log_info("检测到事件任务区域中有treasure特征，优先点击")
         task.click_box(treasure_features[0])
@@ -3182,7 +3225,15 @@ def handle_event_task(task: TriggerTask):
             filtered_tasks = tasks_info
         tasks_info = filtered_tasks
 
-    priority = _get_config_value(task, '任务优先级', [])
+    equipment_priority = []
+    for slot in range(1, 4):
+        equipment_priority.extend(
+            _get_card_list(task, f"装备{slot}号位优先级")
+        )
+    priority = [
+        *equipment_priority,
+        *_get_card_list(task, "任务优先级"),
+    ]
     chosen = None
     for keyword in priority:
         for t in tasks_info:
@@ -3506,17 +3557,96 @@ def _wait_for_rest_confirm(task: TriggerTask):
 
 
 def handle_rest(task: TriggerTask):
-    """休息界面: 检测rest特征并根据flash_or_rest状态决定是否点击。"""
+    """休息界面: 根据血量、信用点和冥想状态选择休息或冥想。"""
     rest_feature = _find_rest_feature(task)
     free_text = _get_region_text(task, (0.154, 0.602, 0.359, 0.847))
-    if (rest_feature and "免费" in free_text and hasattr(task, 'node_status')
-            and task.node_status.get('flash_or_rest', False)):
+    flash_or_rest = (
+        hasattr(task, 'node_status')
+        and task.node_status.get('flash_or_rest', False)
+    )
+    can_rest = bool(rest_feature and "免费" in free_text and flash_or_rest)
+
+    meditation_region = (0.671, 0.433, 0.945, 0.801)
+    meditate_feature = task.find_one(
+        feature_name="meditate",
+        box=task.box_of_screen(*meditation_region),
+    )
+    meditation_cost_boxes = [
+        text_box for text_box in task.all_texts
+        if re.fullmatch(r"\d+", text_box.name.strip())
+        and meditation_region[0] <= (text_box.x + text_box.width / 2) / task.width <= meditation_region[2]
+        and meditation_region[1] <= (text_box.y + text_box.height / 2) / task.height <= meditation_region[3]
+    ]
+    if meditate_feature and meditation_cost_boxes:
+        feature_center = (
+            meditate_feature.x + meditate_feature.width / 2,
+            meditate_feature.y + meditate_feature.height / 2,
+        )
+        meditation_cost_box = min(
+            meditation_cost_boxes,
+            key=lambda text_box: (
+                (text_box.x + text_box.width / 2 - feature_center[0]) ** 2
+                + (text_box.y + text_box.height / 2 - feature_center[1]) ** 2
+            ),
+        )
+        meditation_cost = int(meditation_cost_box.name.strip())
+    else:
+        meditation_cost = None
+
+    meditation_state = _member_deck_state(task).get("冥想", {})
+    has_pending_meditation = (
+        isinstance(meditation_state, dict)
+        and any(value is True for value in meditation_state.values())
+    )
+    current_credit = _get_current_credit(task)
+    meditation_credit_threshold = _get_config_value(
+        task, "多少信用点以上冥想", 300,
+    )
+    try:
+        meditation_credit_threshold = int(meditation_credit_threshold)
+    except (TypeError, ValueError):
+        meditation_credit_threshold = 300
+    can_meditate = bool(
+        flash_or_rest
+        and meditate_feature
+        and meditation_cost is not None
+        and has_pending_meditation
+        and current_credit > meditation_credit_threshold
+        and current_credit > meditation_cost
+    )
+
+    if can_rest and can_meditate:
+        hp_percent = _get_current_hp_percent(task)
+        choose_rest = hp_percent is not False and hp_percent < 50
+        task.log_info(
+            f"休息与冥想均可用，当前血量="
+            f"{hp_percent if hp_percent is not False else '未识别'}%，"
+            f"选择{'休息' if choose_rest else '冥想'}"
+        )
+    else:
+        choose_rest = can_rest
+
+    if choose_rest:
         task.log_info("检测到休息界面，点击休息")
         task.move_relative(
             (rest_feature.x + rest_feature.width / 2) / task.width,
             (rest_feature.y + rest_feature.height / 2) / task.height,
         )
         task.click_box(rest_feature)
+        if not _wait_for_rest_confirm(task):
+            return True
+        task.node_status['flash_or_rest'] = False
+        return True
+
+    if can_meditate:
+        pending_cards = [
+            name for name, pending in meditation_state.items() if pending is True
+        ]
+        task.log_info(
+            f"检测到可冥想卡牌{pending_cards}，当前信用点={current_credit}，"
+            f"冥想费用={meditation_cost}，点击冥想"
+        )
+        task.click_box(meditate_feature)
         if not _wait_for_rest_confirm(task):
             return True
         task.node_status['flash_or_rest'] = False
@@ -3696,6 +3826,17 @@ def handle_view_original(task: TriggerTask):
             break
 
     target_boxes, target_click_positions = find_target_card(task)
+    matched_meditation_cards = _matching_meditation_card_names(task, cards)
+    if matched_meditation_cards:
+        meditation_state = _member_deck_state(task)["冥想"]
+        meditation_completed = chosen_card is None and not target_boxes
+        for configured_name in matched_meditation_cards:
+            meditation_state[configured_name] = meditation_completed
+            task.log_info(
+                f"冥想卡牌「{configured_name}」状态更新为"
+                f"{'待冥想' if meditation_completed else '无需冥想'}"
+            )
+
     if target_boxes:
         click_position = target_click_positions[0]
         task.log_info(
@@ -3836,6 +3977,7 @@ def reset_all_status(task: TriggerTask):
     if getattr(task, 'node_status', None) is not None:
         task.node_status = _initial_node_status()
     task.member_status = _initial_member_status()
+    _reset_meditation_state(task)
 
 
 def reset_mission_status(task: TriggerTask):
@@ -3850,6 +3992,7 @@ def reset_mission_status(task: TriggerTask):
         task.node_status['success_rounds'] = keep['success_rounds']
         task.node_status['save_target_member'] = keep['save_target_member']
     task.member_status = _initial_member_status()
+    _reset_meditation_state(task)
 
 
 def reset_layer_status(task: TriggerTask):

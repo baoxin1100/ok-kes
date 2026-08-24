@@ -281,6 +281,12 @@
             "file_name": "images/0.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 172,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -1297,6 +1303,19 @@
             ],
             "area": 1677,
             "iscrowd": 0
+        },
+        {
+            "id": 79,
+            "image_id": 172,
+            "category_id": 79,
+            "bbox": [
+                1662,
+                619,
+                67,
+                81
+            ],
+            "area": 5427,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -1688,6 +1707,11 @@
         {
             "id": 78,
             "name": "start_attack_event",
+            "supercategory": ""
+        },
+        {
+            "id": 79,
+            "name": "meditate",
             "supercategory": ""
         }
     ]
