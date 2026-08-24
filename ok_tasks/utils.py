@@ -2343,7 +2343,7 @@ def _find_target_member_index(
     target_member_box = task.find_one(
         feature_name=feature_name,
         box=task.box_of_screen(*region),
-        threshold=0.6,
+        threshold=0.4,
     )
     if not target_member_box:
         return None
