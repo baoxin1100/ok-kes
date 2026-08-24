@@ -56,9 +56,9 @@
 
 - **存储数据价值大于等于多少层级**：对应下图的数据价值层级；如果不满足要求，会自动刷新。
 
-![赛季卡厄思存储数据价值](../images/usage-guide/save-data-level-chaos.png)
-
-![零式系统存储数据价值](../images/usage-guide/save-data-level-zero-system.png)
+| 赛季卡厄思 | 零式系统 |
+| :---: | :---: |
+| ![赛季卡厄思存储数据价值](../images/usage-guide/save-data-level-chaos.png) | ![零式系统存储数据价值](../images/usage-guide/save-data-level-zero-system.png) |
 
 - **保留大于多少TB的存档**：低于该配置值的存档会自动回收为金币。
 - **领取奖励（只使用验证卡）**：如果想使用体力领取奖励，需要手动将体力转为验证卡。验证卡不足时，会自动关闭该功能，然后继续刷卡厄思。
