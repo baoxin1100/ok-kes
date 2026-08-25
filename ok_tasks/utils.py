@@ -1269,7 +1269,7 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
     target_member_box = task.box_of_screen(0.079, 0.092, 0.209, 0.675)
     flash_priority = (
         _get_card_list(task, "闪光优先级")
-        if action in ("闪光", "灵光一闪")
+        if action in ("闪光", "灵光")
         else []
     )
 
@@ -2746,7 +2746,7 @@ _SELECT_CARD_CONFIG_KEYS = {
     "移除": "移除卡牌列表",
     "复制": "复制卡牌列表",
     "闪光": "闪光卡牌列表",
-    "灵光一闪": "闪光卡牌列表",
+    "灵光": "闪光卡牌列表",
 }
 
 
@@ -2809,7 +2809,7 @@ def handle_select_card(task: TriggerTask):
     box = find_box_at_point(task, 0.198, 0.039)
     if not box:
         return False
-    m = re.search(r'请选择(\d*)张*.*?(移除|复制|闪光|灵光一闪).*?卡牌', box.name)
+    m = re.search(r'请选择(\d*)张*.*?(移除|复制|闪光|灵光).*?卡牌', box.name)
     if not m:
         return False
     count_text = m.group(1)
@@ -2826,7 +2826,7 @@ def handle_select_card(task: TriggerTask):
         task.log_info(f"右下角选牌操作提示: 「{action_tip.name}」")
 
     if (
-        action in ("移除", "复制", "闪光", "灵光一闪")
+        action in ("移除", "复制", "闪光", "灵光")
         and task.name == "自动卡厄思模式"
     ):
         _scroll_to_target_member_for_card_removal(task)
@@ -3055,7 +3055,7 @@ def handle_reflash(task: TriggerTask):
         if is_button_active(task, box):
             task.log_info("检测到重新闪光操作，点击重新闪光")
             task.click_box(box)
-            task.sleep(1)
+            task.sleep(2)
             return True
         else:
             task.log_info("重新闪光按钮未激活（灰色），跳过点击")
@@ -3882,7 +3882,13 @@ def handle_view_original(task: TriggerTask):
     if not cards:
         return False
 
-    flash_priority = _get_card_list(task, '闪光优先级')
+    flash_priority = []
+    for keyword in _get_card_list(task, '闪光优先级'):
+        if not isinstance(keyword, str):
+            continue
+        normalized_keyword = re.sub(r"\s+", "", keyword)
+        if normalized_keyword:
+            flash_priority.append(normalized_keyword)
     chosen_card = None
     for desc_keyword in flash_priority:
         for card in cards:
