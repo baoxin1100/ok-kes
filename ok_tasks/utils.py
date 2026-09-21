@@ -1,4 +1,4 @@
-from ok import TriggerTask
+from ok import Box, TriggerTask
 
 import re
 import random
@@ -247,11 +247,52 @@ def _get_current_hp_percent(task: TriggerTask):
 
 
 def find_box_at_point(task: TriggerTask, rel_x, rel_y):
-    """查找包含相对坐标点的 box，多个命中时返回面积最小的（最精确）。"""
+    """查找包含相对坐标点的 box，多个命中时返回面积最小的（最精确）。
+    一个都没命中时，检查该点是否落在被 OCR 切开的同一段文字之间，是则返回合并后的框。"""
     px, py = rel_x * task.width, rel_y * task.height
     hits = [b for b in task.all_texts
             if b.x <= px <= b.x + b.width and b.y <= py <= b.y + b.height]
-    return min(hits, key=lambda b: b.area()) if hits else None
+    if hits:
+        return min(hits, key=lambda b: b.area())
+    return _merge_split_texts_at_point(task, px, py)
+
+
+# 同一行相邻文字框的最大间隔（相对屏幕宽度），超过这个距离视为两段不同的文字
+_SPLIT_TEXT_MAX_GAP = 0.02
+
+
+def _merge_split_texts_at_point(task: TriggerTask, px, py):
+    """OCR 有时把一个按钮的文字切成两个框，例如繁中服的「賦予靈光一閃」被切成「賦予靈光-」和「一閃」，
+    按钮检测点 (0.945, 0.918) 正好落在两框之间，按钮找不到，选完卡后一直停在选卡页。
+    这里把 (px, py) 所在行里间隔小于 _SPLIT_TEXT_MAX_GAP 的相邻文字框合并成一个框；
+    合并后仍不覆盖该点时返回 None。名称去掉切开处多出来的符号（规则与 _clean_match 相同）。"""
+    gap = _SPLIT_TEXT_MAX_GAP * task.width
+    line = sorted(
+        (b for b in task.all_texts if b.name.strip() and b.y <= py <= b.y + b.height),
+        key=lambda b: b.x,
+    )
+
+    def covers(run):
+        return run[0].x <= px <= max(b.x + b.width for b in run)
+
+    run = []
+    for box in line:
+        if run and box.x - max(b.x + b.width for b in run) > gap:
+            if covers(run):
+                break
+            run = []
+        run.append(box)
+    if len(run) < 2 or not covers(run):
+        return None
+    name = re.sub(r'[^一-鿿\w]', '', "".join(b.name.strip() for b in run))
+    return Box(
+        min(b.x for b in run),
+        min(b.y for b in run),
+        to_x=max(b.x + b.width for b in run),
+        to_y=max(b.y + b.height for b in run),
+        confidence=min(b.confidence for b in run),
+        name=name,
+    )
 
 
 def find_target_card(task: TriggerTask):
