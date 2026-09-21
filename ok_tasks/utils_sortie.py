@@ -21,7 +21,7 @@ from utils import (
     handle_shop, handle_expedition_result,
     handle_escape,
     _get_current_credit, _get_current_hp_percent, _get_region_text,
-    _find_rest_feature, _wait_for_rest_confirm,
+    _find_rest_feature, _wait_for_rest_confirm, _retry_rest_reading,
     # handle_stage_clear,
     _finish_only_first_layer,
     handle_auto_stop,
@@ -387,9 +387,9 @@ def _select_battle_member(task: TriggerTask, max_scrolls=5):
 # ------------------------- 出击模式独有页面处理函数 -------------------------
 
 def handle_boss_selection(task: TriggerTask):
-    """首领选择页面: 随机选择一个首领并确认。"""
+    """首领选择页面: 随机选择一个首领并确认。国服标题为「请选择在核心遇见的首领」，繁中服为「請選擇在核心遭遇的BOSS」。"""
     box = find_box_at_point(task, 0.484, 0.928)
-    if not (box and re.search(r"请选择.*遇见的首领", box.name)):
+    if not (box and re.search(r"请选择.*(遇见的首领|遭遇的\s*boss)", box.name, re.IGNORECASE)):
         return False
     bosses = []
     for x, y in [(0.358, 0.706), (0.641, 0.706)]:
@@ -927,10 +927,15 @@ def handle_rest_sortie(task: TriggerTask):
         credit = _get_current_credit(task)
         task.log_info(f"当前信用点: {credit}")
 
-        # 获取当前生命值百分比，识别失败时维持原有的满生命值兜底
+        # 获取当前生命值百分比。刚进入休息区时生命值、信用点常常还没显示，读不到就等下一帧重读；
+        # 多帧仍读不到生命值时按 0% 处理（选择休息）：原来按 100% 处理，低血量时也会闪光
         hp_percent = _get_current_hp_percent(task)
+        if hp_percent is False or credit == 0:
+            if _retry_rest_reading(task, "生命值" if hp_percent is False else "信用点"):
+                return True
+        task._rest_read_retries = 0
         if hp_percent is False:
-            hp_percent = 100
+            hp_percent = 0
 
         flash_threshold_str = _get_config_value(task, '生命值大于多少优先闪光(百分比)', "60")
         try:

@@ -3608,14 +3608,33 @@ def _find_rest_feature(task: TriggerTask):
 
 
 def _wait_for_rest_confirm(task: TriggerTask):
-    """等待休息操作后的确认按钮出现。"""
+    """等待休息操作后的确认按钮出现。
+    wait_ocr 的结果不经过 _simplify_texts，框架只在软件界面语言为繁体时才自动转简体，
+    所以繁中服要同时匹配「確認」。"""
     confirm_boxes = task.wait_ocr(
         0.170, 0.554, to_x=0.855, to_y=0.769,
-        match=re.compile(r"确认"), time_out=2,
+        match=re.compile(r"确认|確認"), time_out=2,
     )
     if not confirm_boxes:
         task.log_info("等待休息确认按钮超时")
         return False
+    return True
+
+
+# 休息区读不到生命值/信用点时，最多跳过几帧等数字显示出来
+_REST_READ_RETRIES = 3
+
+
+def _retry_rest_reading(task: TriggerTask, what):
+    """刚进入休息区时生命值、信用点常常还没显示，读不到时本帧先不做选择，返回 True 等下一帧重读；
+    连续 _REST_READ_RETRIES 帧仍读不到时返回 False，由调用方按保守方式（休息）处理。"""
+    retries = getattr(task, "_rest_read_retries", 0)
+    if retries >= _REST_READ_RETRIES:
+        task._rest_read_retries = 0
+        task.log_info(f"休息区连续{retries}帧读不到{what}，按保守方式处理")
+        return False
+    task._rest_read_retries = retries + 1
+    task.log_info(f"休息区读不到{what}，等下一帧重读（第{retries + 1}次）")
     return True
 
 
@@ -3680,7 +3699,11 @@ def handle_rest(task: TriggerTask):
 
     if can_rest and can_meditate:
         hp_percent = _get_current_hp_percent(task)
-        choose_rest = hp_percent is not False and hp_percent < 50
+        if hp_percent is False and _retry_rest_reading(task, "生命值"):
+            return True
+        task._rest_read_retries = 0
+        # 多帧仍读不到生命值时选择休息：原来会选冥想，低血量时不回血有风险
+        choose_rest = hp_percent is False or hp_percent < 50
         task.log_info(
             f"休息与冥想均可用，当前血量="
             f"{hp_percent if hp_percent is not False else '未识别'}%，"
