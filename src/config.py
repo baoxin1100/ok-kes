@@ -59,16 +59,38 @@ def _auto_use_openvino():
     return _openvino_is_available()
 
 
+def _force_openvino_f32():
+    """OpenVINO 在支持 BF16 的 CPU（如 AMD Zen 4）上默认以 bf16 推理，识别结果与 ONNX Runtime 不一致，
+    例如“2704/2829”会被识别成“2704 /2829”，导致生命值、手牌数等正则匹配失败。
+    onnxocr 编译模型时不传精度参数，这里统一指定 CPU 用 f32。"""
+    import openvino
+    if getattr(openvino.Core.compile_model, "_force_f32", False):
+        return
+    original = openvino.Core.compile_model
+
+    def compile_model(self, model, device_name=None, config=None, *args, **kwargs):
+        if device_name in (None, "CPU"):
+            config = dict(config or {})
+            config.setdefault("INFERENCE_PRECISION_HINT", "f32")
+        return original(self, model, device_name, config, *args, **kwargs)
+
+    compile_model._force_f32 = True
+    openvino.Core.compile_model = compile_model
+
+
 def resolve_use_openvino():
     backend = _read_ocr_backend()
     if backend == OCR_BACKEND_OPENVINO:
         if _openvino_is_available():
             print("OCR 后端：OpenVINO（用户指定）")
+            _force_openvino_f32()
             return True
         print("OpenVINO 不可用，OCR 后端自动回退到 ONNX Runtime")
         return False
     if backend == OCR_BACKEND_AUTO:
         use_openvino = _auto_use_openvino()
+        if use_openvino:
+            _force_openvino_f32()
         selected_backend = OCR_BACKEND_OPENVINO if use_openvino else OCR_BACKEND_ONNX
         print(f"OCR 后端：{selected_backend}（自动选择）")
         return use_openvino

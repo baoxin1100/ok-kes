@@ -268,3 +268,12 @@ msgid ""
 msgstr ""
 "1. Enable auto battle and auto story in the game.\n"
 "2. International server players should set Game Language to Traditional Chinese in this mode."
+
+msgid "实验性：点击后页面一响应就继续，不再固定等待；关闭时完全使用原逻辑"
+msgstr "Experimental: continue as soon as the page responds to a click instead of waiting a fixed time. When off, the original logic is used unchanged."
+
+msgid "仅在开启加速模式时生效：鼠标移到目标后等待多久再点击，原逻辑固定 0.5 秒"
+msgstr "Only applies when 加速模式 is on: how long to hover over the target before clicking (originally a fixed 0.5 s)."
+
+msgid "仅在开启加速模式时生效：非战斗时两次识别的最短间隔，原逻辑 1 秒；战斗中保持 1 秒"
+msgstr "Only applies when 加速模式 is on: minimum interval between recognitions outside battle (originally 1 s; stays 1 s in battle)."

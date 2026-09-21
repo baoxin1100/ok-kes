@@ -1,5 +1,6 @@
 from ok import TriggerTask, og
 
+import speedup
 import utils_sortie
 from config_io import (
     make_export_callback,
@@ -81,6 +82,8 @@ class SortieMode(TriggerTask):
             '第几层boss前自动暂停': {'type': 'drop_down', 'options': ['不暂停', '1', '2', '3']},
         }
         self.config_description['游戏语言'] = "国际服请设置为繁体中文"
+        # 实验性加速模式：新增配置项并接管等待逻辑，关闭时行为与原来完全一致
+        speedup.install(self)
 
     def load_config(self):
         migrate_game_language_config_file(self)

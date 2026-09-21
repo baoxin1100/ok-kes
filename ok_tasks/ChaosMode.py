@@ -1,5 +1,6 @@
 from ok import TriggerTask, og
 
+import speedup
 import utils_chaos
 from config_io import (
     make_export_callback,
@@ -115,6 +116,8 @@ class ChaosMode(TriggerTask):
         self.config_description['首层刷特定闪光'] = (
             "默认刷闪光优先级第一张，可刷神闪，第一层没刷出自动逃脱"
         )
+        # 实验性加速模式：新增配置项并接管等待逻辑，关闭时行为与原来完全一致
+        speedup.install(self)
 
     def load_config(self):
         migrate_flash_priority_config_file(self)
