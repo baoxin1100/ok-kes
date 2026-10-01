@@ -30,7 +30,7 @@ class ChaosMode(TriggerTask):
         self.default_config['配置操作'] = ""
         self.default_config['游戏语言'] = "简体中文"
         self.default_config['刷存档主战员'] = "海德玛丽"
-        self.default_config['存储数据价值大于等于多少层级'] = 12
+        self.default_config['存储数据保存上限大于多少'] = 120
         self.default_config['保留大于多少TB的存档'] = 62000
         self.default_config['领取奖励(只使用验证卡)'] = False
         # 事件任务优先级列表, 匹配到包含对应文字的选项时会优先选择
@@ -100,7 +100,7 @@ class ChaosMode(TriggerTask):
                 ],
             },
             '第几层boss前自动暂停': {'type': 'drop_down', 'options': ['不暂停', '1', '2']},
-            '存储数据价值大于等于多少层级': {'min': 0, 'max': 15},
+            '存储数据保存上限大于多少': {'min': 0, 'max': 170},
         }
         self.config_description['游戏语言'] = "国际服请设置为繁体中文"
         self.config_description['闪光优先级'] = (

@@ -35,7 +35,7 @@ import random
 def _match_storage_data_value(task: TriggerTask, text: str):
     """匹配当前游戏语言中的“存储数据价值+数字”，不要求末尾层级文本。"""
     storage_data_text = re.escape(_get_game_text(task, "存储数据"))
-    return re.search(rf"{storage_data_text}价值\s*(\d+)", text)
+    return re.search(rf"{storage_data_text}[^0-9]*?(\d+)", text)
 
 
 def handle_season_chaos_initial_page(task: TriggerTask):
@@ -63,16 +63,16 @@ def handle_season_chaos_initial_page(task: TriggerTask):
 
     data_value_level = int(value_match.group(1))
     required_level = int(
-        _get_config_value(task, "存储数据价值大于等于多少层级", 12)
+        _get_config_value(task, "存储数据保存上限大于多少", 120)
     )
     task.log_info(
-        f"当前存储数据价值={data_value_level}层级，"
-        f"要求大于等于{required_level}层级"
+        f"当前存储数据保存上限={data_value_level}，"
+        f"要求大于等于{required_level}"
     )
     if data_value_level >= required_level:
         return False
 
-    task.log_info("存储数据价值层级不足，点击再次观测")
+    task.log_info("存储数据保存上限不足，点击再次观测")
     task.click_box(observe_boxes[0])
     task.sleep(1)
     return True
@@ -92,20 +92,20 @@ def handle_zero_system_initial_page(task: TriggerTask):
     value_text = _get_region_text(task, (0.685, 0.317, 0.980, 0.825))
     value_match = _match_storage_data_value(task, value_text)
     required_level = int(
-        _get_config_value(task, "存储数据价值大于等于多少层级", 12)
+        _get_config_value(task, "存储数据保存上限大于多少", 120)
     )
     if value_match:
         data_value_level = int(value_match.group(1))
         task.log_info(
-            f"零式系统当前存储数据价值={data_value_level}层级，"
-            f"要求大于等于{required_level}层级"
+            f"零式系统当前存储数据保存上限={data_value_level}，"
+            f"要求大于等于{required_level}"
         )
         if data_value_level >= required_level:
             return False
     else:
-        task.log_info(f"零式系统未识别到存储数据价值层级，区域文本=「{value_text}」")
+        task.log_info(f"零式系统未识别到存储数据保存上限，区域文本=「{value_text}」")
 
-    task.log_info("存储数据价值未达要求，点击进入重新合成")
+    task.log_info("存储数据保存上限未达要求，点击进入重新合成")
     _move_and_click(task, 0.968, 0.153)
     task.sleep(1)
     return True
@@ -365,7 +365,7 @@ def handle_discovery_select(task: TriggerTask): #忘了按个页面要用
 
     task.log_info(f"检测到发现选择页面，标题区域文本=「{title_text}」")
     required_level = int(
-        _get_config_value(task, "存储数据价值大于等于多少层级", 12)
+        _get_config_value(task, "存储数据保存上限大于多少", 120)
     )
     option_regions = [
         (0.058, 0.358, 0.315, 0.800),
@@ -377,28 +377,28 @@ def handle_discovery_select(task: TriggerTask): #忘了按个页面要用
         level_match = _match_storage_data_value(task, option_text)
         if not level_match:
             task.log_info(
-                f"发现选项{index + 1}未识别到存储数据价值层级，"
+                f"发现选项{index + 1}未识别到存储数据保存上限，"
                 f"区域文本=「{option_text}」"
             )
             continue
 
         data_value_level = int(level_match.group(1))
         task.log_info(
-            f"发现选项{index + 1}存储数据价值={data_value_level}层级，"
-            f"要求大于等于{required_level}层级"
+            f"发现选项{index + 1}存储数据保存上限={data_value_level}，"
+            f"要求大于等于{required_level}"
         )
         if data_value_level < required_level:
             continue
 
         click_x = (region[0] + region[2]) / 2
         click_y = (region[1] + region[3]) / 2
-        task.log_info(f"发现选项{index + 1}满足层级要求，点击该选项")
+        task.log_info(f"发现选项{index + 1}满足保存上限要求，点击该选项")
         _move_and_click(task, click_x, click_y)
         task.sleep(1)
         return True
 
-    task.log_info("没有发现选项满足存储数据价值层级要求，点击取消")
-    _move_and_click(task, 0.663, 0.924)
+    task.log_info("没有发现选项满足存储数据保存上限要求，点击取消")
+    _move_and_click(task, 0.961, 0.050)
     task.sleep(1)
     return True
 
