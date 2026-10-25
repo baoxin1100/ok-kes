@@ -1,7 +1,7 @@
 from ok import TriggerTask, og
 
 import utils_story
-from utils import _simplify_texts
+from utils import _simplify_texts, _disable_other_chaos_tasks
 
 class StoryMode(TriggerTask):
 
@@ -17,6 +17,7 @@ class StoryMode(TriggerTask):
 
     def enable(self):
         """开启剧情模式时自动禁用出击和卡厄思模式。"""
+        _disable_other_chaos_tasks(self)
         from SortieMode import SortieMode
         from ChaosMode import ChaosMode
         sortie = og.executor.get_task_by_class(SortieMode)

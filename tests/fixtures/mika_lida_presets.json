@@ -1,0 +1,264 @@
+{
+  "mika": {
+    "charId": "1039",
+    "cards": [
+      {
+        "cardId": "c_1039_srt1",
+        "removed": true,
+        "duplicate": false,
+        "epiphanyId": null,
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "c_1039_srt2",
+        "removed": true,
+        "duplicate": false,
+        "epiphanyId": null,
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "c_1039_srt3",
+        "removed": true,
+        "duplicate": false,
+        "epiphanyId": null,
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "c_1039_srt4",
+        "removed": false,
+        "duplicate": false,
+        "epiphanyId": null,
+        "divineId": "add_r_spark_nihilum_01",
+        "god": "NIHILUM",
+        "variantCardId": "c_1039_srt4_rsp2"
+      },
+      {
+        "cardId": "c_1039_srt4",
+        "removed": false,
+        "duplicate": true,
+        "epiphanyId": null,
+        "divineId": "add_r_spark_nihilum_01",
+        "god": "NIHILUM",
+        "variantCardId": "c_1039_srt4_rsp2"
+      },
+      {
+        "cardId": "c_1039_srt4",
+        "removed": false,
+        "duplicate": true,
+        "epiphanyId": null,
+        "divineId": "add_r_spark_nihilum_01",
+        "god": "NIHILUM",
+        "variantCardId": "c_1039_srt4_rsp2"
+      },
+      {
+        "cardId": "c_1039_srt4",
+        "removed": false,
+        "duplicate": true,
+        "epiphanyId": null,
+        "divineId": null,
+        "god": "",
+        "variantCardId": "c_1039_srt4_rsp2"
+      },
+      {
+        "cardId": "c_1039_uni1",
+        "removed": true,
+        "duplicate": false,
+        "epiphanyId": null,
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "c_1039_uni2",
+        "removed": false,
+        "duplicate": false,
+        "epiphanyId": null,
+        "divineId": null,
+        "god": "",
+        "variantCardId": "c_1039_uni2_rsp5"
+      },
+      {
+        "cardId": "c_1039_uni3",
+        "removed": true,
+        "duplicate": false,
+        "epiphanyId": null,
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "c_1039_uni4",
+        "removed": false,
+        "duplicate": false,
+        "epiphanyId": null,
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "card_ds05_00009",
+        "removed": false,
+        "duplicate": false,
+        "epiphanyId": "c02111",
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      }
+    ]
+  },
+  "lida": {
+    "charId": "30097",
+    "cards": [
+      {
+        "cardId": "c_30097_srt1",
+        "removed": true,
+        "duplicate": false,
+        "epiphanyId": null,
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "c_30097_srt2",
+        "removed": true,
+        "duplicate": false,
+        "epiphanyId": null,
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "c_30097_srt3",
+        "removed": true,
+        "duplicate": false,
+        "epiphanyId": null,
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "c_30097_srt4",
+        "removed": false,
+        "duplicate": false,
+        "epiphanyId": null,
+        "divineId": null,
+        "god": "",
+        "variantCardId": "c_30097_srt4_rsp1"
+      },
+      {
+        "cardId": "c_30097_uni1",
+        "removed": false,
+        "duplicate": false,
+        "epiphanyId": "c03012",
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "c_30097_uni1",
+        "removed": false,
+        "duplicate": true,
+        "epiphanyId": "c03012",
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "c_30097_uni1",
+        "removed": false,
+        "duplicate": true,
+        "epiphanyId": "c03012",
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "c_30097_uni2",
+        "removed": true,
+        "duplicate": false,
+        "epiphanyId": null,
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "c_30097_uni3",
+        "removed": false,
+        "duplicate": false,
+        "epiphanyId": null,
+        "divineId": null,
+        "god": "",
+        "variantCardId": "c_30097_uni3_rsp5"
+      },
+      {
+        "cardId": "c_30097_uni4",
+        "removed": true,
+        "duplicate": false,
+        "epiphanyId": null,
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "card_ne_00050",
+        "removed": false,
+        "duplicate": false,
+        "epiphanyId": "c00002",
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "card_ne_00050",
+        "removed": false,
+        "duplicate": false,
+        "epiphanyId": "c00002",
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "card_ne_00050",
+        "removed": false,
+        "duplicate": false,
+        "epiphanyId": "c00002",
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "card_ne_00050",
+        "removed": false,
+        "duplicate": false,
+        "epiphanyId": "c00002",
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "card_ds05_00009",
+        "removed": false,
+        "duplicate": false,
+        "epiphanyId": "c00111",
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      },
+      {
+        "cardId": "card_ne_00020",
+        "removed": false,
+        "duplicate": false,
+        "epiphanyId": "c00113",
+        "divineId": null,
+        "god": "",
+        "variantCardId": ""
+      }
+    ]
+  }
+}

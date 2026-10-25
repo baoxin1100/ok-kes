@@ -174,9 +174,37 @@ def _get_current_credit(task: TriggerTask):
     return credit
 
 
+CHAOS_MODE_NAMES = ("自动卡厄思模式", "自动卡厄思模式（实验）")
+
+
+def _is_chaos_mode_task(task: TriggerTask):
+    """普通卡厄思模式与实验模式共用大部分页面处理逻辑。"""
+    return getattr(task, "name", "") in CHAOS_MODE_NAMES
+
+
+def _disable_other_chaos_tasks(task: TriggerTask):
+    """开启任一卡厄思类模式时，关闭其他卡厄思类模式，避免两个任务同时运行。"""
+    try:
+        from ok import og
+        executor = getattr(og, "executor", None)
+        for other in getattr(executor, "trigger_tasks", []) or []:
+            if other is task:
+                continue
+            if getattr(other, "name", "") not in CHAOS_MODE_NAMES:
+                continue
+            if getattr(other, "enabled", False):
+                task.log_info(
+                    f"检测到其他卡厄思模式「{other.name}」已开启，自动关闭"
+                )
+                other.disable()
+    except Exception as exc:
+        if hasattr(task, "log_warning"):
+            task.log_warning(f"关闭其他卡厄思模式失败: {exc}")
+
+
 def _neutral_card_limit(task: TriggerTask):
     """卡厄思模式每局最多允许在商店购买3张中立牌。"""
-    return 3 if task.name == "自动卡厄思模式" else None
+    return 3 if _is_chaos_mode_task(task) else None
 
 
 def _neutral_card_limit_reached(task: TriggerTask):
@@ -188,6 +216,44 @@ def _neutral_card_limit_reached(task: TriggerTask):
     return acquired >= limit
 
 
+def _removal_name_match(target, card_name):
+    """移除列表卡名匹配（去掉符号后比较，允许包含关系）。"""
+    target_clean = re.sub(r'[^\u4e00-\u9fff\w]', '', str(target or ''))
+    name_clean = re.sub(r'[^\u4e00-\u9fff\w]', '', str(card_name or ''))
+    if not target_clean or not name_clean:
+        return False
+    return (
+        target_clean == name_clean
+        or target_clean in name_clean
+        or name_clean in target_clean
+    )
+
+
+def _remember_removal_remaining(task: TriggerTask, cards):
+    """记录当前移除列表里每种目标/基础牌的实际张数，供商店购买前判断。"""
+    targets = [
+        str(name).strip()
+        for name in _get_card_list(task, "移除卡牌列表")
+        if str(name).strip()
+    ]
+    prefer_base = bool(_get_config_value(task, "优先移除基础牌", True))
+    if not targets and not prefer_base:
+        return
+    remaining = {}
+    for target in targets:
+        remaining[target] = sum(
+            1
+            for card in cards
+            if _removal_name_match(target, card.get("name", ""))
+        )
+    if prefer_base:
+        base_card_type = _get_game_text(task, "基础")
+        remaining["__basic__"] = sum(
+            1 for card in cards if base_card_type in card.get("type", "")
+        )
+    task._removal_remaining_counts = remaining
+
+
 def _record_removed_cards(task: TriggerTask, count=1):
     """记录本局实际完成移除的卡牌数量。"""
     node_status = getattr(task, "node_status", None)
@@ -197,6 +263,46 @@ def _record_removed_cards(task: TriggerTask, count=1):
     node_status["removed_card_count"] = (
         node_status.get("removed_card_count", 0) + count
     )
+    pending_names = getattr(task, "_pending_removed_card_names", None) or []
+    pending_features = getattr(task, "_pending_removed_card_features", None) or []
+    pending_basics = getattr(task, "_pending_removed_card_basics", None) or []
+    remaining = getattr(task, "_removal_remaining_counts", None)
+    if isinstance(remaining, dict):
+        for name in pending_names:
+            for key in list(remaining):
+                if key.startswith("__basic"):
+                    continue
+                if _removal_name_match(key, name):
+                    remaining[key] = max(0, remaining[key] - 1)
+                    break
+        if pending_basics and "__basic__" in remaining:
+            remaining["__basic__"] = max(
+                0, remaining["__basic__"] - len(pending_basics)
+            )
+    deck_remaining = getattr(task, "_removal_deck_counts", None)
+    if isinstance(deck_remaining, dict):
+        for name in pending_names:
+            for key in list(deck_remaining):
+                if key.startswith("__basic"):
+                    continue
+                if _removal_name_match(key, name):
+                    deck_remaining[key] = max(0, deck_remaining[key] - 1)
+                    break
+        if pending_basics and "__basic__" in deck_remaining:
+            deck_remaining["__basic__"] = max(
+                0, deck_remaining["__basic__"] - len(pending_basics)
+            )
+    if pending_names:
+        removed_names = getattr(task, "_removed_card_names", None)
+        if removed_names is None:
+            removed_names = set()
+            task._removed_card_names = removed_names
+        removed_names.update(
+            name.strip() for name in pending_names if isinstance(name, str) and name.strip()
+        )
+    task._pending_removed_card_names = []
+    task._pending_removed_card_features = []
+    task._pending_removed_card_basics = []
     task.log_info(
         f"本局移除卡牌数量增加{count}，"
         f"当前共{node_status['removed_card_count']}张"
@@ -1273,11 +1379,29 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         else []
     )
 
-    def record_pending_removal():
+    def record_pending_removal(card_name=None, feature_name=None, is_basic=False):
         if action == "移除":
             task._pending_removed_card_count = (
                 getattr(task, "_pending_removed_card_count", 0) + 1
             )
+            if isinstance(card_name, str) and card_name.strip():
+                names = getattr(task, "_pending_removed_card_names", None)
+                if names is None:
+                    names = []
+                    task._pending_removed_card_names = names
+                names.append(card_name.strip())
+            if isinstance(feature_name, str) and feature_name:
+                features = getattr(task, "_pending_removed_card_features", None)
+                if features is None:
+                    features = []
+                    task._pending_removed_card_features = features
+                features.append(feature_name)
+            if is_basic:
+                basics = getattr(task, "_pending_removed_card_basics", None)
+                if basics is None:
+                    basics = []
+                    task._pending_removed_card_basics = basics
+                basics.append(True)
 
     def filter_flash_priority_cards(cards):
         """闪光时排除已命中闪光优先级的卡牌，避免重复选择。"""
@@ -1324,7 +1448,11 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
             task.sleep(0.3)
             card["selected"] = True
             selected += 1
-            record_pending_removal()
+            record_pending_removal(
+                card.get("name"),
+                card.get("feature_name"),
+                base_card_type in card.get("type", ""),
+            )
             clicked = True
         return clicked
 
@@ -1352,7 +1480,11 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
                 task.sleep(0.3)
                 card["selected"] = True
                 selected += 1
-                record_pending_removal()
+                record_pending_removal(
+                    card_name,
+                    card.get("feature_name"),
+                    base_card_type in card.get("type", ""),
+                )
                 clicked = True
         return clicked
 
@@ -1411,6 +1543,8 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
         else:
             task.log_info(f"{page}: 未识别到任何卡牌或操作按钮，终止选卡")
             return False
+    if action == "移除":
+        _remember_removal_remaining(task, cards)
     sync_visible_selected(cards)
     scrollbar_white_ratio = region_white_ratio(
         task, (0.976, 0.119, 0.988, 0.858)
@@ -1544,6 +1678,9 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
             task.click_box(button)
             if action == "移除":
                 task._pending_removed_card_count = 0
+                task._pending_removed_card_names = []
+                task._pending_removed_card_features = []
+                task._pending_removed_card_basics = []
             return True
 
     cards = recognize_cards_in_deck(task, page=f"{page}-兜底")
@@ -2176,6 +2313,35 @@ def _equipment_rank(name, priority):
     return rank if rank is not None else len(priority)
 
 
+def _shop_equipment_should_buy(task, item_name, priorities):
+    """商店装备预检查：按“空槽优先、优先级高优先”选槽，并和目标当前装备比较。"""
+    equipment = _equipment_state(task)
+    names = equipment.get("names", []) if isinstance(equipment, dict) else []
+    matches = []
+    for slot, priority in enumerate(priorities):
+        canonical_name, rank = _match_equipment_name(item_name, priority)
+        if rank is None:
+            continue
+        current_name = names[slot] if slot < len(names) else ""
+        matches.append((0 if not current_name else 1, rank, slot, canonical_name))
+    if not matches:
+        return None
+    matches.sort(key=lambda item: (item[0], item[1], item[2]))
+    _, new_rank, slot, canonical_name = matches[0]
+    current_name = names[slot] if slot < len(names) else ""
+    if not current_name:
+        return True, slot, new_rank, canonical_name, current_name, None
+    current_rank = _equipment_rank(current_name, priorities[slot])
+    return (
+        new_rank < current_rank,
+        slot,
+        new_rank,
+        canonical_name,
+        current_name,
+        current_rank,
+    )
+
+
 def _equipment_state(task: TriggerTask):
     """获取并修正目标主战员的装备状态字典。"""
     member_status = getattr(task, "member_status", None)
@@ -2243,6 +2409,9 @@ def _reset_meditation_state(task: TriggerTask):
             meditation_state[normalized_name] = False
 
     _member_deck_state(task)["冥想"] = meditation_state
+    if getattr(task, "preset_deck_enabled", False):
+        task._preset_meditation_pending = []
+        task._preset_meditation_active = False
 
 
 def _matching_meditation_card_names(task: TriggerTask, cards):
@@ -2561,6 +2730,7 @@ def handle_equipment(task: TriggerTask):
         current_quality = equipment["qualities"][slot]
         should_install_first = False
         install_reason = "未找到目标主战员"
+        live_qualities = None
         if preferred_member_index is not None:
             live_qualities = _member_equipment_qualities(
                 task, lv_texts[preferred_member_index]
@@ -2598,6 +2768,27 @@ def handle_equipment(task: TriggerTask):
                 task.log_info(
                     "目标主战员已安装传说装备，新传说装备改由其他主战员安装"
                 )
+            if (
+                new_equipment["quality"] == "传说"
+                and new_equipment["rank"] is None
+            ):
+                should_install_first = False
+                install_reason = "传说装备不在优先级列表"
+                task.log_info(
+                    "新传说装备不在优先级列表，不装给目标主战员"
+                )
+
+        member_qualities = {}
+        for index, level_box in enumerate(lv_texts):
+            if (
+                index == preferred_member_index
+                and live_qualities is not None
+            ):
+                member_qualities[index] = live_qualities
+            else:
+                member_qualities[index] = _member_equipment_qualities(
+                    task, level_box
+                )
 
         if should_install_first and preferred_member_index is not None:
             chosen = lv_texts[preferred_member_index]
@@ -2627,10 +2818,28 @@ def handle_equipment(task: TriggerTask):
                 return True
             return False
 
-        other_members = [
-            level_box for index, level_box in enumerate(lv_texts)
-            if index != preferred_member_index
-        ]
+        new_quality = new_equipment.get("quality") or ""
+        new_quality_rank = _EQUIPMENT_QUALITY_RANKS.get(new_quality, 0)
+        other_members = []
+        for index, level_box in enumerate(lv_texts):
+            if index == preferred_member_index:
+                continue
+            qualities = member_qualities.get(index) or []
+            if new_quality == "传说":
+                # 传说装备只能给完全没有传说装备的成员。
+                if qualities and all(
+                    quality is not None and quality != "传说"
+                    for quality in qualities
+                ):
+                    other_members.append(level_box)
+            else:
+                slot_quality = (
+                    qualities[slot] if slot < len(qualities) else None
+                )
+                slot_rank = _EQUIPMENT_QUALITY_RANKS.get(slot_quality or "", 0)
+                if slot_quality is not None and slot_rank < new_quality_rank:
+                    other_members.append(level_box)
+
         if other_members:
             chosen = random.choice(other_members)
             if tracks_target_member and target_member_index is None:
@@ -2639,7 +2848,7 @@ def handle_equipment(task: TriggerTask):
                 task.log_info(
                     f"{slot + 1}号位无需替换当前装备「{current_name}」，"
                     f"原因={install_reason}，"
-                    "随机安装给其他主战员"
+                    "安装给其他可装备的主战员"
                 )
             _move_and_click(task, 0.756, (chosen.y + chosen.height / 2) / task.height)
             task.sleep(1)
@@ -2827,7 +3036,7 @@ def handle_select_card(task: TriggerTask):
 
     if (
         action in ("移除", "复制", "闪光", "灵光")
-        and task.name == "自动卡厄思模式"
+        and _is_chaos_mode_task(task)
     ):
         _scroll_to_target_member_for_card_removal(task)
 
@@ -3017,6 +3226,9 @@ def handle_remove(task: TriggerTask):
             )
             _record_removed_cards(task, removed_count)
             task._pending_removed_card_count = 0
+            task._pending_removed_card_names = []
+            task._pending_removed_card_features = []
+            task._pending_removed_card_basics = []
             task.sleep(1)
             return True
         else:
@@ -3046,6 +3258,9 @@ def handle_three_choice_card_remove(task: TriggerTask):
     task.click_box(remove_box)
     _record_removed_cards(task, 1)
     task._pending_removed_card_count = 0
+    task._pending_removed_card_names = []
+    task._pending_removed_card_features = []
+    task._pending_removed_card_basics = []
     return True
 
 def handle_flash(task: TriggerTask):
@@ -3209,7 +3424,60 @@ def handle_event_task(task: TriggerTask):
         left, top, right, bottom = event_task["description_region"]
         description_x = (left + right) / 2
         description_y = (top + bottom) / 2
+        # 事件选项是“第一次点选、第二次确认”，需要两次点击。
         _move_and_click(task, description_x, description_y)
+        task.sleep(0.45)
+        task.log_info("事件选项第一次点击完成，进行第二次确认")
+        _move_and_click(task, description_x, description_y)
+
+    # 这个事件要进入「奉行既定的启示 / 雕琢记忆」。
+    engrave_task = next(
+        (
+            task_info
+            for task_info in tasks_info
+            if any(
+                keyword in task_info["description"]
+                for keyword in (
+                    "奉行",
+                    "雕琢",
+                    "奉行既定",
+                    "奉行既定的啟示",
+                    "奉行既定的启示",
+                    "雕琢記憶",
+                    "雕琢记忆",
+                )
+            )
+        ),
+        None,
+    )
+    if engrave_task is not None:
+        leave_count = int(
+            getattr(task, "_memory_engrave_leave_count", 0) or 0
+        )
+        if leave_count >= 2:
+            leave_task = next(
+                (
+                    task_info
+                    for task_info in tasks_info
+                    if "离开" in task_info["description"]
+                    or "事件结束" in task_info["description"]
+                ),
+                None,
+            )
+            if leave_task is not None:
+                task.log_info(
+                    "记忆雕琢已连续离开2次，不再选择雕琢，改为离开事件"
+                )
+                click_event_option(leave_task)
+                task._memory_engrave_leave_count = 0
+                task.sleep(1)
+                return True
+        task.log_info(
+            "检测到「奉行既定的启示/雕琢记忆」事件，选择雕琢"
+        )
+        click_event_option(engrave_task)
+        task.sleep(1)
+        return True
 
     # 已经进过「精密加工记忆」页面后，优先选择「就此离开」结束事件，避免反复进入造成死循环
     event_status = getattr(task, "node_status", {})
@@ -3340,7 +3608,7 @@ def handle_event_task(task: TriggerTask):
         if chosen is not None:
             break
 
-    if chosen is None and task.name == "自动卡厄思模式":
+    if chosen is None and _is_chaos_mode_task(task):
         attack_event_features = task.find_feature(
             feature_name="attack_event",
             threshold=0.95,
@@ -3373,10 +3641,20 @@ def handle_event_task(task: TriggerTask):
 def handle_route_selection(task: TriggerTask):
     """路线选择页面: 识别节点类型，按优先级排序后依次点击所有节点，每次间隔1秒。
     同时负责节点计数：离开路线页面时 node_count +1。"""
-    position_box = task.box_of_screen(0.335, 0.568, 0.453, 0.751)
+    # 路线页的小地图在左下角，位置标记不一定在旧区域；扩大搜索范围。
+    position_box = task.box_of_screen(0.01, 0.55, 0.45, 0.98)
     position_feature = task.find_feature(feature_name="position", box=position_box)
     cant_receive = find_box_at_point(task, 0.186, 0.850)
-    is_route_page = position_feature or (cant_receive and "无法接收到梦境号" in cant_receive.name)
+    route_feature_box = task.box_of_screen(0.656, 0.053, 0.977, 0.908)
+    has_route_node = any(
+        task.find_feature(feature_name=feature_name, box=route_feature_box)
+        for feature_name in ("safezone", "enemy", "elite", "event", "settlement")
+    )
+    is_route_page = bool(
+        position_feature
+        or (cant_receive and "无法接收到梦境号" in cant_receive.name)
+        or has_route_node
+    )
 
     # 如果当前页面不是路线选择页面，但 enter_new_node 为 True（刚离开路线页面），计数+1
     if not is_route_page:
@@ -3632,6 +3910,60 @@ def handle_select(task: TriggerTask):
     return False
 
 
+_SPECIAL_FLASH_TEMPLATE_CACHE = None
+
+
+def _load_special_flash_template():
+    global _SPECIAL_FLASH_TEMPLATE_CACHE
+    if _SPECIAL_FLASH_TEMPLATE_CACHE is None:
+        path = os.path.join(os.path.dirname(__file__), "assets", "special_flash_icon.png")
+        try:
+            data = np.fromfile(path, dtype=np.uint8)
+            _SPECIAL_FLASH_TEMPLATE_CACHE = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        except Exception:
+            _SPECIAL_FLASH_TEMPLATE_CACHE = False
+    return _SPECIAL_FLASH_TEMPLATE_CACHE
+
+
+def _find_special_flash_template(task: TriggerTask):
+    """用训练集里的特殊闪光图标做模板匹配；返回 (x, y, score) 或 None。"""
+    template = _load_special_flash_template()
+    if template is None or getattr(template, "size", 0) == 0:
+        return None
+    frame = getattr(task, "frame", None)
+    if frame is None:
+        return None
+    height, width = frame.shape[:2]
+    if not width or not height:
+        return None
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    x1, y1 = int(0.10 * width), int(0.10 * height)
+    x2, y2 = int(0.90 * width), int(0.90 * height)
+    roi = gray[y1:y2, x1:x2]
+    base_scale = width / 1920.0
+    best_score = 0.0
+    best_point = None
+    for factor in (0.75, 0.85, 0.95, 1.0, 1.05, 1.15):
+        scale = base_scale * factor
+        resized = cv2.resize(
+            cv2.cvtColor(template, cv2.COLOR_BGR2GRAY),
+            (max(1, int(template.shape[1] * scale)), max(1, int(template.shape[0] * scale))),
+        )
+        if resized.shape[0] >= roi.shape[0] or resized.shape[1] >= roi.shape[1]:
+            continue
+        result = cv2.matchTemplate(roi, resized, cv2.TM_CCOEFF_NORMED)
+        _, max_score, _, max_loc = cv2.minMaxLoc(result)
+        if max_score > best_score:
+            best_score = float(max_score)
+            best_point = (
+                (x1 + max_loc[0] + resized.shape[1] / 2) / width,
+                (y1 + max_loc[1] + resized.shape[0] / 2) / height,
+            )
+    if best_point is None or best_score < 0.66:
+        return None
+    return best_point[0], best_point[1], best_score
+
+
 def _find_rest_feature(task: TriggerTask):
     """在休息区域查找rest特征，命中时输出置信度。"""
     search_box = task.box_of_screen(0.157, 0.503, 0.467, 0.863)
@@ -3655,11 +3987,33 @@ def _wait_for_rest_confirm(task: TriggerTask):
 
 def handle_rest(task: TriggerTask):
     """休息界面: 根据血量、信用点和冥想状态选择休息或冥想。"""
-    special_flash = task.find_one(
-        feature_name=["special_flash_luosi", "special_flash_luosi2"],
-        box=task.box_of_screen(0.219, 0.208, 0.786, 0.814),
+    # 先识别休息页的固定元素；不是休息页就不做任何事。
+    shop_box = find_box_at_point(task, 0.360, 0.138)
+    rest_feature = _find_rest_feature(task)
+    meditation_region = (0.671, 0.433, 0.945, 0.801)
+    meditate_feature = task.find_one(
+        feature_name="meditate",
+        box=task.box_of_screen(*meditation_region),
     )
+    is_rest_page = bool(
+        rest_feature
+        or meditate_feature
+        or (shop_box and "德朗商店" in shop_box.name)
+    )
+    if not is_rest_page:
+        return False
+
+    # 进入休息页之后，才判断特殊闪光；特殊闪光只有这里会出现。
+    special_flash = None
+    try:
+        special_flash = task.find_one(
+            feature_name=["special_flash_luosi", "special_flash_luosi2"],
+            box=task.box_of_screen(0.219, 0.208, 0.786, 0.814),
+        )
+    except Exception as exc:
+        task.log_warning(f"休息页: 查找特殊闪光特征失败: {exc}")
     if special_flash:
+        task.log_info("休息页: 检测到特殊闪光特征，点击")
         _move_and_click(
             task,
             (special_flash.x + special_flash.width / 2) / task.width,
@@ -3668,7 +4022,30 @@ def handle_rest(task: TriggerTask):
         task.sleep(1)
         return True
 
-    rest_feature = _find_rest_feature(task)
+    special_flash_template = _find_special_flash_template(task)
+    if special_flash_template is not None:
+        flash_x, flash_y, flash_score = special_flash_template
+        task.log_info(
+            f"休息页: 模板匹配到特殊闪光图标，相似度={flash_score:.3f}，点击"
+        )
+        _move_and_click(task, flash_x, flash_y)
+        task.sleep(1)
+        return True
+
+    task.log_info("休息页: 未检测到特殊闪光图标")
+
+    # 德朗商店优先于休息：本节点有商店且配置开启时，先进商店。
+    if (
+        shop_box
+        and "德朗商店" in shop_box.name
+        and hasattr(task, "node_status")
+        and task.node_status.get("shop", False)
+    ):
+        task.log_info("检测到德朗商店，且 node_status['shop']=True，先进入商店")
+        task.click_box(shop_box)
+        task.sleep(2)
+        return True
+
     free_text = _get_region_text(task, (0.154, 0.602, 0.359, 0.847))
     flash_or_rest = (
         hasattr(task, 'node_status')
@@ -3676,11 +4053,6 @@ def handle_rest(task: TriggerTask):
     )
     can_rest = bool(rest_feature and "免费" in free_text and flash_or_rest)
 
-    meditation_region = (0.671, 0.433, 0.945, 0.801)
-    meditate_feature = task.find_one(
-        feature_name="meditate",
-        box=task.box_of_screen(*meditation_region),
-    )
     meditation_cost_boxes = [
         text_box for text_box in task.all_texts
         if re.fullmatch(r"\d+", text_box.name.strip())
@@ -3703,11 +4075,25 @@ def handle_rest(task: TriggerTask):
     else:
         meditation_cost = None
 
-    meditation_state = _member_deck_state(task).get("冥想", {})
-    has_pending_meditation = (
-        isinstance(meditation_state, dict)
-        and any(value is True for value in meditation_state.values())
-    )
+    preset_pending = None
+    if getattr(task, "preset_deck_enabled", False):
+        preset_pending = getattr(task, "_preset_meditation_pending", None)
+    if isinstance(preset_pending, list):
+        has_pending_meditation = bool(preset_pending)
+        pending_cards = [
+            str(item.get("name", "")) for item in preset_pending if isinstance(item, dict)
+        ]
+    else:
+        meditation_state = _member_deck_state(task).get("冥想", {})
+        has_pending_meditation = (
+            isinstance(meditation_state, dict)
+            and any(value is True for value in meditation_state.values())
+        )
+        pending_cards = [
+            name
+            for name, pending in (meditation_state or {}).items()
+            if pending is True
+        ]
     current_credit = _get_current_credit(task)
     meditation_credit_threshold = _get_config_value(
         task, "多少信用点以上冥想", 300,
@@ -3734,7 +4120,17 @@ def handle_rest(task: TriggerTask):
             f"选择{'休息' if choose_rest else '冥想'}"
         )
     else:
-        choose_rest = can_rest
+        choose_rest = False
+        if can_rest:
+            hp_percent = _get_current_hp_percent(task)
+            # 识别不到血量时保持原来的“能休息就休息”，避免卡住；
+            # 识别到血量不低于50%时不再休息，交给冥想/商店/离开。
+            choose_rest = hp_percent is False or hp_percent < 50
+            task.log_info(
+                f"只能休息，当前血量="
+                f"{hp_percent if hp_percent is not False else '未识别'}%，"
+                f"{'选择休息' if choose_rest else '血量不低于50%，跳过休息'}"
+            )
 
     if choose_rest:
         task.log_info("检测到休息界面，点击休息")
@@ -3749,13 +4145,13 @@ def handle_rest(task: TriggerTask):
         return True
 
     if can_meditate:
-        pending_cards = [
-            name for name, pending in meditation_state.items() if pending is True
-        ]
         task.log_info(
             f"检测到可冥想卡牌{pending_cards}，当前信用点={current_credit}，"
             f"冥想费用={meditation_cost}，点击冥想"
         )
+        if getattr(task, "preset_deck_enabled", False):
+            task._preset_meditation_active = True
+            task._preset_meditation_page_time = time.time()
         task.click_box(meditate_feature)
         if not _wait_for_rest_confirm(task):
             return True
@@ -3765,49 +4161,142 @@ def handle_rest(task: TriggerTask):
     if rest_feature and "免费" not in free_text:
         task.log_info("检测到rest特征，但休息区域未找到「免费」，跳过点击休息")
 
-    # 检测是否需要进入德朗商店
-    shop_box = find_box_at_point(task, 0.360, 0.138)
-    if shop_box and "德朗商店" in shop_box.name and hasattr(task, 'node_status') and task.node_status.get('shop', False):
-        task.log_info("检测到德朗商店，且 node_status['shop']=True，进入商店")
-        task.click_box(shop_box)
-        task.sleep(2)
-        return True
+    return False
+
+
+def _shop_read_removal_counts(task, removal_targets, prefer_base, extra_names=None):
+    """读取/复用移除目标/预设卡名的牌堆数量；返回字典或 None。"""
+    extra_names = list(extra_names or [])
+    remaining_counts = getattr(task, "_removal_deck_counts", None)
+    deck_time = getattr(task, "_removal_deck_counts_time", 0)
+    if (
+        not isinstance(remaining_counts, dict)
+        or time.time() - deck_time > 30
+    ):
+        deck_counts = None
+        try:
+            import preset_deck as preset_module
+            deck_counts = preset_module.read_removal_deck_counts(
+                task, removal_targets, prefer_base, extra_names=extra_names
+            )
+        except Exception as exc:
+            task.log_warning(f"读取所有牌堆数量失败: {exc}")
+        if isinstance(deck_counts, dict):
+            task._removal_deck_counts = deck_counts
+            task._removal_deck_counts_time = time.time()
+            if extra_names:
+                task._preset_name_counts = {
+                    name: int(deck_counts.get(name, 0)) for name in extra_names
+                }
+            remaining_counts = deck_counts
+    if not isinstance(remaining_counts, dict):
+        remaining_counts = getattr(task, "_removal_remaining_counts", None)
+    if (
+        extra_names
+        and isinstance(remaining_counts, dict)
+        and all(name in remaining_counts for name in extra_names)
+    ):
+        task._preset_name_counts = {
+            name: int(remaining_counts.get(name, 0)) for name in extra_names
+        }
+    return remaining_counts
+
+
+def _try_shop_removal(task, removal_targets, prefer_base):
+    """免费刷新用完后才尝试购买移除服务；买到返回 True。"""
+    box = find_box_at_point(task, 0.729, 0.261)
+    soldout = find_box_at_point(task, 0.727, 0.286)
+    if not (
+        (box and "移除卡牌" in box.name)
+        or (soldout and "售" in soldout.name)
+    ):
+        return False
+    if soldout and "售" in soldout.name:
+        task.log_info("德朗商店: 移除卡牌已售罄")
+        task.node_status['shop'] = False
+        return False
+
+    current_credit = _get_current_credit(task)
+    removed_card_count = task.node_status.get("removed_card_count", 0)
+    cost_box = find_box_at_point(task, 0.724, 0.319)
+    task.log_info(
+        f"handle_shop: 移除卡牌费用={cost_box.name if cost_box else None}，"
+        f"当前信用点={current_credit}"
+    )
+    required_keys = list(removal_targets)
+    if prefer_base:
+        required_keys.append("__basic__")
+    remaining_counts = _shop_read_removal_counts(
+        task, removal_targets, prefer_base
+    )
+    all_targets_removed = (
+        bool(required_keys)
+        and isinstance(remaining_counts, dict)
+        and all(
+            key in remaining_counts
+            and remaining_counts.get(key, 0) <= 0
+            for key in required_keys
+        )
+    )
+    if cost_box and cost_box.name.isdigit():
+        cost = int(cost_box.name)
+        if all_targets_removed:
+            task.log_info(
+                f"移除目标（{', '.join(removal_targets) or '无'}）"
+                + ("及基础攻击/技能" if prefer_base else "")
+                + "当前数量均为0，跳过购买移除服务"
+            )
+        elif removed_card_count >= 5:
+            task.log_info(
+                f"本局已移除{removed_card_count}张卡牌，"
+                "达到5张上限，不再使用信用点移除卡牌"
+            )
+        elif cost <= current_credit and task.node_status['shop'] is True:
+            task.log_info(
+                f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，足够，点击移除"
+            )
+            task.click_box(box)
+            task.sleep(1)
+            task.node_status['shop'] = False
+            return True
+        else:
+            task.log_info(
+                f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，不足"
+            )
+    else:
+        task.log_info("handle_shop: 移除卡牌费用读取失败，跳过购买移除")
+    task.node_status['shop'] = False
     return False
 
 
 def handle_shop(task: TriggerTask):
-    """德朗商店: 优先移除卡牌，其次按配置购买卡牌或装备，最后尝试免费或付费刷新。"""
+    """德朗商店: 先买装备/卡牌，再用免费刷新，最后才买移除卡牌。"""
     box = find_box_at_point(task, 0.729, 0.261)
     soldout = find_box_at_point(task, 0.727, 0.286)
     if (box and "移除卡牌" in box.name) or (soldout and "售" in soldout.name):
         task.log_info("handle_shop: 通过页面判定（移除卡牌或售罄）")
-        if soldout and "售" in soldout.name:
-            task.log_info(f"德朗商店: 移除卡牌已售罄")
-            task.node_status['shop'] = False
-        else:
-            current_credit = _get_current_credit(task)
-            removed_card_count = task.node_status.get("removed_card_count", 0)
-            task.log_info(f"handle_shop: 当前信用点={current_credit}")
-            cost_box = find_box_at_point(task, 0.724, 0.319)
-            task.log_info(f"handle_shop: 0.724,0.319处费用文本='{cost_box.name if cost_box else None}'")
-            if cost_box and cost_box.name.isdigit():
-                cost = int(cost_box.name)
-                if removed_card_count >= 5:
-                    task.log_info(
-                        f"本局已移除{removed_card_count}张卡牌，"
-                        "达到5张上限，不再使用信用点移除卡牌"
+        removal_targets = [
+            str(name).strip()
+            for name in _get_card_list(task, "移除卡牌列表")
+            if str(name).strip()
+        ]
+        prefer_base = bool(_get_config_value(task, "优先移除基础牌", True))
+        preset_extra_names = []
+        if getattr(task, "preset_deck_enabled", False):
+            try:
+                import preset_deck as preset_loader
+                preset_records_for_counts = preset_loader.load_preset_records(task)
+                if preset_records_for_counts:
+                    preset_extra_names, _, _ = preset_loader._name_targets(
+                        preset_records_for_counts
                     )
-                elif cost <= current_credit and task.node_status['shop'] is True:
-                    task.log_info(f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，足够，点击移除")
-                    task.click_box(box)
-                    task.sleep(1)
-                    task.node_status['shop'] = False
-                    return True
-                else:
-                    task.log_info(f"德朗商店: 移除卡牌需{cost}信用点，当前{current_credit}，不足，继续挑选其他商品")
-            else:
-                task.log_info("handle_shop: 移除卡牌费用读取失败，继续挑选其他商品")
-            task.node_status['shop'] = False
+            except Exception as exc:
+                task.log_warning(f"预设卡组: 商店读取预设顺序失败: {exc}")
+        # 先看所有牌堆，确认移除目标/基础牌和预设卡名数量；但不马上删牌。
+        if box and "移除卡牌" in box.name and not (soldout and "售" in soldout.name):
+            _shop_read_removal_counts(
+                task, removal_targets, prefer_base, extra_names=preset_extra_names
+            )
 
         current_credit = _get_current_credit(task)
         task.log_info(f"德朗商店挑选商品: 当前信用点={current_credit}")
@@ -3851,6 +4340,64 @@ def handle_shop(task: TriggerTask):
 
         card_priority = _get_card_reward_priority(task)
         equipment_priorities = [_equipment_priority(task, slot) for slot in range(3)]
+        # 实验模式：预设卡组优先，买同名总数还没达标的卡；没有可买的再走奖励优先级兜底。
+        preset_module = None
+        preset_records = []
+        preset_order = []
+        preset_targets = {}
+        if getattr(task, "preset_deck_enabled", False):
+            try:
+                import preset_deck as preset_module
+                preset_records = preset_module.load_preset_records(task)
+                if preset_records:
+                    preset_order, preset_targets, _ = preset_module._name_targets(
+                        preset_records
+                    )
+            except Exception as exc:
+                task.log_warning(f"预设卡组: 商店读取预设失败: {exc}")
+                preset_module = None
+        if (
+            preset_module
+            and preset_records
+            and not _neutral_card_limit_reached(task)
+        ):
+            preset_items = []
+            for index, credit_icon in enumerate(credit_icons):
+                if index not in card_icon_indexes:
+                    continue
+                icon_x = (credit_icon.x + credit_icon.width / 2) / task.width
+                icon_y = (credit_icon.y + credit_icon.height / 2) / task.height
+                price_box = find_box_at_point(task, icon_x + 0.099, icon_y - 0.001)
+                price = _parse_discounted_price(price_box.name) if price_box else None
+                item_name = _get_region_text(task, (
+                    max(0.0, icon_x - 0.013),
+                    max(0.0, icon_y - 0.247),
+                    min(1.0, icon_x + 0.120),
+                    min(1.0, icon_y - 0.105),
+                )).strip()
+                if not item_name or price is None or price >= current_credit:
+                    continue
+                preset_items.append({
+                    "name": item_name,
+                    "text": item_name,
+                    "price": price,
+                    "is_card": True,
+                    "credit_icon": credit_icon,
+                })
+            preset_choice = preset_module.choose_preset_shop_card(
+                task, preset_items, current_credit
+            )
+            if preset_choice:
+                task.log_info(
+                    f"预设卡组: 商店购买「{preset_choice['name']}」，"
+                    f"价格={preset_choice['price']}，当前信用点={current_credit}"
+                )
+                task.click_box(preset_choice["credit_icon"])
+                task.sleep(1)
+                preset_module._bump_name_count(task, preset_choice["name"])
+                preset_module._invalidate_deck_cache(task)
+                return True
+
         unaffordable_items = []
         for index, credit_icon in enumerate(credit_icons):
             icon_x = (credit_icon.x + credit_icon.width / 2) / task.width
@@ -3869,6 +4416,7 @@ def handle_shop(task: TriggerTask):
             if not item_name or price is None:
                 continue
 
+            preset_name = None
             if is_card:
                 if _neutral_card_limit_reached(task):
                     neutral_card_count = task.node_status.get(
@@ -3880,19 +4428,55 @@ def handle_shop(task: TriggerTask):
                         f"达到固定上限{neutral_card_limit}张，跳过商店卡牌"
                     )
                     continue
+                if preset_module and preset_order:
+                    preset_name = next(
+                        (
+                            name
+                            for name in preset_order
+                            if preset_module._name_matches(name, item_name)
+                        ),
+                        None,
+                    )
+                    if preset_name:
+                        preset_counts = getattr(task, "_preset_name_counts", {}) or {}
+                        preset_target = preset_targets.get(
+                            preset_module._compact(preset_name), 0
+                        )
+                        if preset_counts.get(preset_name, 0) >= preset_target:
+                            task.log_info(
+                                f"德朗商店: 「{item_name}」预设同名数量已够"
+                                f"（{preset_counts.get(preset_name, 0)}/{preset_target}），"
+                                "不再购买"
+                            )
+                            continue
                 matched_name = next(
                 (name for name in card_priority
                  if name and (name in item_name or item_name in name)),
                 None,
                 )
             else:
-                matched_name = next(
-                (canonical_name
-                 for priority in equipment_priorities
-                 for canonical_name, rank in [_match_equipment_name(item_name, priority)]
-                 if rank is not None),
-                None,
+                equipment_match = _shop_equipment_should_buy(
+                    task, item_name, equipment_priorities
                 )
+                if equipment_match is None:
+                    matched_name = None
+                else:
+                    (
+                        should_buy,
+                        slot,
+                        new_rank,
+                        canonical_name,
+                        current_name,
+                        current_rank,
+                    ) = equipment_match
+                    matched_name = canonical_name
+                    if not should_buy:
+                        task.log_info(
+                            f"德朗商店: 目标{slot + 1}号位当前「{current_name}」"
+                            f"优先级={current_rank}，新装备「{item_name}」"
+                            f"优先级={new_rank}，不优于当前装备，跳过购买"
+                        )
+                        continue
             if not matched_name:
                 task.log_info(f"德朗商店: {item_type}「{item_name}」未命中配置，跳过")
                 continue
@@ -3912,6 +4496,9 @@ def handle_shop(task: TriggerTask):
             )
             task.click_box(credit_icon)
             task.sleep(1)
+            if is_card and preset_name and preset_module:
+                preset_module._bump_name_count(task, preset_name)
+                preset_module._invalidate_deck_cache(task)
             return True
 
         free_box = next(
@@ -3931,6 +4518,10 @@ def handle_shop(task: TriggerTask):
                 task.log_info("德朗商店没有符合要求的商品，点击「免费」刷新")
             task.click_box(free_box)
             task.sleep(1)
+            return True
+
+        # 免费刷新次数用完后，才考虑购买移除卡牌。
+        if _try_shop_removal(task, removal_targets, prefer_base):
             return True
 
         # 免费次数用完后按钮只显示「剩余刷新次数 + 信用点价格」，按阈值决定是否付费刷新
@@ -3994,12 +4585,17 @@ def handle_shop(task: TriggerTask):
     return False
 
 
-def handle_view_original(task: TriggerTask):
-    """卡牌闪光（查看原件）事件: 按类型特征识别卡牌，并按闪光优先级选择。"""
-    box1 = find_box_at_point(task, 0.890, 0.051)
-    box2 = find_box_at_point(task, 0.896, 0.131)
-    if not ((box1 and (_get_game_text(task, '查看原件') in box1.name or _get_game_text(task, '查看之前的闪光') in box1.name)) or (box2 and (_get_game_text(task, '查看原件') in box2.name or _get_game_text(task, '查看之前的闪光') in box2.name))):
-        return False
+def handle_view_original(task: TriggerTask, card_chooser=None, page_confirmed=False):
+    """卡牌闪光（查看原件）事件: 按类型特征识别卡牌，并按闪光优先级选择。
+
+    card_chooser 是实验模式“预设卡组”的选择函数；返回 None 时回退原有闪光优先级。
+    page_confirmed 为 True 时跳过右上角“查看内容”检测（调用方已按标题确认页面）。
+    """
+    if not page_confirmed:
+        box1 = find_box_at_point(task, 0.890, 0.051)
+        box2 = find_box_at_point(task, 0.896, 0.131)
+        if not ((box1 and (_get_game_text(task, '查看原件') in box1.name or _get_game_text(task, '查看之前的闪光') in box1.name)) or (box2 and (_get_game_text(task, '查看原件') in box2.name or _get_game_text(task, '查看之前的闪光') in box2.name))):
+            return False
 
     cards = recognize_cards(task, page="卡牌闪光页面")
     if not cards:
@@ -4013,38 +4609,50 @@ def handle_view_original(task: TriggerTask):
         if normalized_keyword:
             flash_priority.append(normalized_keyword)
     chosen_card = None
-    for desc_keyword in flash_priority:
-        for card in cards:
-            if is_subsequence(
-                desc_keyword,
-                card['name'] + "：:" + card['description'],
-            ):
-                chosen_card = card
-                task.log_info(f"优先选择「{card['name']}」({desc_keyword})")
-                if (
-                    _get_config_value(task, "首层刷特定闪光", False) is True
-                    and flash_priority
-                    and desc_keyword == flash_priority[0]
+    if card_chooser is not None:
+        try:
+            chosen_card = card_chooser(task, cards)
+        except Exception as exc:
+            task.log_error("预设卡组选择失败，回退闪光优先级", exc)
+            chosen_card = None
+        if chosen_card is not None:
+            task.log_info(
+                f"预设卡组: 本次最终选择「{chosen_card.get('name', '')}」"
+            )
+    if chosen_card is None:
+        for desc_keyword in flash_priority:
+            for card in cards:
+                if is_subsequence(
+                    desc_keyword,
+                    card['name'] + "：:" + card['description'],
                 ):
-                    task.node_status["get_specific_flash"] = True
-                    task.log_info("已命中闪光优先级第一项，记录已获得特定闪光")
-                break
+                    chosen_card = card
+                    task.log_info(f"优先选择「{card['name']}」({desc_keyword})")
+                    if (
+                        _get_config_value(task, "首层刷特定闪光", False) is True
+                        and flash_priority
+                        and desc_keyword == flash_priority[0]
+                    ):
+                        task.node_status["get_specific_flash"] = True
+                        task.log_info("已命中闪光优先级第一项，记录已获得特定闪光")
+                    break
+                if chosen_card:
+                    break
             if chosen_card:
                 break
-        if chosen_card:
-            break
 
     target_boxes, target_click_positions = find_target_card(task)
-    matched_meditation_cards = _matching_meditation_card_names(task, cards)
-    if matched_meditation_cards:
-        meditation_state = _member_deck_state(task)["冥想"]
-        meditation_completed = chosen_card is None and not target_boxes
-        for configured_name in matched_meditation_cards:
-            meditation_state[configured_name] = meditation_completed
-            task.log_info(
-                f"冥想卡牌「{configured_name}」状态更新为"
-                f"{'待冥想' if meditation_completed else '无需冥想'}"
-            )
+    if not getattr(task, "preset_deck_enabled", False):
+        matched_meditation_cards = _matching_meditation_card_names(task, cards)
+        if matched_meditation_cards:
+            meditation_state = _member_deck_state(task)["冥想"]
+            meditation_completed = chosen_card is None and not target_boxes
+            for configured_name in matched_meditation_cards:
+                meditation_state[configured_name] = meditation_completed
+                task.log_info(
+                    f"冥想卡牌「{configured_name}」状态更新为"
+                    f"{'待冥想' if meditation_completed else '无需冥想'}"
+                )
 
     if target_boxes:
         click_position = target_click_positions[0]
@@ -4189,6 +4797,14 @@ def reset_all_status(task: TriggerTask):
     task.member_status = _initial_member_status()
     _reset_meditation_state(task)
     task._pending_removed_card_count = 0
+    task._pending_removed_card_names = []
+    task._pending_removed_card_features = []
+    task._pending_removed_card_basics = []
+    task._removed_card_names = set()
+    task._removal_remaining_counts = {}
+    task._removal_deck_counts = None
+    task._removal_deck_counts_time = 0
+    task._memory_engrave_leave_count = 0
 
 
 def reset_mission_status(task: TriggerTask):
@@ -4205,6 +4821,14 @@ def reset_mission_status(task: TriggerTask):
     task.member_status = _initial_member_status()
     _reset_meditation_state(task)
     task._pending_removed_card_count = 0
+    task._pending_removed_card_names = []
+    task._pending_removed_card_features = []
+    task._pending_removed_card_basics = []
+    task._removed_card_names = set()
+    task._removal_remaining_counts = {}
+    task._removal_deck_counts = None
+    task._removal_deck_counts_time = 0
+    task._memory_engrave_leave_count = 0
 
 
 def reset_layer_status(task: TriggerTask):

@@ -25,12 +25,66 @@ from utils import (
     handle_auto_stop,
 )
 
+from preset_deck import (
+    handle_preset_copy_card_choice,
+    handle_preset_deck_flash,
+    handle_preset_meditation_choice,
+)
+
 import re
 import random
 import time
 
 
 # ------------------------- 卡厄思模式独有页面处理函数 -------------------------
+
+
+def _memory_text_matches(specified, text):
+    """指定记忆和卡牌文本匹配：忽略空格和标点差异。"""
+    if not specified or not text:
+        return False
+    first = re.sub(r"\s+", "", specified)
+    second = re.sub(r"\s+", "", text)
+    return is_subsequence(first, second)
+
+
+_MEMORY_EFFECT_KEYWORDS = (
+    "自身", "友軍", "友军", "持續", "持续", "造成", "抽取", "獲得", "获得",
+    "生成", "回復", "回复", "減少", "减少", "增加", "全體", "全体", "使",
+)
+
+
+def _get_specified_memory(task: TriggerTask):
+    """返回 (记忆卡牌名, 记忆卡牌效果)；兼容旧版“名字+效果”合并配置。"""
+    name = str(_get_config_value(task, "指定记忆卡牌", "") or "").strip()
+    effect = str(_get_config_value(task, "指定记忆卡牌效果", "") or "").strip()
+    if effect:
+        return name, effect
+    if not name:
+        return "", ""
+    parts = name.split(maxsplit=1)
+    if len(parts) == 2:
+        return parts[0].strip(), parts[1].strip()
+    prefix = name.find("記憶：")
+    start = prefix + 3 if prefix >= 0 else 0
+    indexes = [
+        name.find(keyword, start)
+        for keyword in _MEMORY_EFFECT_KEYWORDS
+        if name.find(keyword, start) >= 0
+    ]
+    if indexes:
+        split_index = min(indexes)
+        if split_index > start:
+            return name[:split_index].strip(), name[split_index:].strip()
+    return name, ""
+
+
+def _memory_card_matches(name, effect, card):
+    if name and not _memory_text_matches(name, card.get("name", "")):
+        return False
+    if effect and not _memory_text_matches(effect, card.get("description", "")):
+        return False
+    return bool(name or effect)
 
 
 def handle_memory_process(task: TriggerTask):
@@ -43,10 +97,10 @@ def handle_memory_process(task: TriggerTask):
     cards = recognize_cards(
         task, region=(0.095, 0.204, 0.887, 0.868), page="加工记忆页面"
     )[:3]
-    specified_memory = _get_config_value(task, "指定记忆卡牌", "")
-    if specified_memory:
+    memory_name, memory_effect = _get_specified_memory(task)
+    if memory_name or memory_effect:
         for card in cards:
-            if is_subsequence(specified_memory, card["name"] + "：:" + card["description"]):
+            if _memory_card_matches(memory_name, memory_effect, card):
                 task.log_info(f"加工记忆页面：命中指定记忆卡牌「{card['name']}」")
                 _move_and_click(task, card["x"], card["y"])
                 task.sleep(1)
@@ -58,10 +112,28 @@ def handle_memory_process(task: TriggerTask):
     return True
 
 
+def _confirm_memory_card(task):
+    """记忆卡牌选择页：点右下角确认。"""
+    confirm = next(
+        (
+            box
+            for box in task.all_texts
+            if "确认" in (box.name or "")
+            and (box.x + box.width / 2) / task.width >= 0.75
+            and (box.y + box.height / 2) / task.height >= 0.85
+        ),
+        None,
+    )
+    if confirm is not None:
+        task.log_info("记忆卡牌选择页面：点击确认")
+        task.click_box(confirm)
+        task.sleep(0.8)
+
+
 def handle_memory_card_select(task: TriggerTask):
     """记忆卡牌选择页面：优先目标卡牌，其次指定记忆，否则刷新可搜索的卡牌。"""
     title = _get_region_text(task, (0.341, 0.011, 0.670, 0.171))
-    if "选择铭刻的记忆" not in title:
+    if "选择刻印的记忆" not in title and "选择铭刻的记忆" not in title:
         return False
 
     task.log_info("检测到记忆卡牌选择页面")
@@ -73,15 +145,17 @@ def handle_memory_card_select(task: TriggerTask):
         task.log_info("记忆卡牌选择页面：检测到target卡牌，优先选择")
         _move_and_click(task, *target_click_positions[0])
         task.sleep(1)
+        _confirm_memory_card(task)
         return True
 
-    specified_memory = _get_config_value(task, "指定记忆卡牌", "")
-    if specified_memory:
+    memory_name, memory_effect = _get_specified_memory(task)
+    if memory_name or memory_effect:
         for card in cards:
-            if is_subsequence(specified_memory, card["name"] + "：:" + card["description"]):
+            if _memory_card_matches(memory_name, memory_effect, card):
                 task.log_info(f"记忆卡牌选择页面：命中指定记忆卡牌「{card['name']}」")
                 _move_and_click(task, card["x"], card["y"])
                 task.sleep(1)
+                _confirm_memory_card(task)
                 return True
 
     search_boxes = []
@@ -116,6 +190,7 @@ def handle_memory_card_select(task: TriggerTask):
         search_boxes.remove(search_box)
         if remaining == 0:
             continue
+        # 每次只点一个重新搜索，下一帧重新识别，避免把刚刷出来的目标记忆又刷掉。
         task.log_info(f"记忆卡牌选择页面：剩余搜索次数={remaining}，点击重新搜索")
         _move_and_click(
             task,
@@ -124,6 +199,7 @@ def handle_memory_card_select(task: TriggerTask):
         )
         task.sleep(1)
         refreshed = True
+        break
     if not refreshed:
         task.log_info("记忆卡牌选择页面：未命中目标，且未找到可用的重新搜索按钮")
         if cards:
@@ -131,6 +207,7 @@ def handle_memory_card_select(task: TriggerTask):
             task.log_info(f"未命中目标且无法继续刷新，随机选择「{card['name']}」")
             _move_and_click(task, card["x"], card["y"])
             task.sleep(1)
+            _confirm_memory_card(task)
     return True
 
 
@@ -995,22 +1072,25 @@ def handle_go_to_memory_end(task: TriggerTask):
             for text_box in task.all_texts
             if region[0] <= (text_box.x + text_box.width / 2) / task.width <= region[2]
             and region[1] <= (text_box.y + text_box.height / 2) / task.height <= region[3]
-            and "记忆之末" in text_box.name
+            and (
+                "记忆之末" in text_box.name
+                or "记忆的尽头" in text_box.name
+            )
         ),
         None,
     )
     if box:
-        task.log_info("检测到前往记忆之末按钮，点击进入")
+        task.log_info("检测到前往记忆之末/记忆的尽头按钮，点击进入")
         task.click_box(box)
         task.sleep(1)
         return True
 
     # OCR 可能把按钮文字拆成多个框，退回整块区域文本匹配
     region_text = _get_region_text(task, region).replace(" ", "")
-    if "记忆之末" not in region_text:
+    if "记忆之末" not in region_text and "记忆的尽头" not in region_text:
         return False
 
-    task.log_info("检测到前往记忆之末按钮（区域文本匹配），点击进入")
+    task.log_info("检测到前往记忆之末/记忆的尽头按钮（区域文本匹配），点击进入")
     _move_and_click(task, 0.881, 0.908)
     task.sleep(1)
     return True
@@ -1043,9 +1123,9 @@ def handle_precision_memory_process(task: TriggerTask):
     if status is not None:
         status["precision_memory_visited"] = True
 
-    specified_memory = _get_config_value(task, "指定记忆卡牌", "")
-    if specified_memory and cards and not any(
-        is_subsequence(specified_memory, card["name"] + "：:" + card["description"])
+    memory_name, memory_effect = _get_specified_memory(task)
+    if (memory_name or memory_effect) and cards and not any(
+        _memory_card_matches(memory_name, memory_effect, card)
         for card in cards
     ):
         process_box = next(
@@ -1155,6 +1235,170 @@ def handle_chaos_reward_settlement(task: TriggerTask):
 
 
 # 卡厄思模式 PAGE_HANDLERS
+
+def handle_vault_event(task: TriggerTask):
+    """宝库事件：三个宝箱逐个打开，全部打开后再离开。"""
+    texts = [getattr(box, "name", "") or "" for box in task.all_texts]
+    is_vault = any(
+        "堆满宝物" in name or "华丽空间" in name or "传送门的另一侧" in name
+        for name in texts
+    )
+    node_status = getattr(task, "node_status", None)
+    if not is_vault:
+        if isinstance(node_status, dict) and node_status.get("vault_chests_opened") is not None:
+            if time.time() - node_status.get("vault_last_time", 0) > 15:
+                node_status.pop("vault_chests_opened", None)
+                node_status.pop("vault_last_time", None)
+        return False
+    if not isinstance(node_status, dict):
+        return False
+
+    node_status["vault_last_time"] = time.time()
+    opened = int(node_status.get("vault_chests_opened", 0) or 0)
+    chest_positions = (
+        (0.520, 0.455),
+        (0.640, 0.485),
+        (0.795, 0.455),
+    )
+    if opened < len(chest_positions):
+        x, y = chest_positions[opened]
+        task.log_info(f"宝库事件: 点击第{opened + 1}个宝箱的向下箭头 ({x:.3f}, {y:.3f})")
+        _move_and_click(task, x, y)
+        task.sleep(1.0)
+        node_status["vault_chests_opened"] = opened + 1
+        return True
+
+    leave_box = next(
+        (
+            box
+            for box in task.all_texts
+            if "离开" in (box.name or "") or "事件结束" in (box.name or "")
+        ),
+        None,
+    )
+    if leave_box is not None:
+        task.log_info("宝库事件: 三个宝箱已打开，点击离开")
+        task.click_box(leave_box)
+    else:
+        task.log_info("宝库事件: 三个宝箱已打开，点击离开固定位置")
+        _move_and_click(task, 0.455, 0.800)
+    task.sleep(1.0)
+    node_status.pop("vault_chests_opened", None)
+    node_status.pop("vault_last_time", None)
+    return True
+
+
+def _memory_engrave_button(task, keywords, region):
+    return next(
+        (
+            box
+            for box in task.all_texts
+            if any(keyword in (box.name or "") for keyword in keywords)
+            and region[0] <= (box.x + box.width / 2) / task.width <= region[2]
+            and region[1] <= (box.y + box.height / 2) / task.height <= region[3]
+        ),
+        None,
+    )
+
+
+def _click_memory_engrave_leave(task):
+    leave = _memory_engrave_button(
+        task, ("离开", "離開"), (0.78, 0.88, 0.995, 0.99)
+    )
+    if leave is not None:
+        task.log_info("记忆雕琢: 点击离开")
+        task.click_box(leave)
+    else:
+        task.log_info("记忆雕琢: 点击离开固定位置")
+        _move_and_click(task, 0.91, 0.94)
+    task.sleep(1)
+    task._memory_engrave_clicks = 0
+    task._memory_process_clicks = 0
+    leave_count = int(getattr(task, "_memory_engrave_leave_count", 0) or 0) + 1
+    task._memory_engrave_leave_count = leave_count
+    task.log_info(f"记忆雕琢: 已连续离开雕琢界面 {leave_count} 次")
+
+
+def handle_memory_engrave(task: TriggerTask):
+    """记忆雕琢页面：先雕琢到不能点，再按名字/效果决定是否加工。"""
+    title = _get_region_text(task, (0.35, 0.10, 0.65, 0.20))
+    if "记忆雕琢" not in title and "記憶雕琢" not in title:
+        task._memory_engrave_clicks = 0
+        return False
+
+    engrave = _memory_engrave_button(
+        task, ("记忆雕琢", "記憶雕琢"), (0.70, 0.78, 0.995, 0.88)
+    )
+    if engrave is not None and is_button_active(task, engrave):
+        clicks = int(getattr(task, "_memory_engrave_clicks", 0) or 0)
+        if clicks < 20:
+            task._memory_engrave_clicks = clicks + 1
+            task.log_info(f"记忆雕琢: 点击雕琢（第{clicks + 1}次）")
+            task.click_box(engrave)
+            task.sleep(1.8)
+            return True
+        task.log_warning("记忆雕琢: 雕琢点击次数达到20次上限，停止继续点击")
+
+    memory_name, memory_effect = _get_specified_memory(task)
+    card = None
+    cards = recognize_cards(
+        task, region=(0.38, 0.27, 0.63, 0.83), page="记忆雕琢页面"
+    )
+    if cards:
+        card = cards[0]
+    if card is None or not card.get("name"):
+        try:
+            import preset_deck as preset_module
+            card = preset_module.read_memory_card(task, memory_name)
+        except Exception as exc:
+            task.log_warning(f"记忆雕琢: 读取所有牌堆失败: {exc}")
+            card = None
+    if card is None or not card.get("name"):
+        task.log_warning("记忆雕琢: 识别不到当前记忆卡牌，直接离开")
+        _click_memory_engrave_leave(task)
+        return True
+
+    current_name = card.get("name", "")
+    current_effect = card.get("description", "")
+    if memory_name and not _memory_text_matches(memory_name, current_name):
+        task.log_info(
+            f"记忆雕琢: 卡牌名「{current_name}」与指定「{memory_name}」不一致，不加工"
+        )
+        _click_memory_engrave_leave(task)
+        return True
+    if memory_effect and _memory_text_matches(memory_effect, current_effect):
+        task.log_info(
+            f"记忆雕琢: 「{current_name}」效果已匹配，不加工"
+        )
+        _click_memory_engrave_leave(task)
+        return True
+    if not memory_effect:
+        task.log_info("记忆雕琢: 未配置卡牌效果，不加工")
+        _click_memory_engrave_leave(task)
+        return True
+
+    process = _memory_engrave_button(
+        task, ("加工完成", "加工"), (0.02, 0.78, 0.30, 0.88)
+    )
+    process_clicks = int(getattr(task, "_memory_process_clicks", 0) or 0)
+    if process is not None and is_button_active(task, process):
+        if process_clicks >= 2:
+            task.log_warning("记忆雕琢: 加工已点击2次仍未生效，直接离开")
+            _click_memory_engrave_leave(task)
+            return True
+        task.log_info(
+            f"记忆雕琢: 「{current_name}」效果不匹配，点击加工"
+        )
+        task._memory_process_clicks = process_clicks + 1
+        task.click_box(process)
+        task.sleep(1.5)
+        return True
+
+    task.log_info("记忆雕琢: 效果不匹配但加工不可用，离开")
+    _click_memory_engrave_leave(task)
+    return True
+
+
 PAGE_HANDLERS = [
     handle_auto_stop,
     handle_save_target_member,
@@ -1165,6 +1409,7 @@ PAGE_HANDLERS = [
     handle_stuck_log, #画面卡住检测及兜底处理
     handle_close_page, #点击屏幕关闭页面，优先于其他普通页面处理
 
+    handle_preset_meditation_choice, #冥想页（选目标效果/没有就跳过）
     handle_refine_equipment_credit, #提炼装备信用点页面，优先于确认按钮
     handle_center_confirm, #页面中央确认按钮
     handle_archive_target_member, #信息统计页面，记录刷存档目标主战员
@@ -1183,6 +1428,7 @@ PAGE_HANDLERS = [
     handle_reflash, #重新闪光按钮
     handle_grant_flash, #赋予闪光按钮
     handle_copy, #复制按钮
+    handle_memory_engrave, #记忆雕琢页面，优先于离开按钮
     handle_precision_memory_process, #记忆之末精密加工记忆，优先于离开按钮
     handle_leave, #离开按钮
     handle_mental_breakdown, #精神崩溃，优先级高于下一步按钮
@@ -1220,6 +1466,7 @@ PAGE_HANDLERS = [
     handle_disable_adaptation_distortion, #刷空档时关闭适应畸变，优先于进入按钮
     handle_enter,
     handle_obtain_reward,
+    handle_preset_deck_flash, #实验模式：灵光/神闪页面（预设卡组）
     handle_view_original,
     handle_trauma_center,
     handle_treating,
@@ -1231,8 +1478,10 @@ PAGE_HANDLERS = [
     handle_memory_elimination,
     handle_chaos_craft,
     handle_conquer_difficulty,
+    handle_preset_copy_card_choice, #实验模式：复制页（预设卡组数量）
     handle_copy_card_choice,
     handle_skip,
+    handle_vault_event, #宝库事件：逐个打开三个宝箱
     handle_event_task,
     handle_held_cards_page,
     handle_escape,

@@ -102,3 +102,29 @@ def find_and_instantiate_class(self, file_path, base_class):
         with open(file_path, 'r', encoding=sys.getfilesystemencoding()) as file:
             tree = ast.parse(file.read(), filename=file_path)
 ```
+
+## 可选：实验模式便携包
+
+在 Windows x64、Python 3.12 下，可使用项目本地虚拟环境构建包含实验模式的便携 exe。以下 `v1.4.9` 为版本示例，应填写当前待打包源码对应的版本。
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-build.txt
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py" -v
+.\.venv\Scripts\python.exe scripts/build_portable.py --version v1.4.9
+```
+
+产物位于 `dist`：单文件 exe 和 `SHA256SUMS.txt`。版本号仅写入暂存源码副本，源码仍显示 `dev`。脚本只复制必要源码、界面资源与运行库，不包含个人配置、日志或截图；配置保存在 exe 同级的 `configs` 目录，迁移时由使用者复制自己的配置。中间文件位于 Git 忽略的 `build` 目录。
+
+OpenCC 需要纯英文资源路径，单文件程序运行时解压至 `C:\Temp\ok-kes` 下的独立临时目录。冻结程序可进行只读自检，不连接游戏或发送点击：
+
+```powershell
+$exe = (Get-ChildItem dist/ok-kes-experimental-win64-*.exe | Select-Object -First 1).FullName
+$report = Join-Path (Get-Location) 'build/portable-self-test.json'
+$env:__COMPAT_LAYER = 'RunAsInvoker'
+$process = Start-Process -FilePath $exe -ArgumentList @('--self-test', '--self-test-report', "`"$report`"") -WindowStyle Hidden -Wait -PassThru
+if ($process.ExitCode -ne 0) { throw '冻结程序自检失败' }
+Get-Content $report
+```
+
+自检覆盖 OpenCC、实验任务、预设编辑器、中文卡牌映射、界面资源及 OCR 模型实际推理。`RunAsInvoker` 仅用于构建自检，正常启动仍按程序清单请求管理员权限。此构建入口独立于现有正式发布工作流；实验功能的使用方式和限制见 [实验模式说明](docs/releases/experimental.md)。

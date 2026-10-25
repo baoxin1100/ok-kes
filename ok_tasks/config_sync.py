@@ -108,7 +108,8 @@ def upload_config(task: TriggerTask, mode: str) -> bool:
     if not _should_upload(task):
         return False
 
-    config_b64 = _export_config_to_text(task)
+    # 预设卡组只保存在本地，不随热门配置上传。
+    config_b64 = _export_config_to_text(task, exclude_keys={"预设卡组"})
     if not config_b64:
         return False
 
@@ -468,7 +469,10 @@ def show_hot_configs_dialog(task: TriggerTask, mode: str):
             QMessageBox.Yes | QMessageBox.No,
         )
         if reply == QMessageBox.Yes:
-            success = _import_config_from_text(task, r["config_b64"])
+            # 应用热门配置时保留本地的预设卡组，避免被别人的卡组覆盖。
+            success = _import_config_from_text(
+                task, r["config_b64"], preserve_keys={"预设卡组"}
+            )
             if success:
                 QMessageBox.information(dialog, "导入成功", "热门配置已成功应用！")
                 refresh_task_config_widgets(task)

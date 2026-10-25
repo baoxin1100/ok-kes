@@ -4,10 +4,15 @@ import os
 import traceback
 from src.config import config
 from src.ui.SponsorDialog import install_sponsor_dialog
+from src.window_recovery import install_window_recovery
 
 if __name__ == '__main__':
     try:
+        if '--self-test' in sys.argv:
+            from src.packaging_smoke import run
+            sys.exit(run())
         install_sponsor_dialog()
+        install_window_recovery()
         # PyInstaller --onefile mode: 切换数据目录，但配置文件保存在 exe 所在位置
         if getattr(sys, 'frozen', False):
             exe_dir = os.path.dirname(sys.executable)

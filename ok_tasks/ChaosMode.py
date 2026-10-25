@@ -14,6 +14,7 @@ from utils import (
     reset_all_status,
     _migrate_route_boss_to_elite,
     _simplify_texts,
+    _disable_other_chaos_tasks,
 )
 
 class ChaosMode(TriggerTask):
@@ -58,6 +59,7 @@ class ChaosMode(TriggerTask):
         self.default_config['装备3号位优先级'] = ["异象石碑"]
         self.default_config['卡牌奖励优先级'] = ["梦之边境"]
         self.default_config['指定记忆卡牌'] = ""
+        self.default_config['指定记忆卡牌效果'] = ""
         self.default_config['首层刷特定闪光'] = False
         self.default_config['刷空档'] = False
         self.default_config['优先使用金币治疗'] = True
@@ -127,8 +129,15 @@ class ChaosMode(TriggerTask):
         migrate_game_language_config_file(self)
         super().load_config()
 
+    def on_create(self):
+        """启动时如果配置为默认开启，关闭另一个卡厄思模式，避免同时运行。"""
+        super().on_create()
+        if getattr(self, "_enabled", False):
+            _disable_other_chaos_tasks(self)
+
     def enable(self):
-        """开启卡厄思模式时自动禁用出击模式，重置状态并迁移配置。"""
+        """开启卡厄思模式时自动禁用出击/剧情/实验模式，重置状态并迁移配置。"""
+        _disable_other_chaos_tasks(self)
         from SortieMode import SortieMode
         sortie = og.executor.get_task_by_class(SortieMode)
         if sortie and sortie.enabled:

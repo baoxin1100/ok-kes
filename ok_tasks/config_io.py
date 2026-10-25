@@ -99,8 +99,12 @@ def migrate_game_language_config_file(task):
     write_json_file(config_file, data)
 
 
-def _export_config_to_text(task):
-    """将任务的用户配置导出为 base64 编码文本。"""
+def _export_config_to_text(task, exclude_keys=None):
+    """将任务的用户配置导出为 base64 编码文本。
+
+    exclude_keys 用于“热门配置”上传时排除只应保存在本地的字段（例如预设卡组）。
+    """
+    exclude_keys = set(exclude_keys or ())
     config_file = task.config.config_file
     if not os.path.exists(config_file):
         task.log_info("配置文件不存在，无法导出")
@@ -115,7 +119,9 @@ def _export_config_to_text(task):
     clean = {
         k: v
         for k, v in data.items()
-        if not k.startswith('_') and k not in UI_ONLY_CONFIG_KEYS
+        if not k.startswith('_')
+        and k not in UI_ONLY_CONFIG_KEYS
+        and k not in exclude_keys
     }
     if "游戏语言" in getattr(task, "default_config", {}):
         clean["游戏语言"] = task.config.get(
@@ -127,8 +133,12 @@ def _export_config_to_text(task):
     return encoded
 
 
-def _import_config_from_text(task, encoded_text):
-    """从 base64 编码文本导入配置到任务配置文件。"""
+def _import_config_from_text(task, encoded_text, preserve_keys=None):
+    """从 base64 编码文本导入配置到任务配置文件。
+
+    preserve_keys 中的字段不会被导入覆盖（用于热门配置保留本地预设卡组）。
+    """
+    preserve_keys = set(preserve_keys or ())
     try:
         json_str = base64.b64decode(encoded_text.encode('ascii')).decode('utf-8')
         data = json.loads(json_str)
@@ -157,6 +167,13 @@ def _import_config_from_text(task, encoded_text):
     if ignored_keys:
         task.log_info(f"导入配置时忽略无效或已废弃字段: {', '.join(ignored_keys)}")
     data = sanitized_data
+    if preserve_keys:
+        for key in list(data):
+            if key in preserve_keys:
+                data.pop(key, None)
+        task.log_info(
+            f"导入配置时保留本地字段: {', '.join(sorted(preserve_keys))}"
+        )
 
     # 写入配置文件
     config_file = task.config.config_file

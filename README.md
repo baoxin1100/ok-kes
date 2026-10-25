@@ -25,6 +25,8 @@
 
 ### [English Readme](README_en.md) | 中文说明
 
+> 实验功能：预设卡组、官方卡组码联网导入及窗口恢复等待，使用方式与限制见 [实验模式说明](docs/releases/experimental.md)。
+
 > 📖 **第一次使用？请先阅读：[完整使用文档](docs/zh-CN/usage-guide.md)**
 
 ---

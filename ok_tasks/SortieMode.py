@@ -13,6 +13,7 @@ from utils import (
     reset_all_status,
     _migrate_route_boss_to_elite,
     _simplify_texts,
+    _disable_other_chaos_tasks,
 )
 
 
@@ -92,6 +93,7 @@ class SortieMode(TriggerTask):
 
     def enable(self):
         """开启出击模式时自动禁用卡厄思模式，重置状态并迁移配置。"""
+        _disable_other_chaos_tasks(self)
         from ChaosMode import ChaosMode
         chaos = og.executor.get_task_by_class(ChaosMode)
         if chaos and chaos.enabled:
