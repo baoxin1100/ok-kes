@@ -3146,14 +3146,14 @@ def handle_event_task(task: TriggerTask):
     if bottom_box and re.search(r'\d+/\d+', bottom_box.name):
         return False
 
-    rewards = task.find_feature(feature_name="taskreward")
+    rewards = task.find_feature(feature_name=["taskreward", "task_reward2"])
     if rewards:
         reward = rewards[0]
         cx = (reward.x + reward.width / 2) / task.width
         cy = (reward.y + reward.height / 2) / task.height
         if 0.437 <= cx <= 0.902 and 0.350 <= cy <= 0.614:
             task.log_info("检测到任务奖励图标，优先点击")
-            task.click_box(reward)
+            _move_and_click(task, cx, cy)
             return True
 
     tasks_info = recognize_event_options(task, page="事件任务页面")
@@ -3656,7 +3656,7 @@ def _wait_for_rest_confirm(task: TriggerTask):
 def handle_rest(task: TriggerTask):
     """休息界面: 根据血量、信用点和冥想状态选择休息或冥想。"""
     special_flash = task.find_one(
-        feature_name=["special_flash_luosi", "special_flash_luosi2"],
+        feature_name=["special_flash_luosi", "special_flash_luosi2", "special_flash_luosi3"],
         box=task.box_of_screen(0.219, 0.208, 0.786, 0.814),
     )
     if special_flash:

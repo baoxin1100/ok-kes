@@ -61,7 +61,7 @@ def handle_memory_process(task: TriggerTask):
 def handle_memory_card_select(task: TriggerTask):
     """记忆卡牌选择页面：优先目标卡牌，其次指定记忆，否则刷新可搜索的卡牌。"""
     title = _get_region_text(task, (0.341, 0.011, 0.670, 0.171))
-    if "选择铭刻的记忆" not in title:
+    if _get_game_text(task, "选择铭刻的记忆") not in title:
         return False
 
     task.log_info("检测到记忆卡牌选择页面")
@@ -989,13 +989,14 @@ def handle_go_to_chaos_core(task: TriggerTask):
 def handle_go_to_memory_end(task: TriggerTask):
     """卡厄思结算页面右下角「前往记忆之末」按钮: 检测到后点击进入记忆之末。"""
     region = (0.740, 0.850, 0.995, 0.980)
+    memory_end_text = _get_game_text(task, "记忆之末")
     box = next(
         (
             text_box
             for text_box in task.all_texts
             if region[0] <= (text_box.x + text_box.width / 2) / task.width <= region[2]
             and region[1] <= (text_box.y + text_box.height / 2) / task.height <= region[3]
-            and "记忆之末" in text_box.name
+            and memory_end_text in text_box.name
         ),
         None,
     )
@@ -1007,7 +1008,7 @@ def handle_go_to_memory_end(task: TriggerTask):
 
     # OCR 可能把按钮文字拆成多个框，退回整块区域文本匹配
     region_text = _get_region_text(task, region).replace(" ", "")
-    if "记忆之末" not in region_text:
+    if memory_end_text not in region_text:
         return False
 
     task.log_info("检测到前往记忆之末按钮（区域文本匹配），点击进入")
@@ -1031,7 +1032,8 @@ def _precision_button_active(task: TriggerTask, box):
 def handle_precision_memory_process(task: TriggerTask):
     """记忆之末「精密加工记忆」按钮: 可用时优先点击，变灰（材料耗尽）后交给离开按钮处理。"""
     title_text = _get_region_text(task, (0.400, 0.080, 0.600, 0.170)).replace(" ", "")
-    if "精密加工记忆" not in title_text:
+    precision_memory_text = _get_game_text(task, "精密加工记忆")
+    if precision_memory_text not in title_text:
         return False
 
     cards = recognize_cards(
@@ -1053,7 +1055,7 @@ def handle_precision_memory_process(task: TriggerTask):
                 box for box in task.all_texts
                 if 0.026 <= (box.x + box.width / 2) / task.width <= 0.315
                 and 0.708 <= (box.y + box.height / 2) / task.height <= 0.867
-                and "加工记忆" in box.name
+                and _get_game_text(task, "加工记忆") in box.name
             ),
             None,
         )
@@ -1074,7 +1076,7 @@ def handle_precision_memory_process(task: TriggerTask):
             for text_box in task.all_texts
             if region[0] <= (text_box.x + text_box.width / 2) / task.width <= region[2]
             and region[1] <= (text_box.y + text_box.height / 2) / task.height <= region[3]
-            and "精密加工记忆" in text_box.name
+            and precision_memory_text in text_box.name
         ),
         None,
     )

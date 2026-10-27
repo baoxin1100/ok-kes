@@ -329,6 +329,18 @@
             "file_name": "images/1.png",
             "width": 1920,
             "height": 1080
+        },
+        {
+            "id": 211,
+            "file_name": "images/2.png",
+            "width": 1920,
+            "height": 1080
+        },
+        {
+            "id": 212,
+            "file_name": "images/0.png",
+            "width": 1920,
+            "height": 1080
         }
     ],
     "annotations": [
@@ -1462,6 +1474,32 @@
             ],
             "area": 4060,
             "iscrowd": 0
+        },
+        {
+            "id": 88,
+            "image_id": 211,
+            "category_id": 88,
+            "bbox": [
+                1215,
+                490,
+                78,
+                95
+            ],
+            "area": 7410,
+            "iscrowd": 0
+        },
+        {
+            "id": 89,
+            "image_id": 212,
+            "category_id": 89,
+            "bbox": [
+                977,
+                430,
+                58,
+                62
+            ],
+            "area": 3596,
+            "iscrowd": 0
         }
     ],
     "categories": [
@@ -1898,6 +1936,16 @@
         {
             "id": 87,
             "name": "eyes",
+            "supercategory": ""
+        },
+        {
+            "id": 88,
+            "name": "special_flash_luosi3",
+            "supercategory": ""
+        },
+        {
+            "id": 89,
+            "name": "task_reward2",
             "supercategory": ""
         }
     ]
