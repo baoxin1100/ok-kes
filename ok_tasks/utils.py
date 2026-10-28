@@ -2316,13 +2316,27 @@ def _member_equipment_qualities(task: TriggerTask, level_box):
         (0.201, -0.044),
         (0.270, -0.044),
     )
+    # 以1号主战员等级特征中心(1209, 347.5)/1920x1080为锚点，
+    # 将指定空槽检测点平移到其他主战员的同一槽位。
+    level_anchor_x = 1209 / 1920
+    level_anchor_y = 347.5 / 1080
+    empty_offsets = tuple(
+        (x - level_anchor_x, y - level_anchor_y)
+        for x, y in ((0.779, 0.319), (0.850, 0.326), (0.920, 0.321))
+    )
     qualities = []
     for slot, (offset_x, offset_y) in enumerate(relative_offsets):
-        point = (level_center_x + offset_x, level_center_y + offset_y)
-        quality, rgb = _equipment_quality_at(task, point, allow_empty=True)
+        empty_offset_x, empty_offset_y = empty_offsets[slot]
+        empty_point = (level_center_x + empty_offset_x, level_center_y + empty_offset_y)
+        empty_rgb = _pixel_rgb(task, empty_point)
+        if _rgb_is_close(empty_rgb, _EQUIPMENT_EMPTY_RGB):
+            quality, rgb = "", empty_rgb
+        else:
+            point = (level_center_x + offset_x, level_center_y + offset_y)
+            quality, rgb = _equipment_quality_at(task, point, allow_empty=True)
         qualities.append(quality)
         task.log_info(
-            f"第{slot + 1}号装备位颜色RGB={rgb}，"
+            f"第{slot + 1}号装备位空槽检测RGB={empty_rgb}，品质检测RGB={rgb}，"
             f"识别品质={quality or '未安装'}"
         )
     return qualities
