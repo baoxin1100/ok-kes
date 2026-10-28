@@ -33,6 +33,19 @@ import time
 # ------------------------- 卡厄思模式独有页面处理函数 -------------------------
 
 
+def handle_keyword_pause(task: TriggerTask):
+    """OCR命中配置关键词时暂停自动操作，等待用户手动接管。"""
+    keyword = _get_config_value(task, "关键词暂停", "")
+    if not keyword:
+        return False
+    matched_box = next((box for box in task.all_texts if keyword in box.name), None)
+    if matched_box is None:
+        return False
+    task.log_info(f"命中暂停关键词「{keyword}」，OCR文本「{matched_box.name}」，暂停工具等待手动接管")
+    task.executor.pause()
+    return True
+
+
 def handle_memory_process(task: TriggerTask):
     """加工记忆页面：选择命中指定记忆的卡牌，否则跳过。"""
     title = _get_region_text(task, (0.420, 0.072, 0.584, 0.169))
@@ -1158,6 +1171,7 @@ def handle_chaos_reward_settlement(task: TriggerTask):
 
 # 卡厄思模式 PAGE_HANDLERS
 PAGE_HANDLERS = [
+    handle_keyword_pause, #关键词暂停（最高优先级）
     handle_auto_stop,
     handle_save_target_member,
     handle_route_selection,
