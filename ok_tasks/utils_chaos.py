@@ -899,10 +899,15 @@ def handle_data_collected(task: TriggerTask):
 def handle_stage_end_data_details(task: TriggerTask):
     """关卡结束数据详情页面：检测到存储数据后关闭详情。"""
     page_text = _get_region_text(task, (0.111, 0.103, 0.338, 0.243))
-    if _get_game_text(task, "存储数据") not in page_text:
+    detail_text = _get_region_text(task, (0.145, 0.560, 0.397, 0.840))
+    if (
+        _get_game_text(task, "存储数据") not in page_text
+        or "卡牌数量" not in detail_text
+        or "模糊的记忆" not in detail_text
+    ):
         return False
 
-    task.log_info("检测到关卡结束数据详情页面，点击关闭")
+    task.log_info("检测到关卡结束数据详情页面，点击右上角关闭并返回存档列表")
     _move_and_click(task, 0.883, 0.156)
     task.sleep(1)
     return True
@@ -1173,6 +1178,7 @@ def handle_chaos_reward_settlement(task: TriggerTask):
 PAGE_HANDLERS = [
     handle_keyword_pause, #关键词暂停（最高优先级）
     handle_auto_stop,
+    handle_stage_end_data_details, #优先关闭存档详情，避免卡牌处理器误响应
     handle_save_target_member,
     handle_route_selection,
     # handle_stage_clear,
@@ -1252,5 +1258,4 @@ PAGE_HANDLERS = [
     handle_event_task,
     handle_held_cards_page,
     handle_escape,
-    handle_stage_end_data_details, #关卡结束数据详情页面，低优先级
 ]
