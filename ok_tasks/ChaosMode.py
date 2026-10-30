@@ -30,7 +30,7 @@ class ChaosMode(TriggerTask):
         self.default_config['配置操作'] = ""
         self.default_config['游戏语言'] = "简体中文"
         self.default_config['关键词暂停'] = ""
-        self.config_description['关键词暂停'] = "OCR结果包含该文本时暂停工具，等待手动接管；留空不启用。"
+        self.config_description['关键词暂停'] = "多个关键词可用中英文逗号或分号（,，;；）分隔；OCR结果包含任意一个关键词时暂停工具，等待手动接管；留空不启用。"
         self.default_config['刷存档主战员'] = "海德玛丽"
         self.default_config['存储数据保存上限大于多少'] = 120
         self.default_config['保留大于多少TB的存档'] = 62000

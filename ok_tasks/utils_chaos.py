@@ -35,12 +35,13 @@ import time
 
 def handle_keyword_pause(task: TriggerTask):
     """OCR命中配置关键词时暂停自动操作，等待用户手动接管。"""
-    keyword = _get_config_value(task, "关键词暂停", "")
-    if not keyword:
+    keywords = [keyword.strip() for keyword in re.split(r"[,，;；]", _get_config_value(task, "关键词暂停", "")) if keyword.strip()]
+    if not keywords:
         return False
-    matched_box = next((box for box in task.all_texts if keyword in box.name), None)
-    if matched_box is None:
+    match = next(((keyword, box) for box in task.all_texts for keyword in keywords if keyword in box.name), None)
+    if match is None:
         return False
+    keyword, matched_box = match
     task.log_info(f"命中暂停关键词「{keyword}」，OCR文本「{matched_box.name}」，暂停工具等待手动接管")
     task.executor.pause()
     return True
