@@ -5,6 +5,7 @@ from utils import (
     find_box_at_point, find_text, recognize_cards, find_target_card,
     _card_has_type_below, select_card,
     log_credit, log_node_status, handle_battle_crash, handle_close_page, handle_refine_equipment_credit,
+    handle_scene_click_marker,
     handle_center_confirm, handle_settlement, handle_skip,
     handle_destiny_choice, handle_main_member_flash,
     handle_card_reward, handle_equipment,
@@ -1181,6 +1182,7 @@ PAGE_HANDLERS = [
     log_node_status,
     handle_stuck_log, #画面卡住检测及兜底处理
     handle_close_page, #点击屏幕关闭页面，优先于其他普通页面处理
+    handle_scene_click_marker, #场景内交互标记（宝物仓库等，需要真实点击）
 
     handle_refine_equipment_credit, #提炼装备信用点页面，优先于确认按钮
     handle_center_confirm, #页面中央确认按钮

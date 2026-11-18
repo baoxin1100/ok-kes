@@ -51,6 +51,70 @@ def _move_and_click(task: TriggerTask, x, y):
     task.click(x, y)
 
 
+def _real_click_relative(task: TriggerTask, x, y):
+    """真实鼠标点击（SetCursorPos + mouse_event）。
+
+    部分 3D 场景内的交互（如「宝物仓库」里的宝箱/交互标记）不响应
+    PostMessage 后台点击，只认真实鼠标输入，因此这里在前台发送真实点击。
+    点击完成后会还原光标位置；无法把游戏窗口切到前台时返回 False。
+    """
+    try:
+        import win32api
+        import win32con
+        import win32gui
+        import win32process
+    except ImportError:
+        task.log_info("真实点击不可用：缺少 pywin32")
+        return False
+    hwnd_window = getattr(getattr(task.executor, 'device_manager', None), 'hwnd_window', None)
+    if hwnd_window is None or not getattr(hwnd_window, 'hwnd', 0):
+        task.log_info("真实点击不可用：未连接游戏窗口")
+        return False
+    hwnd = getattr(hwnd_window, 'top_hwnd', 0) or hwnd_window.hwnd
+    abs_x, abs_y = win32gui.ClientToScreen(
+        hwnd, (int(task.width * x), int(task.height * y))
+    )
+    try:
+        if win32gui.GetForegroundWindow() != hwnd:
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            try:
+                win32gui.SetForegroundWindow(hwnd)
+            except Exception:
+                pass
+            task.sleep(0.35)
+        if win32gui.GetForegroundWindow() != hwnd:
+            # 前台窗口锁定时的兜底：AttachThreadInput 后强制置前
+            try:
+                foreground = win32gui.GetForegroundWindow()
+                foreground_thread = win32process.GetWindowThreadProcessId(foreground)[0]
+                current_thread = win32api.GetCurrentThreadId()
+                win32process.AttachThreadInput(foreground_thread, current_thread, True)
+                try:
+                    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                    win32gui.SetForegroundWindow(hwnd)
+                    win32gui.BringWindowToTop(hwnd)
+                finally:
+                    win32process.AttachThreadInput(foreground_thread, current_thread, False)
+                task.sleep(0.35)
+            except Exception:
+                pass
+        if win32gui.GetForegroundWindow() != hwnd:
+            task.log_info("真实点击跳过：无法把游戏窗口切换到前台")
+            return False
+        previous_pos = win32gui.GetCursorPos()
+        win32api.SetCursorPos((abs_x, abs_y))
+        task.sleep(0.15)
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, abs_x, abs_y, 0, 0)
+        task.sleep(0.05)
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, abs_x, abs_y, 0, 0)
+        task.sleep(0.25)
+        win32api.SetCursorPos(previous_pos)
+        return True
+    except Exception as error:
+        task.log_info(f"真实点击失败: {error}")
+        return False
+
+
 def _simplify_texts(texts):
     """将OCR结果按 jp2t → t2s 批量转换为简体（原地修改）。"""
     for b in texts:
@@ -1851,6 +1915,83 @@ def handle_close_page(task: TriggerTask):
         task.click_box(box)
         return True
     return False
+
+
+# ------------------------- 场景内交互标记（真实点击） -------------------------
+
+_scene_click_marker = None
+
+
+def _load_scene_click_marker():
+    """加载「场景内可交互」猫头标记的模板图片（只加载一次）。"""
+    global _scene_click_marker
+    if _scene_click_marker is None:
+        marker_path = os.path.join(os.path.dirname(__file__), 'assets', 'scene_click_marker.png')
+        loaded = cv2.imread(marker_path) if os.path.exists(marker_path) else None
+        _scene_click_marker = loaded if loaded is not None else False
+    return None if _scene_click_marker is False else _scene_click_marker
+
+
+def handle_scene_click_marker(task: TriggerTask):
+    """场景内交互标记页面（如「宝物仓库」的宝箱）。
+
+    游戏在场景内可点击的对象上方显示紫底猫头标记，这类交互只认真实鼠标输入，
+    PostMessage 后台点击无效，因此用真实点击逐个点掉标记；全部点完后点击
+    「繼續進行」结束该页面。
+    """
+    marker = _load_scene_click_marker()
+    if marker is None:
+        return False
+
+    marker_boxes = task.find_feature(
+        template=marker,
+        box=task.box_of_screen(0.30, 0.25, 0.95, 0.72),
+        threshold=0.78,
+    ) or []
+    if marker_boxes:
+        marker_boxes.sort(key=lambda box: box.x)
+        target = marker_boxes[0]
+        click_x = (target.x + target.width / 2) / task.width
+        click_y = (target.y + target.height / 2) / task.height
+        task.log_info(
+            f"检测到场景交互标记（共{len(marker_boxes)}个），真实点击 "
+            f"({click_x:.3f}, {click_y:.3f})，相似度={target.confidence:.3f}"
+        )
+        if _real_click_relative(task, click_x, click_y):
+            task._treasure_vault_active_at = time.time()
+            task.sleep(1.5)
+            return True
+        return False
+
+    # 标记全部点完后，页面底部出现「繼續進行」按钮
+    continue_region = (0.70, 0.85, 0.999, 0.995)
+    continue_box = next(
+        (
+            box
+            for box in task.all_texts
+            if continue_region[0] <= (box.x + box.width / 2) / task.width <= continue_region[2]
+            and continue_region[1] <= (box.y + box.height / 2) / task.height <= continue_region[3]
+            and any(
+                keyword in box.name
+                for keyword in ("继续", "進行", "进行", "繼續")
+            )
+        ),
+        None,
+    )
+    if not continue_box:
+        return False
+    treasure_active_at = getattr(task, '_treasure_vault_active_at', 0)
+    treasure_recent = treasure_active_at and time.time() - treasure_active_at < 600
+    treasure_narration = any(
+        "堆满宝物" in box.name or "堆滿寶物" in box.name for box in task.all_texts
+    )
+    if not treasure_recent and not treasure_narration:
+        return False
+    task.log_info(f"宝物仓库已全部开启，点击「{continue_box.name}」")
+    task.click_box(continue_box)
+    task._treasure_vault_active_at = 0
+    task.sleep(1)
+    return True
 
 
 def handle_refine_equipment_credit(task: TriggerTask):
