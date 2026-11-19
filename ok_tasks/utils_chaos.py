@@ -1032,11 +1032,10 @@ def handle_go_to_memory_end(task: TriggerTask):
 
 
 def _precision_button_active(task: TriggerTask, box):
-    """精密加工记忆按钮是否可用: 文本左侧胶囊背景为橙色时可用，材料耗尽后会变灰。"""
-    x1 = max(int(box.x) - 30, 0)
-    x2 = max(int(box.x) - 5, x1 + 1)
-    center_y = int(box.y + box.height / 2)
-    patch = task.frame[max(center_y - 6, 0):center_y + 6, x1:x2, :3]
+    """精密加工记忆按钮是否可用: 采样按钮内部上沿背景，避开文字、图标及左侧光效。"""
+    height, width = task.frame.shape[:2]
+    patch = task.frame[int(height * 0.763):int(height * 0.771),
+                       int(width * 0.770):int(width * 0.850), :3]
     if patch.size == 0:
         return False
     blue, _, red = patch.mean(axis=(0, 1))

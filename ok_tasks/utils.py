@@ -467,11 +467,11 @@ def recognize_event_options(
     """按事件选项特征识别最多三个事件描述。"""
     event_region = task.box_of_screen(*region)
     event_features = []
-    for feature_name in ("event1", "event2", "event3", "event4", "event5", "event6", "event7", "event8", "event9"):
+    for feature_name in ("event1", "event2", "event3", "event4", "event5", "event6", "event7", "event8", "event9", "event10"):
         for feature_box in task.find_feature(
             feature_name=feature_name,
             box=event_region,
-            threshold=0.90 if feature_name == "event9" else 0.70,
+            threshold=0.90 if feature_name in ("event9", "event10") else 0.70,
         ) or []:
             center_x = (feature_box.x + feature_box.width / 2) / task.width
             center_y = (feature_box.y + feature_box.height / 2) / task.height
@@ -3046,7 +3046,7 @@ def handle_three_choice_card_remove(task: TriggerTask):
             box for box in task.all_texts
             if region[0] <= (box.x + box.width / 2) / task.width <= region[2]
             and region[1] <= (box.y + box.height / 2) / task.height <= region[3]
-            and "移除" in box.name
+            and box.name == "移除"
         ),
         None,
     )
@@ -3160,7 +3160,8 @@ def handle_event_task(task: TriggerTask):
     if bottom_box and re.search(r'\d+/\d+', bottom_box.name):
         return False
 
-    rewards = task.find_feature(feature_name=["taskreward", "task_reward2"])
+    rewards = task.find_feature(feature_name=["taskreward", "task_reward2", "taskreward3"],
+                                box=task.box_of_screen(0.434, 0.292, 0.979, 0.688))
     if rewards:
         reward = rewards[0]
         cx = (reward.x + reward.width / 2) / task.width
