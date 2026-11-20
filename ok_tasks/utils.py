@@ -4950,11 +4950,19 @@ def handle_card_assign(task: TriggerTask):
         if skip_box:
             task.log_info("无可用刷新或刷新次数，点击跳过非优先级卡牌")
             task.click_box(skip_box)
-        else:
-            task.log_info("无可用刷新或刷新次数且未识别到跳过文本，点击跳过固定坐标")
-            _move_and_click(task, 0.703, 0.931)
-        task.sleep(1)
-        return True
+            task.sleep(1)
+            return True
+        if "记忆" not in card_name and getattr(task, "frame", None) is not None:
+            sx1 = max(0, int(0.64 * task.width))
+            sy1 = max(0, int(0.91 * task.height))
+            sx2 = min(task.width, int(0.76 * task.width))
+            sy2 = min(task.height, int(0.95 * task.height))
+            skip_patch = task.frame[sy1:sy2, sx1:sx2, :3]
+            if skip_patch.size > 0 and float(skip_patch.mean()) > 180:
+                task.log_info("无可用刷新或刷新次数且检测到白色跳过按钮，点击跳过固定坐标")
+                _move_and_click(task, 0.703, 0.931)
+                task.sleep(1)
+                return True
 
     lv_texts = _find_member_level_tags(
         task,
