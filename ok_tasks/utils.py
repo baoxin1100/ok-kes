@@ -236,15 +236,19 @@ def _record_neutral_card(task: TriggerTask):
 
 
 def _parse_discounted_price(price_text):
-    """解析可能将折扣前后价格连在一起的 OCR 数字。"""
-    price_text = price_text.strip()
-    if not re.fullmatch(r"\d+", price_text):
+    """解析可能将折扣前后价格连在一起或带空格/删除线符号的 OCR 数字。"""
+    price_text = str(price_text or "").strip()
+    nums = re.findall(r"\d+", price_text)
+    if not nums:
         return None
-    if len(price_text) == 6:
-        return int(price_text[-3:])
-    if len(price_text) in (4, 5):
-        return int(price_text[-2:])
-    return int(price_text)
+    if len(nums) >= 2:
+        return int(nums[-1])
+    digits = nums[0]
+    if len(digits) == 6:
+        return int(digits[-3:])
+    if len(digits) in (4, 5):
+        return int(digits[-2:])
+    return int(digits)
 
 
 def _get_current_hp_percent(task: TriggerTask):
