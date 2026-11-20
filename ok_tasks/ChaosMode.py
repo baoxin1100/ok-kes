@@ -62,6 +62,7 @@ class ChaosMode(TriggerTask):
         self.default_config['装备3号位优先级'] = ["异象石碑"]
         self.default_config['刻印刷取'] = False
         self.default_config['首层未刷到刻印重开'] = False
+        self.default_config['最终战前已命中词条至少为多少'] = 0
         self.default_config['刻印优先级'] = []
         self.default_config['卡牌奖励优先级'] = ["梦之边境"]
         self.default_config['指定记忆卡牌'] = ""
@@ -94,7 +95,11 @@ class ChaosMode(TriggerTask):
                 "names": ["", "", ""],
                 "descriptions": ["", "", ""],
                 "qualities": ["", "", ""],
-                "engraving": {"type": "", "text": "", "rank": None, "slot": None},
+                "engravings": [
+                    {"type": "", "text": "", "rank": None},
+                    {"type": "", "text": "", "rank": None},
+                    {"type": "", "text": "", "rank": None},
+                ],
             },
             "deck": {},
         }
@@ -114,6 +119,7 @@ class ChaosMode(TriggerTask):
             },
             '第几层boss前自动暂停': {'type': 'drop_down', 'options': ['不暂停', '1', '2']},
             '存储数据保存上限大于多少': {'min': 0, 'max': 300},
+            '最终战前已命中词条至少为多少': {'min': 0, 'max': 3},
         }
         self.config_description['游戏语言'] = "国际服请设置为繁体中文"
         self.config_description['存储数据保存上限大于多少'] = (
@@ -145,6 +151,9 @@ class ChaosMode(TriggerTask):
         )
         self.config_description['首层未刷到刻印重开'] = (
             "需同时开启“刻印刷取”才生效：第一层通关后若目标主战员未获得命中“刻印优先级”的刻印，则自动退出重刷。"
+        )
+        self.config_description['最终战前已命中词条至少为多少'] = (
+            "需同时开启“刻印刷取”才生效：第2层最终Boss前（最后一个休息点全部操作完成后）若刷存档主战员持有的已命中刻印词条数量小于该值（0~3，0为不限制），则退出并删档重来。"
         )
         self.config_description['刻印优先级'] = (
             "开启“刻印刷取”时生效：按列表顺序填写目标刻印词条关键字（无需完整填写，字序与游戏原文一致即可），越靠前优先级越高。"

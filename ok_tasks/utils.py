@@ -2342,15 +2342,29 @@ def _equipment_state(task: TriggerTask):
         if not isinstance(values, list):
             values = []
         equipment[key] = (values + ["", "", ""])[:3]
-    engraving = equipment.get("engraving")
-    if not isinstance(engraving, dict):
-        engraving = {}
-    equipment["engraving"] = {
-        "type": str(engraving.get("type", "") or ""),
-        "text": str(engraving.get("text", "") or ""),
-        "rank": engraving.get("rank") if isinstance(engraving.get("rank"), int) else None,
-        "slot": engraving.get("slot") if isinstance(engraving.get("slot"), int) else None,
-    }
+    engravings = equipment.get("engravings")
+    if not isinstance(engravings, list):
+        engravings = [
+            {"type": "", "text": "", "rank": None},
+            {"type": "", "text": "", "rank": None},
+            {"type": "", "text": "", "rank": None},
+        ]
+        legacy = equipment.get("engraving")
+        if isinstance(legacy, dict) and isinstance(legacy.get("slot"), int) and 0 <= legacy["slot"] < 3:
+            engravings[legacy["slot"]] = {
+                "type": str(legacy.get("type", "") or ""),
+                "text": str(legacy.get("text", "") or ""),
+                "rank": legacy.get("rank") if isinstance(legacy.get("rank"), int) else None,
+            }
+    normalized_engravings = []
+    for i in range(3):
+        item = engravings[i] if i < len(engravings) and isinstance(engravings[i], dict) else {}
+        normalized_engravings.append({
+            "type": str(item.get("type", "") or ""),
+            "text": str(item.get("text", "") or ""),
+            "rank": item.get("rank") if isinstance(item.get("rank"), int) else None,
+        })
+    equipment["engravings"] = normalized_engravings
     if not isinstance(member_status.get("deck"), dict):
         member_status["deck"] = {}
     return equipment
@@ -2592,6 +2606,16 @@ def _extract_engraving_description(task: TriggerTask, description_region, icon_c
     boxes.sort(key=lambda b: (round((b.y + b.height / 2) / task.height, 2), b.x))
     text = "".join(b.name.strip() for b in boxes)
     return text if text else _get_region_text(task, description_region)
+
+
+def _count_matched_engravings(task: TriggerTask, equipment=None):
+    """统计目标主战员当前 3 个装备槽位中已命中刻印词条的数量（0~3）。"""
+    if equipment is None:
+        equipment = _equipment_state(task)
+    engravings = equipment.get("engravings", [])
+    if _engraving_priority(task):
+        return sum(1 for eng in engravings if isinstance(eng, dict) and eng.get("rank") is not None)
+    return sum(1 for eng in engravings if isinstance(eng, dict) and bool(eng.get("type")))
 
 
 def _should_install_equipment_with_engraving(
@@ -2934,15 +2958,14 @@ def handle_equipment(task: TriggerTask):
                         )
                     equipment["names"][equipment_slot] = ""
                     equipment["descriptions"][equipment_slot] = ""
-                    if equipment["engraving"].get("slot") == equipment_slot:
-                        equipment["engraving"] = {"type": "", "text": "", "rank": None, "slot": None}
+                    equipment["engravings"][equipment_slot] = {"type": "", "text": "", "rank": None}
             current_name, _ = _current_equipment_for_slot(task, equipment, slot)
             current_quality = equipment["qualities"][slot]
             should_install_first, install_reason = _should_install_equipment_with_engraving(
                 task,
                 current_name,
                 current_quality,
-                equipment.get("engraving"),
+                equipment["engravings"][slot],
                 new_equipment,
             )
             if (
@@ -2975,17 +2998,16 @@ def handle_equipment(task: TriggerTask):
                 equipment["descriptions"][slot] = equipment_desc
                 equipment["qualities"][slot] = new_equipment["quality"] or ""
                 if new_equipment.get("engraving_type"):
-                    equipment["engraving"] = {
+                    equipment["engravings"][slot] = {
                         "type": new_equipment["engraving_type"],
                         "text": new_equipment.get("engraving_text", ""),
                         "rank": new_equipment.get("engraving_rank"),
-                        "slot": slot,
                     }
                     task.log_info(
-                        f"刻印刷取: 已记录目标主战员当前刻印={equipment['engraving']}"
+                        f"刻印刷取: 已记录目标主战员{slot + 1}号位当前刻印={equipment['engravings'][slot]}"
                     )
-                elif equipment["engraving"].get("slot") == slot:
-                    equipment["engraving"] = {"type": "", "text": "", "rank": None, "slot": None}
+                else:
+                    equipment["engravings"][slot] = {"type": "", "text": "", "rank": None}
             member_label = (
                 "刷存档主战员"
                 if target_member_index is not None
@@ -3132,13 +3154,16 @@ def handle_equipment(task: TriggerTask):
 
     chosen_index = None
     if _is_engraving_farm_enabled(task):
-        cur_eng_rank = equipment.get("engraving", {}).get("rank")
+        engravings = equipment.get("engravings", [])
         best_eng_candidate = min(
             (
                 (idx, cand)
                 for idx, cand in enumerate(candidates)
                 if cand.get("engraving_rank") is not None
-                and (cur_eng_rank is None or cand["engraving_rank"] < cur_eng_rank)
+                and (
+                    engravings[cand["slot"]].get("rank") is None
+                    or cand["engraving_rank"] < engravings[cand["slot"]]["rank"]
+                )
             ),
             key=lambda item: item[1]["engraving_rank"],
             default=None,
@@ -3908,6 +3933,23 @@ def handle_route_selection(task: TriggerTask):
 
     # 找不到任何普通节点类型特征时，当前路线节点即为boss。
     if not nodes:
+        current_layer = task.node_status.get('pass_final_boss_count', 0) if hasattr(task, 'node_status') else 0
+        if current_layer >= 1 and _is_engraving_farm_enabled(task):
+            try:
+                min_engravings = int(_get_config_value(task, '最终战前已命中词条至少为多少', 0))
+            except (TypeError, ValueError):
+                min_engravings = 0
+            if min_engravings > 0:
+                matched_count = _count_matched_engravings(task)
+                if matched_count < min_engravings:
+                    task._force_delete_archive_no_engraving = True
+                    task.log_info(
+                        f"第2层最终Boss前（最后一个休息点后）已命中刻印词条数={matched_count} < 要求{min_engravings}，"
+                        "退出并删档重来"
+                    )
+                    _move_and_click(task, 0.959, 0.053)
+                    task.sleep(1.5)
+                    return True
         task.log_info("检测到最终boss节点，点击进入")
         if hasattr(task, 'node_status'):
             task.node_status['reach_final_boss'] = True
@@ -4426,13 +4468,7 @@ def handle_shop(task: TriggerTask):
                         if not matched_name:
                             matched_name = f"{eng_type}刻印"
                     else:
-                        cur_eng = _equipment_state(task).get("engraving", {})
-                        has_target_eng = (
-                            cur_eng.get("rank") is not None
-                            if _engraving_priority(task)
-                            else bool(cur_eng.get("type"))
-                        )
-                        if not has_target_eng:
+                        if _count_matched_engravings(task) <= 0:
                             matched_name = None
             if not matched_name:
                 task.log_info(f"德朗商店: {item_type}「{item_name}」未命中配置，跳过")
@@ -4732,7 +4768,11 @@ def _initial_member_status():
             "names": ["", "", ""],
             "descriptions": ["", "", ""],
             "qualities": ["", "", ""],
-            "engraving": {"type": "", "text": "", "rank": None, "slot": None},
+            "engravings": [
+                {"type": "", "text": "", "rank": None},
+                {"type": "", "text": "", "rank": None},
+                {"type": "", "text": "", "rank": None},
+            ],
         },
         "deck": {},
     }
@@ -4760,13 +4800,7 @@ def _finish_only_first_layer(task: TriggerTask) -> bool:
         _is_engraving_farm_enabled(task)
         and _get_config_value(task, "首层未刷到刻印重开", False) is True
     ):
-        engraving = _equipment_state(task).get("engraving", {})
-        has_target_engraving = (
-            engraving.get("rank") is not None
-            if _engraving_priority(task)
-            else bool(engraving.get("type"))
-        )
-        if not has_target_engraving:
+        if _count_matched_engravings(task) <= 0:
             task.node_status['success_rounds'] += 1
             task._force_delete_archive_no_engraving = True
             task.log_info("未刷到目标刻印且已通关第一层，退出重刷（结算时将强制删档）")

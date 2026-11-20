@@ -596,7 +596,6 @@ def _sync_target_member_engraving_from_archive(task: TriggerTask, member_index: 
 
     equipment = _equipment_state(task)
     eng_priority = _engraving_priority(task)
-    best_engraving = None
 
     for slot in range(3):
         base_x = 0.145 + member_index * 0.273 + slot * 0.078
@@ -666,26 +665,19 @@ def _sync_target_member_engraving_from_archive(task: TriggerTask, member_index: 
             "type": title_type or slot_eng_type,
             "text": engraving_text,
             "rank": eng_rank,
-            "slot": slot,
         }
         task.log_info(
             f"战斗员界面同步刻印: 槽位={slot + 1}，词条=「{engraving_text}」，"
             f"匹配配置={f'「{eng_kw}」(优先级={eng_rank + 1})' if eng_kw else '未命中'}"
         )
-        if best_engraving is None or (
-            eng_rank is not None
-            and (best_engraving["rank"] is None or eng_rank < best_engraving["rank"])
-        ):
-            best_engraving = record
+        equipment["engravings"][slot] = record
 
         # 点击弹窗外上方空白区域返回战斗员界面
         _move_and_click(task, 0.500, 0.150)
         task.sleep(0.6)
         task.next_frame()
 
-    if best_engraving is not None:
-        equipment["engraving"] = best_engraving
-        task.log_info(f"刻印刷取: 启动时已同步目标主战员当前刻印={best_engraving}")
+    task.log_info(f"刻印刷取: 启动时已同步目标主战员各槽位刻印={equipment['engravings']}")
     task._last_change_time = time.time()
 
 
