@@ -2619,11 +2619,19 @@ def _count_matched_engravings(task: TriggerTask, equipment=None):
 
 
 def _should_install_equipment_with_engraving(
-    task, current_name, current_quality, current_engraving, new_equipment
+    task,
+    current_name,
+    current_quality,
+    current_engraving,
+    new_equipment,
+    is_purchase_page=False,
 ):
     """开启刻印刷取时：
-    - 若新装备带刻印：未命中刻印优先级一律不装；命中时优先比对刻印优先级，同级再比对装备优先级与品质。
-    - 若新装备不带刻印：当前尚未命中目标刻印时不装（直接取消/提炼）；若当前已命中目标刻印，则按原装备优先级正常替换。
+    - 若新装备带刻印：命中刻印优先级时按刻印优先级（同级再比对装备优先级与品质）；
+      未命中时，若当前槽位已命中、在商店页面或该装备在装备优先级中，则不装；
+      非商店的白嫖非优先级装备在当前槽位尚未命中刻印时，按原装备逻辑决定是否先穿戴过渡。
+    - 若新装备不带刻印：当前尚未命中目标刻印且（在商店页面或该装备在装备优先级中）时不装（直接取消/提炼）；
+      非商店的白嫖非优先级装备或当前已命中目标刻印时，按原装备优先级正常比对替换。
     """
     if _is_engraving_farm_enabled(task):
         eng_priority = _engraving_priority(task)
@@ -2631,23 +2639,26 @@ def _should_install_equipment_with_engraving(
         cur_rank = (current_engraving or {}).get("rank")
         new_type = new_equipment.get("engraving_type", "")
         new_rank = new_equipment.get("engraving_rank")
+        should_reject_unmatched = is_purchase_page or new_equipment.get("rank") is not None
         if eng_priority:
             if new_type:
                 if new_rank is None:
-                    return False, "新带刻印装备未命中刻印优先级"
-                if cur_rank is None or new_rank < cur_rank:
-                    return True, f"刻印词条优先级更高({new_equipment.get('engraving_keyword')})"
-                if cur_rank < new_rank:
-                    return False, f"当前刻印词条优先级更高({(current_engraving or {}).get('text', '')[:16]})"
+                    if cur_rank is not None or should_reject_unmatched:
+                        return False, "新带刻印装备未命中刻印优先级"
+                else:
+                    if cur_rank is None or new_rank < cur_rank:
+                        return True, f"刻印词条优先级更高({new_equipment.get('engraving_keyword')})"
+                    if cur_rank < new_rank:
+                        return False, f"当前刻印词条优先级更高({(current_engraving or {}).get('text', '')[:16]})"
             else:
-                if cur_rank is None:
+                if cur_rank is None and should_reject_unmatched:
                     return False, "当前与新装备均未命中刻印优先级"
         else:
             if new_type:
                 if not cur_type:
                     return True, f"新装备带有{new_type}刻印"
             else:
-                if not cur_type:
+                if not cur_type and should_reject_unmatched:
                     return False, "当前与新装备均不带刻印"
     return _should_install_equipment(task, current_name, current_quality, new_equipment)
 
@@ -2967,6 +2978,7 @@ def handle_equipment(task: TriggerTask):
                 current_quality,
                 equipment["engravings"][slot],
                 new_equipment,
+                is_purchase_page=is_purchase_page,
             )
             if (
                 is_purchase_page
