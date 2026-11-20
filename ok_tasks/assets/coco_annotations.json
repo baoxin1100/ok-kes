@@ -353,6 +353,12 @@
       "file_name": "images/1.png",
       "width": 1920,
       "height": 1080
+    },
+    {
+      "id": 213,
+      "file_name": "images/2.png",
+      "width": 1920,
+      "height": 1080
     }
   ],
   "annotations": [
