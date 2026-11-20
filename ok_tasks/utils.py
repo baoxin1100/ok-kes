@@ -2597,14 +2597,23 @@ def _extract_engraving_description(task: TriggerTask, description_region, icon_c
 def _should_install_equipment_with_engraving(
     task, current_name, current_quality, current_engraving, new_equipment
 ):
-    """开启刻印刷取时，带刻印装备优先比较刻印词条优先级，其次再比较装备优先级与品质。"""
-    if _is_engraving_farm_enabled(task) and new_equipment.get("engraving_type"):
-        cur_rank = (current_engraving or {}).get("rank")
-        new_rank = new_equipment.get("engraving_rank")
-        if new_rank is not None and (cur_rank is None or new_rank < cur_rank):
-            return True, f"刻印词条优先级更高({new_equipment.get('engraving_keyword')})"
-        if cur_rank is not None and (new_rank is None or cur_rank < new_rank):
-            return False, f"当前刻印词条优先级更高({(current_engraving or {}).get('text', '')[:16]})"
+    """开启刻印刷取时：未命中目标刻印的装备一律不安装（商店取消/事件提炼）；命中时优先比对刻印优先级，同级再比对装备优先级与品质。"""
+    if _is_engraving_farm_enabled(task):
+        eng_priority = _engraving_priority(task)
+        if eng_priority:
+            cur_rank = (current_engraving or {}).get("rank")
+            new_rank = new_equipment.get("engraving_rank")
+            if new_rank is None:
+                return False, "刻印刷取已开启且新装备未命中刻印优先级"
+            if cur_rank is None or new_rank < cur_rank:
+                return True, f"刻印词条优先级更高({new_equipment.get('engraving_keyword')})"
+            if cur_rank < new_rank:
+                return False, f"当前刻印词条优先级更高({(current_engraving or {}).get('text', '')[:16]})"
+        else:
+            if not new_equipment.get("engraving_type"):
+                return False, "刻印刷取已开启且新装备不带刻印"
+            if not (current_engraving or {}).get("type"):
+                return True, f"新装备带有{new_equipment.get('engraving_type')}刻印"
     return _should_install_equipment(task, current_name, current_quality, new_equipment)
 
 
@@ -4405,6 +4414,8 @@ def handle_shop(task: TriggerTask):
                         )
                         if not matched_name:
                             matched_name = f"{eng_type}刻印"
+                    else:
+                        matched_name = None
             if not matched_name:
                 task.log_info(f"德朗商店: {item_type}「{item_name}」未命中配置，跳过")
                 continue
