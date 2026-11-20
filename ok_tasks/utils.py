@@ -2597,23 +2597,34 @@ def _extract_engraving_description(task: TriggerTask, description_region, icon_c
 def _should_install_equipment_with_engraving(
     task, current_name, current_quality, current_engraving, new_equipment
 ):
-    """开启刻印刷取时：未命中目标刻印的装备一律不安装（商店取消/事件提炼）；命中时优先比对刻印优先级，同级再比对装备优先级与品质。"""
+    """开启刻印刷取时：
+    - 若新装备带刻印：未命中刻印优先级一律不装；命中时优先比对刻印优先级，同级再比对装备优先级与品质。
+    - 若新装备不带刻印：当前尚未命中目标刻印时不装（直接取消/提炼）；若当前已命中目标刻印，则按原装备优先级正常替换。
+    """
     if _is_engraving_farm_enabled(task):
         eng_priority = _engraving_priority(task)
+        cur_type = (current_engraving or {}).get("type", "")
+        cur_rank = (current_engraving or {}).get("rank")
+        new_type = new_equipment.get("engraving_type", "")
+        new_rank = new_equipment.get("engraving_rank")
         if eng_priority:
-            cur_rank = (current_engraving or {}).get("rank")
-            new_rank = new_equipment.get("engraving_rank")
-            if new_rank is None:
-                return False, "刻印刷取已开启且新装备未命中刻印优先级"
-            if cur_rank is None or new_rank < cur_rank:
-                return True, f"刻印词条优先级更高({new_equipment.get('engraving_keyword')})"
-            if cur_rank < new_rank:
-                return False, f"当前刻印词条优先级更高({(current_engraving or {}).get('text', '')[:16]})"
+            if new_type:
+                if new_rank is None:
+                    return False, "新带刻印装备未命中刻印优先级"
+                if cur_rank is None or new_rank < cur_rank:
+                    return True, f"刻印词条优先级更高({new_equipment.get('engraving_keyword')})"
+                if cur_rank < new_rank:
+                    return False, f"当前刻印词条优先级更高({(current_engraving or {}).get('text', '')[:16]})"
+            else:
+                if cur_rank is None:
+                    return False, "当前与新装备均未命中刻印优先级"
         else:
-            if not new_equipment.get("engraving_type"):
-                return False, "刻印刷取已开启且新装备不带刻印"
-            if not (current_engraving or {}).get("type"):
-                return True, f"新装备带有{new_equipment.get('engraving_type')}刻印"
+            if new_type:
+                if not cur_type:
+                    return True, f"新装备带有{new_type}刻印"
+            else:
+                if not cur_type:
+                    return False, "当前与新装备均不带刻印"
     return _should_install_equipment(task, current_name, current_quality, new_equipment)
 
 
@@ -4415,7 +4426,14 @@ def handle_shop(task: TriggerTask):
                         if not matched_name:
                             matched_name = f"{eng_type}刻印"
                     else:
-                        matched_name = None
+                        cur_eng = _equipment_state(task).get("engraving", {})
+                        has_target_eng = (
+                            cur_eng.get("rank") is not None
+                            if _engraving_priority(task)
+                            else bool(cur_eng.get("type"))
+                        )
+                        if not has_target_eng:
+                            matched_name = None
             if not matched_name:
                 task.log_info(f"德朗商店: {item_type}「{item_name}」未命中配置，跳过")
                 continue
