@@ -163,12 +163,30 @@ def _get_route_priority(task: TriggerTask):
 # ------------------------- 通用工具 -------------------------
 
 def _get_current_credit(task: TriggerTask):
-    """读取当前信用点数，从两个可能位置取最大值。"""
+    """读取当前信用点数，兼容顶部栏有无赛季图标及不同位数导致的坐标偏移。"""
+    candidates = []
+    for box in getattr(task, "all_texts", []) or []:
+        cx = (box.x + box.width / 2) / task.width
+        cy = (box.y + box.height / 2) / task.height
+        if 0.675 <= cx <= 0.815 and 0.025 <= cy <= 0.085:
+            text = box.name.strip().replace(",", "")
+            if text.isdigit():
+                candidates.append((cx, int(text)))
+    if candidates:
+        # 信用点始终位于顶部资源栏最右侧的数字框
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        return candidates[0][1]
+
     credit = 0
-    for pos_x, pos_y in [(0.794, 0.054), (0.734, 0.053)]:
+    for pos_x, pos_y in [
+        (0.794, 0.054),
+        (0.763, 0.054),
+        (0.734, 0.053),
+        (0.697, 0.054),
+    ]:
         box = find_box_at_point(task, pos_x, pos_y)
-        if box and box.name.isdigit():
-            val = int(box.name)
+        if box and box.name.strip().replace(",", "").isdigit():
+            val = int(box.name.strip().replace(",", ""))
             if val > credit:
                 credit = val
     return credit
@@ -1302,6 +1320,14 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
                     f"{page}: 卡牌「{card['name']}」的名称和描述命中"
                     f"闪光优先级「{matched_keyword}」，排除该卡牌"
                 )
+                meditation_state = _member_deck_state(task).get("冥想", {})
+                if isinstance(meditation_state, dict):
+                    for configured_name in _matching_meditation_card_names(task, [card]):
+                        if meditation_state.get(configured_name) is True:
+                            meditation_state[configured_name] = False
+                            task.log_info(
+                                f"{page}: 冥想卡牌「{configured_name}」已符合闪光优先级，状态更新为无需冥想"
+                            )
                 continue
             filtered_cards.append(card)
         return filtered_cards
@@ -1544,6 +1570,15 @@ def select_card(task: TriggerTask, card_names, count=1, action=""):
             task.click_box(button)
             if action == "移除":
                 task._pending_removed_card_count = 0
+            elif action in ("灵光", "闪光"):
+                meditation_state = _member_deck_state(task).get("冥想", {})
+                if isinstance(meditation_state, dict):
+                    for configured_name in list(meditation_state.keys()):
+                        if meditation_state[configured_name] is True:
+                            meditation_state[configured_name] = False
+                            task.log_info(
+                                f"{page}: 未找到可{action}卡牌而取消，重置冥想卡牌「{configured_name}」为无需冥想"
+                            )
             return True
 
     cards = recognize_cards_in_deck(task, page=f"{page}-兜底")
@@ -1917,20 +1952,83 @@ def handle_skip(task: TriggerTask):
 
 
 def handle_destiny_choice(task: TriggerTask):
-    """命运选择奖励页面: 随机选择一个命运标题。"""
+    """命运选择奖励页面: 识别三张命运的名称与词条，支持拉黑命运与命运优先级。"""
     box = find_box_at_point(task, 0.499, 0.932)
     if box and _get_game_text(task, '请选择你的命运') in box.name:
         task.log_info("检测到命运选择奖励，进行相应操作")
         task.sleep(2)  # 给按钮一些加载时间
+        task.all_texts = _simplify_texts(task.ocr())
 
-        # # 检查确认按钮是否已处于激活状态
-        # # 在确认按钮点击位置附近查找"确认"文本
-        # confirm_box = find_box_at_point(task, 0.884, 0.931)
-        # if confirm_box and confirm_box.name == "确认":
-        #     if is_button_active(task, confirm_box):
-        #         task.log_info("确认按钮已激活，跳过选择（由其他逻辑处理确认）")
-        #         return False  # 按钮已激活，不处理，让其他逻辑点击确认
-        # 在命运标题区域随机选择一个
+        destiny_slots = [
+            ((0.130, 0.480, 0.370, 0.830), (0.250, 0.630)),
+            ((0.380, 0.480, 0.620, 0.830), (0.500, 0.630)),
+            ((0.630, 0.480, 0.870, 0.830), (0.750, 0.630)),
+        ]
+        cards = []
+        for idx, (region, click_pos) in enumerate(destiny_slots, 1):
+            text = _get_region_text(task, region).strip()
+            if text:
+                cards.append({
+                    "index": idx,
+                    "text": text,
+                    "normalized": re.sub(r"\s+", "", text),
+                    "click_pos": click_pos,
+                })
+                task.log_info(f"命运选项{idx}: 「{text}」")
+
+        if cards:
+            priority = [
+                re.sub(r"\s+", "", str(item))
+                for item in _get_card_list(task, "命运优先级")
+                if isinstance(item, str) and item.strip()
+            ]
+            blacklist = [
+                re.sub(r"\s+", "", str(item))
+                for item in _get_card_list(task, "拉黑命运")
+                if isinstance(item, str) and item.strip()
+            ]
+            allowed = []
+            for card in cards:
+                hit_black = next(
+                    (bw for bw in blacklist if is_subsequence(bw, card["normalized"])),
+                    None,
+                )
+                if hit_black:
+                    task.log_info(f"命运选项{card['index']}命中拉黑命运「{hit_black}」，排除")
+                else:
+                    allowed.append(card)
+
+            if not allowed:
+                task.log_info("所有命运均命中拉黑命运，点击跳过")
+                skip_box = find_text(task, r'跳过')
+                if skip_box:
+                    task.click_box(skip_box)
+                else:
+                    _move_and_click(task, 0.762, 0.931)
+                task.sleep(1)
+                return True
+
+            chosen = None
+            for kw in priority:
+                chosen = next(
+                    (c for c in allowed if is_subsequence(kw, c["normalized"])),
+                    None,
+                )
+                if chosen:
+                    task.log_info(
+                        f"命运选项{chosen['index']}命中命运优先级「{kw}」，选择: 「{chosen['text']}」"
+                    )
+                    break
+
+            if chosen is None:
+                chosen = random.choice(allowed)
+                task.log_info(f"未命中命运优先级，从安全命运中随机选择命运{chosen['index']}: 「{chosen['text']}」")
+
+            _move_and_click(task, *chosen["click_pos"])
+            task.sleep(1)
+            return True
+
+        # 兜底：若三张命运区域均未识别到文本，按原逻辑在标题区域随机选择一个
         titles = [
             b for b in task.all_texts
             if 0.202 <= (b.x + b.width / 2) / task.width <= 0.800
@@ -1943,7 +2041,6 @@ def handle_destiny_choice(task: TriggerTask):
             task.log_info(f"随机选择命运: {chosen.name}")
             task.click_box(chosen)
             task.sleep(1)
-            # 选择命运后不点击确认按钮，返回False让其他逻辑处理
             return True
     return False
 
@@ -2094,24 +2191,53 @@ def handle_card_reward(task: TriggerTask):
 
     if chosen_card is None:
         refresh_boxes = []
-        for box in task.all_texts:
-            center_x = (box.x + box.width / 2) / task.width
-            center_y = (box.y + box.height / 2) / task.height
-            if not (
-                0.105 <= center_x <= 0.903
-                and 0.764 <= center_y <= 0.851
-            ):
-                continue
-            match = re.fullmatch(r"\s*(\d)\s*/\s*3\s*", box.name)
-            if match and int(match.group(1)) != 0:
-                refresh_boxes.append((box, int(match.group(1)), 3))
-        if refresh_boxes:
+        for attempt in range(3):
+            refresh_boxes = []
+            has_any_refresh_counter = False
+            for box in task.all_texts:
+                center_x = (box.x + box.width / 2) / task.width
+                center_y = (box.y + box.height / 2) / task.height
+                if not (
+                    0.105 <= center_x <= 0.903
+                    and 0.764 <= center_y <= 0.851
+                ):
+                    continue
+                match = re.fullmatch(r"\s*(\d)\s*/\s*3\s*", box.name)
+                if match:
+                    has_any_refresh_counter = True
+                    if int(match.group(1)) != 0:
+                        refresh_boxes.append((box, int(match.group(1)), 3))
+            if len(refresh_boxes) >= 3 or (not has_any_refresh_counter and attempt >= 1):
+                break
+            if attempt < 2 and (has_any_refresh_counter or len(cards) < 3):
+                task.sleep(1)
+                task.all_texts = _simplify_texts(task.ocr())
+                cards = recognize_cards(task, page="卡牌奖励页面") or cards
+                for pri_name in priority:
+                    chosen_card = next(
+                        (
+                            card for card in cards
+                            if pri_name
+                            and pri_name in card["name"]
+                            and _edit_distance(pri_name, card["name"], max_dist=1)
+                        ),
+                        None,
+                    )
+                    if chosen_card:
+                        task.log_info(
+                            f"按优先级选择卡牌: {chosen_card['name']}（配置: {pri_name}）"
+                        )
+                        break
+                if chosen_card is not None:
+                    break
+        if chosen_card is None and refresh_boxes:
             for refresh_box, remaining, maximum in refresh_boxes:
                 task.log_info(
                     f"卡牌奖励页面未命中优先级卡牌，"
                     f"点击刷新次数「{remaining}/{maximum}」刷新卡牌"
                 )
                 task.click_box(refresh_box)
+            task.sleep(1.5)
             return True
 
     if chosen_card is None and cards:
@@ -2212,6 +2338,15 @@ def _equipment_state(task: TriggerTask):
         if not isinstance(values, list):
             values = []
         equipment[key] = (values + ["", "", ""])[:3]
+    engraving = equipment.get("engraving")
+    if not isinstance(engraving, dict):
+        engraving = {}
+    equipment["engraving"] = {
+        "type": str(engraving.get("type", "") or ""),
+        "text": str(engraving.get("text", "") or ""),
+        "rank": engraving.get("rank") if isinstance(engraving.get("rank"), int) else None,
+        "slot": engraving.get("slot") if isinstance(engraving.get("slot"), int) else None,
+    }
     if not isinstance(member_status.get("deck"), dict):
         member_status["deck"] = {}
     return equipment
@@ -2340,6 +2475,133 @@ def _member_equipment_qualities(task: TriggerTask, level_box):
             f"识别品质={quality or '未安装'}"
         )
     return qualities
+
+
+_ENGRAVING_TEMPLATE_CACHE = {}
+
+
+def _load_engraving_template(filename):
+    """加载并缓存装备刻印相关模板图像。"""
+    if filename in _ENGRAVING_TEMPLATE_CACHE:
+        return _ENGRAVING_TEMPLATE_CACHE[filename]
+    path = os.path.join(os.path.dirname(__file__), "assets", "images", filename)
+    img = cv2.imread(path) if os.path.exists(path) else None
+    _ENGRAVING_TEMPLATE_CACHE[filename] = img
+    return img
+
+
+def _match_engraving_template(task: TriggerTask, filename, region, base_scales, threshold):
+    """在归一化区域内多尺度匹配刻印/翻页模板，返回 (最高置信度, 匹配中心归一化坐标或None)。"""
+    if getattr(task, "frame", None) is None or not getattr(task, "width", 0) or not getattr(task, "height", 0):
+        return 0.0, None
+    tmpl = _load_engraving_template(filename)
+    if tmpl is None:
+        return 0.0, None
+
+    x1 = max(0, min(task.width - 1, int(region[0] * task.width)))
+    y1 = max(0, min(task.height - 1, int(region[1] * task.height)))
+    x2 = max(x1 + 1, min(task.width, int(region[2] * task.width)))
+    y2 = max(y1 + 1, min(task.height, int(region[3] * task.height)))
+    patch = task.frame[y1:y2, x1:x2, :3]
+    if patch.size == 0:
+        return 0.0, None
+
+    width_scale = task.width / 1022.0
+    best_val = 0.0
+    best_center = None
+    for base_scale in base_scales:
+        scale = base_scale * width_scale
+        tw = max(4, int(round(tmpl.shape[1] * scale)))
+        th = max(4, int(round(tmpl.shape[0] * scale)))
+        if tw >= patch.shape[1] or th >= patch.shape[0]:
+            continue
+        resized = cv2.resize(tmpl, (tw, th), interpolation=cv2.INTER_AREA)
+        res = cv2.matchTemplate(patch, resized, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, max_loc = cv2.minMaxLoc(res)
+        if max_val > best_val:
+            best_val = float(max_val)
+            cx = (x1 + max_loc[0] + tw / 2.0) / task.width
+            cy = (y1 + max_loc[1] + th / 2.0) / task.height
+            best_center = (cx, cy)
+
+    if best_val >= threshold:
+        return best_val, best_center
+    return best_val, None
+
+
+def _detect_engraving_icon(task: TriggerTask, region, base_scales=(0.58, 0.65, 0.72), threshold=0.75):
+    """识别指定区域内的光明/黑暗刻印图标，返回 (刻印类型, 置信度, 中心坐标或None)。"""
+    sun_score, sun_center = _match_engraving_template(
+        task, "engraving_sun.png", region, base_scales, threshold
+    )
+    moon_score, moon_center = _match_engraving_template(
+        task, "engraving_moon.png", region, base_scales, threshold
+    )
+    if sun_center is not None and (moon_center is None or sun_score >= moon_score):
+        return "光明", sun_score, sun_center
+    if moon_center is not None:
+        return "黑暗", moon_score, moon_center
+    return "", max(sun_score, moon_score), None
+
+
+def _is_engraving_farm_enabled(task: TriggerTask):
+    """判断是否开启了刻印刷取开关。"""
+    return bool(_get_config_value(task, "刻印刷取", False))
+
+
+def _engraving_priority(task: TriggerTask):
+    """读取并清洗刻印优先级列表。"""
+    raw = _get_config_value(task, "刻印优先级", [])
+    if not isinstance(raw, (list, tuple)):
+        return []
+    result = []
+    for item in raw:
+        kw = re.sub(r"\s+", "", str(item or ""))
+        if kw:
+            result.append(kw)
+    return result
+
+
+def _match_engraving_text(engraving_text, priority):
+    """按优先级列表顺序匹配刻印词条，返回 (命中的配置关键字, 下标) 或 (None, None)。"""
+    if not engraving_text or not priority:
+        return None, None
+    normalized = re.sub(r"\s+", "", engraving_text)
+    if not normalized:
+        return None, None
+    for idx, kw in enumerate(priority):
+        if is_subsequence(kw, normalized):
+            return kw, idx
+    return None, None
+
+
+def _extract_engraving_description(task: TriggerTask, description_region, icon_center):
+    """从装备描述区提取刻印词条文本；若已定位到行内刻印图标，则仅拼接该行及以下文本。"""
+    x1, y1, x2, y2 = description_region
+    min_y = (icon_center[1] - 0.022) if icon_center is not None else y1
+    boxes = [
+        b for b in getattr(task, "all_texts", [])
+        if x1 <= (b.x + b.width / 2) / task.width <= x2
+        and max(y1, min_y) <= (b.y + b.height / 2) / task.height <= y2
+        and b.name.strip()
+    ]
+    boxes.sort(key=lambda b: (round((b.y + b.height / 2) / task.height, 2), b.x))
+    text = "".join(b.name.strip() for b in boxes)
+    return text if text else _get_region_text(task, description_region)
+
+
+def _should_install_equipment_with_engraving(
+    task, current_name, current_quality, current_engraving, new_equipment
+):
+    """开启刻印刷取时，带刻印装备优先比较刻印词条优先级，其次再比较装备优先级与品质。"""
+    if _is_engraving_farm_enabled(task) and new_equipment.get("engraving_type"):
+        cur_rank = (current_engraving or {}).get("rank")
+        new_rank = new_equipment.get("engraving_rank")
+        if new_rank is not None and (cur_rank is None or new_rank < cur_rank):
+            return True, f"刻印词条优先级更高({new_equipment.get('engraving_keyword')})"
+        if cur_rank is not None and (new_rank is None or cur_rank < new_rank):
+            return False, f"当前刻印词条优先级更高({(current_engraving or {}).get('text', '')[:16]})"
+    return _should_install_equipment(task, current_name, current_quality, new_equipment)
 
 
 def _should_install_equipment(task, current_name, current_quality, new_equipment):
@@ -2505,6 +2767,12 @@ def handle_equipment(task: TriggerTask):
         equipment_price = None
         current_credit = None
         if is_purchase_page:
+            pending_item = getattr(task, "_shop_pending_item", None)
+            if pending_item is not None:
+                inspected = getattr(task, "_shop_inspected_items", set())
+                inspected.add(pending_item)
+                task._shop_inspected_items = inspected
+                task._shop_pending_item = None
             task.log_info("检测到购买装备页面")
             equipment_price = (
                 _parse_discounted_price(price_box.name) if price_box else None
@@ -2554,6 +2822,57 @@ def handle_equipment(task: TriggerTask):
         equipment_desc = new_equipment["description"]
         task.log_info(f"待安装装备描述: 「{equipment_desc}」")
 
+        if _is_engraving_farm_enabled(task):
+            engraving_type, eng_score, _ = _detect_engraving_icon(
+                task,
+                (0.210, 0.370, 0.480, 0.445),
+                base_scales=(0.58, 0.65, 0.72),
+                threshold=0.75,
+            )
+            if engraving_type:
+                if getattr(task, "_engraving_scroll_equip_name", "") != new_equipment["ocr_name"]:
+                    task._engraving_scroll_equip_name = new_equipment["ocr_name"]
+                    task._engraving_scroll_count = 0
+                desc_eng_type, _, desc_icon_center = _detect_engraving_icon(
+                    task,
+                    (0.175, 0.490, 0.235, 0.665),
+                    base_scales=(0.48, 0.533, 0.59),
+                    threshold=0.75,
+                )
+                if desc_icon_center is None:
+                    tri_score, tri_center = _match_engraving_template(
+                        task,
+                        "engraving_scroll_down.png",
+                        (0.330, 0.630, 0.390, 0.675),
+                        base_scales=(0.58, 0.65, 0.72),
+                        threshold=0.80,
+                    )
+                    scroll_count = getattr(task, "_engraving_scroll_count", 0)
+                    if tri_center is not None and scroll_count < 5:
+                        task._engraving_scroll_count = scroll_count + 1
+                        task.log_info(
+                            f"刻印刷取: 检测到{engraving_type}刻印(置信度={eng_score:.3f})，"
+                            f"未见行内刻印词条且存在下翻按钮(置信度={tri_score:.3f})，"
+                            f"第{task._engraving_scroll_count}次点击下翻"
+                        )
+                        _move_and_click(task, tri_center[0], tri_center[1])
+                        task.sleep(0.6)
+                        return True
+                engraving_text = _extract_engraving_description(
+                    task, (0.179, 0.492, 0.542, 0.668), desc_icon_center
+                )
+                eng_priority = _engraving_priority(task)
+                eng_kw, eng_rank = _match_engraving_text(engraving_text, eng_priority)
+                new_equipment["engraving_type"] = engraving_type
+                new_equipment["engraving_text"] = engraving_text
+                new_equipment["engraving_keyword"] = eng_kw
+                new_equipment["engraving_rank"] = eng_rank
+                task.log_info(
+                    f"刻印刷取: 识别到{engraving_type}刻印(置信度={eng_score:.3f})，"
+                    f"词条=「{engraving_text}」，"
+                    f"匹配配置={f'「{eng_kw}」(优先级={eng_rank + 1})' if eng_kw else '未命中'}"
+                )
+
         lv_texts = _find_member_level_tags(
             task,
             (0.609, 0.290, 0.652, 0.789),
@@ -2591,14 +2910,26 @@ def handle_equipment(task: TriggerTask):
                         )
                     equipment["names"][equipment_slot] = ""
                     equipment["descriptions"][equipment_slot] = ""
+                    if equipment["engraving"].get("slot") == equipment_slot:
+                        equipment["engraving"] = {"type": "", "text": "", "rank": None, "slot": None}
             current_name, _ = _current_equipment_for_slot(task, equipment, slot)
             current_quality = equipment["qualities"][slot]
-            should_install_first, install_reason = _should_install_equipment(
+            should_install_first, install_reason = _should_install_equipment_with_engraving(
                 task,
                 current_name,
                 current_quality,
+                equipment.get("engraving"),
                 new_equipment,
             )
+            if (
+                is_purchase_page
+                and _is_engraving_farm_enabled(task)
+                and new_equipment.get("engraving_type")
+                and new_equipment.get("engraving_rank") is None
+                and new_equipment.get("rank") is None
+            ):
+                should_install_first = False
+                install_reason = "商店带刻印装备未命中刻印优先级且未命中装备优先级"
             has_legendary_in_other_slot = any(
                 quality == "传说" and equipment_slot != slot
                 for equipment_slot, quality in enumerate(live_qualities)
@@ -2619,6 +2950,18 @@ def handle_equipment(task: TriggerTask):
                 equipment["names"][slot] = new_equipment["name"]
                 equipment["descriptions"][slot] = equipment_desc
                 equipment["qualities"][slot] = new_equipment["quality"] or ""
+                if new_equipment.get("engraving_type"):
+                    equipment["engraving"] = {
+                        "type": new_equipment["engraving_type"],
+                        "text": new_equipment.get("engraving_text", ""),
+                        "rank": new_equipment.get("engraving_rank"),
+                        "slot": slot,
+                    }
+                    task.log_info(
+                        f"刻印刷取: 已记录目标主战员当前刻印={equipment['engraving']}"
+                    )
+                elif equipment["engraving"].get("slot") == slot:
+                    equipment["engraving"] = {"type": "", "text": "", "rank": None, "slot": None}
             member_label = (
                 "刷存档主战员"
                 if target_member_index is not None
@@ -2640,6 +2983,34 @@ def handle_equipment(task: TriggerTask):
                 task.sleep(1)
                 return True
             return False
+
+        if is_purchase_page and (
+            (tracks_target_member and target_member_index is not None)
+            or (_is_engraving_farm_enabled(task) and new_equipment.get("engraving_type"))
+        ):
+            task.log_info(
+                f"商店装备「{new_equipment['name']}」无需安装给目标主战员"
+                f"({install_reason})，点击「取消」"
+            )
+            task.click_box(cancel_box)
+            task.sleep(1)
+            return True
+
+        refine_box = next(
+            (b for b in task.all_texts
+             if 0.522 <= (b.x + b.width / 2) / task.width <= 0.999
+             and 0.879 <= (b.y + b.height / 2) / task.height <= 0.996
+             and "提炼" in b.name),
+            None
+        )
+        if tracks_target_member and target_member_index is not None and refine_box:
+            task.log_info(
+                f"{slot + 1}号位无需替换当前装备「{current_name}」({install_reason})，"
+                "刷存档主战员不需要的装备直接点击「提炼」"
+            )
+            task.click_box(refine_box)
+            task.sleep(1)
+            return True
 
         other_members = [
             level_box for index, level_box in enumerate(lv_texts)
@@ -2711,6 +3082,23 @@ def handle_equipment(task: TriggerTask):
         if not candidate:
             task.log_info("选择装备界面的候选装备信息不完整，等待下轮重新识别")
             return True
+        if _is_engraving_farm_enabled(task):
+            eng_region = (
+                name_region[0],
+                max(0.0, name_region[1] - 0.005),
+                min(1.0, name_region[2] + 0.050),
+                min(1.0, name_region[3] + 0.005),
+            )
+            eng_type, _, _ = _detect_engraving_icon(
+                task, eng_region, base_scales=(0.58, 0.65, 0.72), threshold=0.75
+            )
+            if eng_type:
+                eng_kw, eng_rank = _match_engraving_text(
+                    candidate["description"], _engraving_priority(task)
+                )
+                candidate["engraving_type"] = eng_type
+                candidate["engraving_keyword"] = eng_kw
+                candidate["engraving_rank"] = eng_rank
         candidate["click_position"] = click_position
         candidates.append(candidate)
     task.log_info(
@@ -2719,19 +3107,38 @@ def handle_equipment(task: TriggerTask):
     )
 
     chosen_index = None
-    for slot in range(3):
-        current_name, current_rank = _current_equipment_for_slot(task, equipment, slot)
-        for index, candidate in enumerate(candidates):
-            if candidate["slot"] != slot or candidate["rank"] is None:
-                continue
-            if not current_name or candidate["rank"] < current_rank:
-                chosen_index = index
-                task.log_info(
-                    f"优先选择{slot + 1}号位装备「{candidate['name']}」，当前装备「{current_name}」"
-                )
+    if _is_engraving_farm_enabled(task):
+        cur_eng_rank = equipment.get("engraving", {}).get("rank")
+        best_eng_candidate = min(
+            (
+                (idx, cand)
+                for idx, cand in enumerate(candidates)
+                if cand.get("engraving_rank") is not None
+                and (cur_eng_rank is None or cand["engraving_rank"] < cur_eng_rank)
+            ),
+            key=lambda item: item[1]["engraving_rank"],
+            default=None,
+        )
+        if best_eng_candidate is not None:
+            chosen_index = best_eng_candidate[0]
+            cand = best_eng_candidate[1]
+            task.log_info(
+                f"刻印刷取: 优先选择带目标刻印「{cand.get('engraving_keyword')}」的装备「{cand['name']}」"
+            )
+    if chosen_index is None:
+        for slot in range(3):
+            current_name, current_rank = _current_equipment_for_slot(task, equipment, slot)
+            for index, candidate in enumerate(candidates):
+                if candidate["slot"] != slot or candidate["rank"] is None:
+                    continue
+                if not current_name or candidate["rank"] < current_rank:
+                    chosen_index = index
+                    task.log_info(
+                        f"优先选择{slot + 1}号位装备「{candidate['name']}」，当前装备「{current_name}」"
+                    )
+                    break
+            if chosen_index is not None:
                 break
-        if chosen_index is not None:
-            break
 
     if chosen_index is None:
         empty_slot_candidates = [
@@ -2864,7 +3271,7 @@ def handle_select_card(task: TriggerTask):
 
 
 def handle_copy_card_choice(task: TriggerTask):
-    """复制卡牌选择页面: 按类型特征识别卡牌，并按复制卡牌列表优先级选择。"""
+    """复制卡牌选择页面: 按类型特征识别卡牌，并按target标记和复制卡牌列表优先级选择；未命中则返回False交由handle_skip点击跳过。"""
     box = find_box_at_point(task, 0.498, 0.133)
     copy_card_prompt = _get_game_text(task, "请选择要复制的卡牌")
     if not (box and copy_card_prompt in box.name):
@@ -3160,13 +3567,21 @@ def handle_event_task(task: TriggerTask):
     if bottom_box and re.search(r'\d+/\d+', bottom_box.name):
         return False
 
-    rewards = task.find_feature(feature_name=["taskreward", "task_reward2", "taskreward3"],
-                                box=task.box_of_screen(0.434, 0.292, 0.979, 0.688))
+    rewards = task.find_feature(
+        feature_name=["taskreward", "task_reward2", "taskreward3"],
+        box=task.box_of_screen(0.434, 0.292, 0.979, 0.688),
+    )
+    if not rewards:
+        rewards = task.find_feature(
+            feature_name=["treasure2", "treasure3"],
+            box=task.box_of_screen(0.350, 0.250, 0.950, 0.700),
+            threshold=0.75,
+        )
     if rewards:
         reward = rewards[0]
         cx = (reward.x + reward.width / 2) / task.width
         cy = (reward.y + reward.height / 2) / task.height
-        if 0.437 <= cx <= 0.902 and 0.350 <= cy <= 0.614:
+        if 0.350 <= cx <= 0.950 and 0.250 <= cy <= 0.700:
             task.log_info("检测到任务奖励图标，优先点击")
             _move_and_click(task, cx, cy)
             return True
@@ -3226,17 +3641,42 @@ def handle_event_task(task: TriggerTask):
         description_y = (top + bottom) / 2
         _move_and_click(task, description_x, description_y)
 
-    # 已经进过「精密加工记忆」页面后，优先选择「就此离开」结束事件，避免反复进入造成死循环
+    # 「精密加工记忆 / 雕琢记忆」事件：未进入过时优先进入雕琢记忆；进入过且出来后持续选择离开（需两次点击确认）结束事件
     event_status = getattr(task, "node_status", {})
     if event_status.get("precision_memory_visited"):
         leave_task = next(
-            (task_info for task_info in tasks_info if "就此离开" in task_info["description"]),
+            (
+                task_info
+                for task_info in tasks_info
+                if any(
+                    kw in task_info["description"]
+                    for kw in ("就此离开", "离开", "事件结束")
+                )
+            ),
             None,
         )
         if leave_task is not None:
-            task.log_info("已进入过精密加工记忆，选择「就此离开」结束事件")
+            task.log_info("已进入过精密加工记忆/雕琢记忆，选择「离开」结束事件")
             click_event_option(leave_task)
-            event_status["precision_memory_visited"] = False
+            task.sleep(1)
+            return True
+    else:
+        sculpt_task = next(
+            (
+                task_info
+                for task_info in tasks_info
+                if any(
+                    kw in task_info["description"]
+                    for kw in ("雕琢记忆", "记忆雕琢", "精密加工")
+                )
+            ),
+            None,
+        )
+        if sculpt_task is not None:
+            task.log_info(
+                f"尚未进入过精密加工记忆，优先选择「{sculpt_task['description']}」"
+            )
+            click_event_option(sculpt_task)
             task.sleep(1)
             return True
 
@@ -3264,10 +3704,10 @@ def handle_event_task(task: TriggerTask):
         task.sleep(1)
         return True
 
-    # 检查任务区域中是否有 treasure、memoryshards、data_of_light 或 eyes 特征
+    # 检查任务区域中是否有 treasure、treasure2、treasure3、memoryshards、data_of_light 或 eyes 特征
     treasure_box = task.box_of_screen(0.084, 0.121, 0.991, 0.762)
     reward_features = task.find_feature(
-        feature_name=["treasure", "memoryshards", "data_of_light", "eyes"],
+        feature_name=["treasure", "treasure2", "treasure3", "memoryshards", "data_of_light", "eyes"],
         box=treasure_box,
         threshold=0.7,
     )
@@ -3399,11 +3839,17 @@ def handle_route_selection(task: TriggerTask):
             task.node_status['enter_new_node'] = False
             task.node_status['node_count'] += 1
             task.node_status['precision_memory_visited'] = False
+            task.node_status['memory_process_done'] = False
             task.log_info(f"离开路线选择页面，当前节点计数: {task.node_status['node_count']}")
         return False
 
     # 是路线选择页面，标记进入新节点
     if hasattr(task, 'node_status'):
+        if task.node_status.get('memory_escape_pending', False):
+            task.log_info("路线选择页面：因未刷到指定记忆卡牌，点击右上角菜单按钮执行退出重来")
+            _move_and_click(task, 0.959, 0.053)
+            task.sleep(1.5)
+            return True
         task.node_status['enter_new_node'] = True
 
     task.log_info("检测到路线选择页面，按优先级依次点击节点")
@@ -3660,7 +4106,7 @@ def _wait_for_rest_confirm(task: TriggerTask):
     """等待休息操作后的确认按钮出现。"""
     confirm_boxes = task.wait_ocr(
         0.170, 0.554, to_x=0.855, to_y=0.769,
-        match=re.compile(r"确认"), time_out=2,
+        match=re.compile(r"确认|確認|确定|確定"), time_out=2,
     )
     if not confirm_boxes:
         task.log_info("等待休息确认按钮超时")
@@ -3866,18 +4312,45 @@ def handle_shop(task: TriggerTask):
 
         card_priority = _get_card_reward_priority(task)
         equipment_priorities = [_equipment_priority(task, slot) for slot in range(3)]
-        unaffordable_items = []
+        engraving_farm = _is_engraving_farm_enabled(task)
+        shop_items = []
         for index, credit_icon in enumerate(credit_icons):
             icon_x = (credit_icon.x + credit_icon.width / 2) / task.width
             icon_y = (credit_icon.y + credit_icon.height / 2) / task.height
             price_box = find_box_at_point(task, icon_x + 0.099, icon_y - 0.001)
+            if not price_box:
+                price_box = next(
+                    (b for b in sorted(task.all_texts, key=lambda item: item.x, reverse=True)
+                     if icon_x + 0.040 <= (b.x + b.width / 2) / task.width <= icon_x + 0.155
+                     and icon_y - 0.025 <= (b.y + b.height / 2) / task.height <= icon_y + 0.025
+                     and _parse_discounted_price(b.name) is not None),
+                    None,
+                )
             price = _parse_discounted_price(price_box.name) if price_box else None
             item_name = _get_region_text(task, (
-            max(0.0, icon_x - 0.013),
-            max(0.0, icon_y - 0.247),
-            min(1.0, icon_x + 0.120),
-            min(1.0, icon_y - 0.105),
+                max(0.0, icon_x - 0.013),
+                max(0.0, icon_y - 0.247),
+                min(1.0, icon_x + 0.120),
+                min(1.0, icon_y - 0.105),
             )).strip()
+            shop_items.append((index, credit_icon, icon_x, icon_y, item_name, price))
+        shop_sig = tuple(
+            (item[0], re.sub(r'[^\u4e00-\u9fffa-zA-Z0-9]', '', item[4]), item[5])
+            for item in shop_items
+        )
+        prev_sig = getattr(task, "_shop_page_sig", None)
+        if prev_sig is None or len(prev_sig) != len(shop_sig) or sum(
+            1 for a, b in zip(prev_sig, shop_sig) if a != b
+        ) >= 2:
+            task._shop_page_sig = shop_sig
+            task._shop_inspected_items = set()
+            task._shop_click_attempts = {}
+            task._shop_pending_item = None
+        inspected_items = getattr(task, "_shop_inspected_items", set())
+        click_attempts = getattr(task, "_shop_click_attempts", {})
+
+        unaffordable_items = []
+        for index, credit_icon, icon_x, icon_y, item_name, price in shop_items:
             is_card = index in card_icon_indexes
             item_type = "卡牌" if is_card else "装备"
             task.log_info(f"德朗商店第{index + 1}个商品: 类型={item_type}，名称=「{item_name}」，价格={price}")
@@ -3901,6 +4374,10 @@ def handle_shop(task: TriggerTask):
                 None,
                 )
             else:
+                item_key = (index, item_name)
+                if item_key in inspected_items or click_attempts.get(item_key, 0) >= 2:
+                    task.log_info(f"德朗商店: 装备「{item_name}」本页已检查并跳过，不再重复点击")
+                    continue
                 matched_name = next(
                 (canonical_name
                  for priority in equipment_priorities
@@ -3908,6 +4385,22 @@ def handle_shop(task: TriggerTask):
                  if rank is not None),
                 None,
                 )
+                if engraving_farm:
+                    eng_region = (
+                        max(0.0, icon_x - 0.045),
+                        max(0.0, icon_y - 0.175),
+                        min(1.0, icon_x + 0.050),
+                        max(0.0, icon_y - 0.020),
+                    )
+                    eng_type, eng_score, _ = _detect_engraving_icon(
+                        task, eng_region, base_scales=(0.55, 0.60, 0.68), threshold=0.75
+                    )
+                    if eng_type:
+                        task.log_info(
+                            f"德朗商店: 装备「{item_name}」检测到{eng_type}刻印(置信度={eng_score:.3f})"
+                        )
+                        if not matched_name:
+                            matched_name = f"{eng_type}刻印"
             if not matched_name:
                 task.log_info(f"德朗商店: {item_type}「{item_name}」未命中配置，跳过")
                 continue
@@ -3921,6 +4414,11 @@ def handle_shop(task: TriggerTask):
                 )
                 continue
 
+            if not is_card:
+                item_key = (index, item_name)
+                click_attempts[item_key] = click_attempts.get(item_key, 0) + 1
+                task._shop_click_attempts = click_attempts
+                task._shop_pending_item = item_key
             task.log_info(
             f"德朗商店: {item_type}「{item_name}」命中配置「{matched_name}」，"
             f"价格{price}小于当前信用点{current_credit}，点击信用点图标"
@@ -3944,6 +4442,8 @@ def handle_shop(task: TriggerTask):
                 )
             else:
                 task.log_info("德朗商店没有符合要求的商品，点击「免费」刷新")
+            task._shop_inspected_items = set()
+            task._shop_page_sig = None
             task.click_box(free_box)
             task.sleep(1)
             return True
@@ -4003,6 +4503,8 @@ def handle_shop(task: TriggerTask):
             f"德朗商店免费刷新已用完，当前信用点{current_credit}超过阈值"
             f"{refresh_credit_threshold}，付费刷新需{refresh_price}信用点，点击刷新"
         )
+        task._shop_inspected_items = set()
+        task._shop_page_sig = None
         task.click_box(refresh_price_box)
         task.sleep(1)
         return True
@@ -4011,13 +4513,19 @@ def handle_shop(task: TriggerTask):
 
 def handle_view_original(task: TriggerTask):
     """卡牌闪光（查看原件）事件: 按类型特征识别卡牌，并按闪光优先级选择。"""
+    title_text = _get_region_text(task, (0.400, 0.070, 0.600, 0.175)).replace(" ", "")
+    if "加工记忆" in title_text or "记忆加工" in title_text:
+        return False
     box1 = find_box_at_point(task, 0.890, 0.051)
     box2 = find_box_at_point(task, 0.896, 0.131)
-    if not ((box1 and (_get_game_text(task, '查看原件') in box1.name or _get_game_text(task, '查看之前的闪光') in box1.name)) or (box2 and (_get_game_text(task, '查看原件') in box2.name or _get_game_text(task, '查看之前的闪光') in box2.name))):
-        return False
-
-    cards = recognize_cards(task, page="卡牌闪光页面")
-    if not cards:
+    view_keywords = (
+        _get_game_text(task, '查看原件'),
+        _get_game_text(task, '查看之前的闪光'),
+    )
+    if not any(
+        box and any(kw in box.name for kw in view_keywords)
+        for box in (box1, box2)
+    ):
         return False
 
     flash_priority = []
@@ -4027,27 +4535,48 @@ def handle_view_original(task: TriggerTask):
         normalized_keyword = re.sub(r"\s+", "", keyword)
         if normalized_keyword:
             flash_priority.append(normalized_keyword)
+
+    cards = []
     chosen_card = None
-    for desc_keyword in flash_priority:
-        for card in cards:
-            if is_subsequence(
-                desc_keyword,
-                card['name'] + "：:" + card['description'],
-            ):
-                chosen_card = card
-                task.log_info(f"优先选择「{card['name']}」({desc_keyword})")
-                if (
-                    _get_config_value(task, "首层刷特定闪光", False) is True
-                    and flash_priority
-                    and desc_keyword == flash_priority[0]
+    # 闪光特效刚弹出时卡面文字可能被白光遮挡（如“明灭剑”漏识别成“灭剑”），等待并重试检测
+    for attempt in range(3):
+        if attempt > 0:
+            task.sleep(0.8)
+            task.all_texts = _simplify_texts(task.ocr())
+        cards = recognize_cards(task, page="卡牌闪光页面")
+        if not cards:
+            continue
+
+        for desc_keyword in flash_priority:
+            for card in cards:
+                if is_subsequence(
+                    desc_keyword,
+                    card['name'] + "：:" + card['description'],
                 ):
-                    task.node_status["get_specific_flash"] = True
-                    task.log_info("已命中闪光优先级第一项，记录已获得特定闪光")
-                break
+                    chosen_card = card
+                    task.log_info(f"优先选择「{card['name']}」({desc_keyword})")
+                    if (
+                        _get_config_value(task, "首层刷特定闪光", False) is True
+                        and flash_priority
+                        and desc_keyword == flash_priority[0]
+                    ):
+                        task.node_status["get_specific_flash"] = True
+                        task.log_info("已命中闪光优先级第一项，记录已获得特定闪光")
+                    break
             if chosen_card:
                 break
-        if chosen_card:
+
+        # 已命中优先闪光卡牌，或卡面置信度已足够稳定（>=3张且平均置信度>=0.85且重试过至少1次）则结束重试
+        avg_conf = sum(c["confidence"] for c in cards) / len(cards) if cards else 0
+        if chosen_card or (len(cards) >= 3 and avg_conf >= 0.85 and attempt >= 1):
             break
+        if attempt < 2:
+            task.log_info(
+                f"卡牌闪光页面：第{attempt + 1}次检测未命中优先级或卡面特效未稳定(平均置信度={avg_conf:.4f})，等待后重试"
+            )
+
+    if not cards:
+        return False
 
     target_boxes, target_click_positions = find_target_card(task)
     matched_meditation_cards = _matching_meditation_card_names(task, cards)
@@ -4067,6 +4596,7 @@ def handle_view_original(task: TriggerTask):
             f"卡牌闪光事件: 检测到target卡牌，点击位置{click_position}"
         )
         _move_and_click(task, *click_position)
+        task.sleep(1.5)
         return True
 
     if not chosen_card:
@@ -4074,6 +4604,7 @@ def handle_view_original(task: TriggerTask):
         task.log_info(f"随机选择「{chosen_card['name']}」")
 
     _move_and_click(task, chosen_card['x'], chosen_card['y'])
+    task.sleep(1.5)
     return True
 
 
@@ -4087,6 +4618,8 @@ def handle_escape(task: TriggerTask):
         task.log_info("检测到逃脱页面，点击逃脱")
         task.click_box(escape_box)
         task.node_status["is_escaped"] = True
+        task.node_status["memory_escape_pending"] = False
+        task._memory_escape_tried_esc = False
         task.sleep(0.5)
         return True
     return False
@@ -4155,7 +4688,8 @@ def _initial_node_status():
             "node_count": 0, "enter_new_node": False, "node_type": "", "is_escaped": False,
             "save_target_member": False, "target_mask_card_position": -1,
             "get_specific_flash": False, "removed_card_count": 0,
-            "neutral_card_count": 0}
+            "neutral_card_count": 0, "memory_escape_pending": False,
+            "memory_process_done": False}
 
 
 def _initial_member_status():
@@ -4165,6 +4699,7 @@ def _initial_member_status():
             "names": ["", "", ""],
             "descriptions": ["", "", ""],
             "qualities": ["", "", ""],
+            "engraving": {"type": "", "text": "", "rank": None, "slot": None},
         },
         "deck": {},
     }
@@ -4188,6 +4723,24 @@ def _finish_only_first_layer(task: TriggerTask) -> bool:
         task.sleep(1)
         return True
 
+    if (
+        _is_engraving_farm_enabled(task)
+        and _get_config_value(task, "首层未刷到刻印重开", False) is True
+    ):
+        engraving = _equipment_state(task).get("engraving", {})
+        has_target_engraving = (
+            engraving.get("rank") is not None
+            if _engraving_priority(task)
+            else bool(engraving.get("type"))
+        )
+        if not has_target_engraving:
+            task.node_status['success_rounds'] += 1
+            task._force_delete_archive_no_engraving = True
+            task.log_info("未刷到目标刻印且已通关第一层，退出重刷（结算时将强制删档）")
+            _move_and_click(task, 0.959, 0.051)
+            task.sleep(1)
+            return True
+
     if _get_config_value(task, '只打第一层', False):
         task.node_status['success_rounds'] += 1
         task.log_info(f"只打第一层任务已完成，success_rounds + 1 (当前: {task.node_status['success_rounds']}), 退出结算页面")
@@ -4204,6 +4757,16 @@ def reset_all_status(task: TriggerTask):
     task.member_status = _initial_member_status()
     _reset_meditation_state(task)
     task._pending_removed_card_count = 0
+    task._season_observe_clicked = False
+    task._season_observe_last_sig = None
+    task._season_observe_unchanged_count = 0
+    task._season_observe_exhausted = False
+    task._memory_escape_tried_esc = False
+    task._engraving_scroll_count = 0
+    task._engraving_scroll_equip_name = ""
+    task._shop_inspected_items = set()
+    task._shop_page_sig = None
+    task._force_delete_archive_no_engraving = False
 
 
 def reset_mission_status(task: TriggerTask):
@@ -4220,6 +4783,15 @@ def reset_mission_status(task: TriggerTask):
     task.member_status = _initial_member_status()
     _reset_meditation_state(task)
     task._pending_removed_card_count = 0
+    task._season_observe_clicked = False
+    task._season_observe_last_sig = None
+    task._season_observe_unchanged_count = 0
+    task._season_observe_exhausted = False
+    task._memory_escape_tried_esc = False
+    task._engraving_scroll_count = 0
+    task._engraving_scroll_equip_name = ""
+    task._shop_inspected_items = set()
+    task._shop_page_sig = None
 
 
 def reset_layer_status(task: TriggerTask):
@@ -4233,7 +4805,8 @@ def reset_layer_status(task: TriggerTask):
                 'target_mask_card_position': ns.get('target_mask_card_position', -1),
                 'get_specific_flash': ns.get('get_specific_flash', False),
                 'removed_card_count': ns.get('removed_card_count', 0),
-                'neutral_card_count': ns.get('neutral_card_count', 0)}
+                'neutral_card_count': ns.get('neutral_card_count', 0),
+                'memory_escape_pending': ns.get('memory_escape_pending', False)}
         task.node_status = _initial_node_status()
         task.node_status['pass_final_boss_count'] = keep['pass_final_boss_count']
         task.node_status['total_rounds'] = keep['total_rounds']
@@ -4243,6 +4816,7 @@ def reset_layer_status(task: TriggerTask):
         task.node_status['get_specific_flash'] = keep['get_specific_flash']
         task.node_status['removed_card_count'] = keep['removed_card_count']
         task.node_status['neutral_card_count'] = keep['neutral_card_count']
+        task.node_status['memory_escape_pending'] = keep['memory_escape_pending']
 
 
 def handle_close_button(task: TriggerTask):
@@ -4376,7 +4950,11 @@ def handle_card_assign(task: TriggerTask):
         if skip_box:
             task.log_info("无可用刷新或刷新次数，点击跳过非优先级卡牌")
             task.click_box(skip_box)
-            return True
+        else:
+            task.log_info("无可用刷新或刷新次数且未识别到跳过文本，点击跳过固定坐标")
+            _move_and_click(task, 0.703, 0.931)
+        task.sleep(1)
+        return True
 
     lv_texts = _find_member_level_tags(
         task,

@@ -38,6 +38,8 @@ class ChaosMode(TriggerTask):
         # 事件任务优先级列表, 匹配到包含对应文字的选项时会优先选择
         self.default_config['任务优先级'] = ["复制","信用点增加", "移除"]
         self.default_config['拉黑任务'] = ["咒术卡牌", "压力"]
+        self.default_config['命运优先级'] = []
+        self.default_config['拉黑命运'] = []
         # 闪光卡牌优先级配置，按列表顺序匹配卡牌名称与描述的组合文本
         self.default_config['闪光优先级'] = [
             "剑雨感应：生成2张极光剑",
@@ -58,8 +60,13 @@ class ChaosMode(TriggerTask):
         self.default_config['装备1号位优先级'] = ["蚀化臂铠"]
         self.default_config['装备2号位优先级'] = ["拷问工具箱"]
         self.default_config['装备3号位优先级'] = ["异象石碑"]
+        self.default_config['刻印刷取'] = False
+        self.default_config['首层未刷到刻印重开'] = False
+        self.default_config['刻印优先级'] = []
         self.default_config['卡牌奖励优先级'] = ["梦之边境"]
         self.default_config['指定记忆卡牌'] = ""
+        self.default_config['加工记忆'] = False
+        self.default_config['加工记忆词条'] = ""
         self.default_config['首层刷特定闪光'] = False
         self.default_config['刷空档'] = False
         self.default_config['优先使用金币治疗'] = True
@@ -87,6 +94,7 @@ class ChaosMode(TriggerTask):
                 "names": ["", "", ""],
                 "descriptions": ["", "", ""],
                 "qualities": ["", "", ""],
+                "engraving": {"type": "", "text": "", "rank": None, "slot": None},
             },
             "deck": {},
         }
@@ -105,9 +113,12 @@ class ChaosMode(TriggerTask):
                 ],
             },
             '第几层boss前自动暂停': {'type': 'drop_down', 'options': ['不暂停', '1', '2']},
-            '存储数据保存上限大于多少': {'min': 0, 'max': 170},
+            '存储数据保存上限大于多少': {'min': 0, 'max': 300},
         }
         self.config_description['游戏语言'] = "国际服请设置为繁体中文"
+        self.config_description['存储数据保存上限大于多少'] = (
+            "赛季卡厄思（再次观测）与零式系统（重新合成）的目标pt上限（如填150则刷到>=150pt才进入）；赛季货币不足时会自动停止刷新并直接进入。"
+        )
         self.config_description['闪光优先级'] = (
             "卡牌名称和描述无需完整填写，输入几个关键字即可，但顺序须与游戏原文一致。"
         )
@@ -122,6 +133,27 @@ class ChaosMode(TriggerTask):
         )
         self.config_description['商店刷新信用点阈值'] = (
             "德朗商店免费刷新次数用完后，仅当信用点大于该值且足够支付刷新价格时才付费刷新。"
+        )
+        self.config_description['加工记忆'] = (
+            "开启后，在记忆雕琢界面若当前记忆卡牌未命中“加工记忆词条”，会先点击左侧“记忆加工”转换词条，再点击右侧“记忆雕琢”强化。"
+        )
+        self.config_description['加工记忆词条'] = (
+            "开启“加工记忆”时生效：填写目标记忆卡牌词条关键字（多个候选词条可用逗号分隔），无需完整填写，字序与游戏原文一致即可。"
+        )
+        self.config_description['刻印刷取'] = (
+            "开启后，在事件/战斗/商店获得装备时自动识别光明/黑暗刻印并按“刻印优先级”刷取与替换；开启后词条优先级高于装备优先级。"
+        )
+        self.config_description['首层未刷到刻印重开'] = (
+            "需同时开启“刻印刷取”才生效：第一层通关后若目标主战员未获得命中“刻印优先级”的刻印，则自动退出重刷。"
+        )
+        self.config_description['刻印优先级'] = (
+            "开启“刻印刷取”时生效：按列表顺序填写目标刻印词条关键字（无需完整填写，字序与游戏原文一致即可），越靠前优先级越高。"
+        )
+        self.config_description['命运优先级'] = (
+            "命运选择界面按列表顺序优先选择名称或效果描述命中关键字的命运（无需完整填写，字序与游戏原文一致即可）。"
+        )
+        self.config_description['拉黑命运'] = (
+            "命运选择界面避开名称或效果描述命中关键字的命运（如“领导力”“中立”等）；若三个命运均被拉黑则自动跳过。"
         )
 
     def load_config(self):
