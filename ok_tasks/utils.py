@@ -3918,6 +3918,7 @@ def handle_route_selection(task: TriggerTask):
     # 更新节点状态：进入路线选择页面时 flash_or_rest 置为 True
     if hasattr(task, 'node_status'):
         task.node_status['flash_or_rest'] = True
+        task.node_status['route_seen'] = True
         task.log_info("检测到路线选择页面，更新 node_status['flash_or_rest']=True")
         # 检查"进入商店"配置，若为 True 则同时更新 shop 状态
         if _get_config_value(task, '进入商店', False):
@@ -4243,10 +4244,6 @@ def handle_rest(task: TriggerTask):
         meditation_cost = None
 
     meditation_state = _member_deck_state(task).get("冥想", {})
-    has_pending_meditation = (
-        isinstance(meditation_state, dict)
-        and any(value is True for value in meditation_state.values())
-    )
     current_credit = _get_current_credit(task)
     meditation_credit_threshold = _get_config_value(
         task, "多少信用点以上冥想", 300,
@@ -4259,7 +4256,6 @@ def handle_rest(task: TriggerTask):
         flash_or_rest
         and meditate_feature
         and meditation_cost is not None
-        and has_pending_meditation
         and current_credit > meditation_credit_threshold
         and current_credit > meditation_cost
     )
@@ -4306,8 +4302,23 @@ def handle_rest(task: TriggerTask):
 
     # 检测是否需要进入德朗商店
     shop_box = find_box_at_point(task, 0.360, 0.138)
-    if shop_box and "德朗商店" in shop_box.name and hasattr(task, 'node_status') and task.node_status.get('shop', False):
-        task.log_info("检测到德朗商店，且 node_status['shop']=True，进入商店")
+    shop_available = bool(shop_box and "德朗商店" in shop_box.name)
+    node_status = task.node_status if hasattr(task, 'node_status') else {}
+    shop_requested = bool(node_status.get('shop', False))
+    # 脚本在休息点中途启动时，node_status 里没有路线选择记录，按页面直接进一次商店
+    fresh_rest_shop = (
+        shop_available
+        and not node_status.get('route_seen', False)
+        and not node_status.get('shop_entered', False)
+        and bool(_get_config_value(task, "进入商店", True))
+    )
+    if shop_available and (shop_requested or fresh_rest_shop):
+        if fresh_rest_shop:
+            task.log_info("脚本在休息点中途启动，按页面判断进入一次德朗商店")
+        else:
+            task.log_info("检测到德朗商店，且 node_status['shop']=True，进入商店")
+        task.node_status['shop_entered'] = True
+        task.node_status['shop'] = True
         task.click_box(shop_box)
         task.sleep(2)
         return True
@@ -4656,9 +4667,6 @@ def handle_view_original(task: TriggerTask):
                 f"卡牌闪光页面：第{attempt + 1}次检测未命中优先级或卡面特效未稳定(平均置信度={avg_conf:.4f})，等待后重试"
             )
 
-    if not cards:
-        return False
-
     target_boxes, target_click_positions = find_target_card(task)
     matched_meditation_cards = _matching_meditation_card_names(task, cards)
     if matched_meditation_cards:
@@ -4679,6 +4687,9 @@ def handle_view_original(task: TriggerTask):
         _move_and_click(task, *click_position)
         task.sleep(1.5)
         return True
+
+    if not cards:
+        return False
 
     if not chosen_card:
         chosen_card = random.choice(cards)
