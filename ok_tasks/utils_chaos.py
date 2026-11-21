@@ -85,6 +85,8 @@ def _card_matches_memory_keywords(card, keywords):
 def handle_memory_process(task: TriggerTask):
     """加工记忆（记忆加工）页面：选择命中加工记忆词条的卡牌并确认返回，未命中则跳过。"""
     title = _get_region_text(task, (0.400, 0.070, 0.600, 0.175)).replace(" ", "")
+    if "精密加工" in title or "记忆雕琢" in title:
+        return False
     process_title_keywords = {"加工记忆", "记忆加工", _get_game_text(task, "加工记忆")}
     if not any(kw in title for kw in process_title_keywords if kw):
         return False
@@ -1225,12 +1227,18 @@ def handle_data_collected(task: TriggerTask):
     node_status = getattr(task, 'node_status', None)
     box = find_box_at_point(task, 0.505, 0.111)
     if not (box and _get_game_text(task, '存储数据收集完成') in box.name):
-        # 离开页面时清理点击记录，避免影响下一次
+        # 仅在确实进入过存储数据收集完成页面并离开后，才清理强制删档标记
         if node_status is not None:
             node_status.pop('storage_delete_clicked', None)
-        task._force_delete_archive_no_engraving = False
+        if getattr(task, '_in_data_collected_page', False) and not any(
+            "确认" in text_box.name or "确定" in text_box.name
+            for text_box in task.all_texts
+        ):
+            task._in_data_collected_page = False
+            task._force_delete_archive_no_engraving = False
         return False
 
+    task._in_data_collected_page = True
     force_delete = bool(getattr(task, '_force_delete_archive_no_engraving', False))
     retain_threshold = _get_config_value(
         task, '保留大于多少TB的存档', 62000
@@ -1264,7 +1272,7 @@ def handle_data_collected(task: TriggerTask):
             feature_center_y = (feature.y + feature.height / 2) / task.height
             if force_delete:
                 task.log_info(
-                    f"首层未刷到目标刻印重开，无论TB多少直接强制删除存档({feature_name})"
+                    f"刻印词条未达标重开，无论TB多少直接强制删除存档({feature_name})"
                 )
                 task.click_box(feature)
                 node_status['storage_delete_clicked'] = time.time()
@@ -1426,10 +1434,19 @@ def handle_go_to_memory_end(task: TriggerTask):
 
 
 def _precision_button_active(task: TriggerTask, box):
-    """精密加工记忆按钮是否可用: 采样按钮内部上沿背景，避开文字、图标及左侧光效。"""
+    """加工/精密加工记忆按钮是否可用: 采样按钮自身周围区域颜色，判断是否为橙色激活状态。"""
     height, width = task.frame.shape[:2]
-    patch = task.frame[int(height * 0.763):int(height * 0.771),
-                       int(width * 0.770):int(width * 0.850), :3]
+    if box is not None:
+        pad_x = max(4, int(width * 0.015))
+        pad_y = max(4, int(height * 0.012))
+        y1 = max(0, int(box.y) - pad_y)
+        y2 = min(height, int(box.y + box.height) + pad_y)
+        x1 = max(0, int(box.x) - pad_x)
+        x2 = min(width, int(box.x + box.width) + pad_x)
+        patch = task.frame[y1:y2, x1:x2, :3]
+    else:
+        patch = task.frame[int(height * 0.763):int(height * 0.771),
+                           int(width * 0.770):int(width * 0.850), :3]
     if patch.size == 0:
         return False
     blue, _, red = patch.mean(axis=(0, 1))
