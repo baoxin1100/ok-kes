@@ -163,14 +163,29 @@ def _get_route_priority(task: TriggerTask):
 # ------------------------- 通用工具 -------------------------
 
 def _get_current_credit(task: TriggerTask):
-    """读取当前信用点数，从两个可能位置取最大值。"""
+    """读取当前信用点数，优先固定点位，再扫描信用点数字区域。"""
     credit = 0
-    for pos_x, pos_y in [(0.794, 0.054), (0.734, 0.053)]:
+    for pos_x, pos_y in [
+        (0.794, 0.054),
+        (0.734, 0.053),
+        (0.690, 0.069),
+        (0.700, 0.069),
+        (0.710, 0.069),
+    ]:
         box = find_box_at_point(task, pos_x, pos_y)
         if box and box.name.isdigit():
             val = int(box.name)
             if val > credit:
                 credit = val
+    if credit == 0:
+        for box in task.all_texts:
+            text = box.name.strip()
+            if not text.isdigit():
+                continue
+            center_x = (box.x + box.width / 2) / task.width
+            center_y = (box.y + box.height / 2) / task.height
+            if 0.660 <= center_x <= 0.740 and 0.045 <= center_y <= 0.095:
+                credit = max(credit, int(text))
     return credit
 
 
@@ -3411,6 +3426,7 @@ def handle_route_selection(task: TriggerTask):
     # 更新节点状态：进入路线选择页面时 flash_or_rest 置为 True
     if hasattr(task, 'node_status'):
         task.node_status['flash_or_rest'] = True
+        task.node_status['route_seen'] = True
         task.log_info("检测到路线选择页面，更新 node_status['flash_or_rest']=True")
         # 检查"进入商店"配置，若为 True 则同时更新 shop 状态
         if _get_config_value(task, '进入商店', False):
@@ -3735,7 +3751,6 @@ def handle_rest(task: TriggerTask):
         flash_or_rest
         and meditate_feature
         and meditation_cost is not None
-        and has_pending_meditation
         and current_credit > meditation_credit_threshold
         and current_credit > meditation_cost
     )
@@ -3782,8 +3797,23 @@ def handle_rest(task: TriggerTask):
 
     # 检测是否需要进入德朗商店
     shop_box = find_box_at_point(task, 0.360, 0.138)
-    if shop_box and "德朗商店" in shop_box.name and hasattr(task, 'node_status') and task.node_status.get('shop', False):
-        task.log_info("检测到德朗商店，且 node_status['shop']=True，进入商店")
+    shop_available = bool(shop_box and "德朗商店" in shop_box.name)
+    node_status = task.node_status if hasattr(task, 'node_status') else {}
+    shop_requested = bool(node_status.get('shop', False))
+    # 脚本在休息点中途启动时，node_status 里没有路线选择记录，按页面直接进一次商店
+    fresh_rest_shop = (
+        shop_available
+        and not node_status.get('route_seen', False)
+        and not node_status.get('shop_entered', False)
+        and bool(_get_config_value(task, "进入商店", True))
+    )
+    if shop_available and (shop_requested or fresh_rest_shop):
+        if fresh_rest_shop:
+            task.log_info("脚本在休息点中途启动，按页面判断进入一次德朗商店")
+        else:
+            task.log_info("检测到德朗商店，且 node_status['shop']=True，进入商店")
+        task.node_status['shop_entered'] = True
+        task.node_status['shop'] = True
         task.click_box(shop_box)
         task.sleep(2)
         return True
@@ -4016,9 +4046,7 @@ def handle_view_original(task: TriggerTask):
     if not ((box1 and (_get_game_text(task, '查看原件') in box1.name or _get_game_text(task, '查看之前的闪光') in box1.name)) or (box2 and (_get_game_text(task, '查看原件') in box2.name or _get_game_text(task, '查看之前的闪光') in box2.name))):
         return False
 
-    cards = recognize_cards(task, page="卡牌闪光页面")
-    if not cards:
-        return False
+    cards = recognize_cards(task, page="卡牌闪光页面") or []
 
     flash_priority = []
     for keyword in _get_card_list(task, '闪光优先级'):
@@ -4068,6 +4096,9 @@ def handle_view_original(task: TriggerTask):
         )
         _move_and_click(task, *click_position)
         return True
+
+    if not cards:
+        return False
 
     if not chosen_card:
         chosen_card = random.choice(cards)
