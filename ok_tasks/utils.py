@@ -2618,6 +2618,36 @@ def _count_matched_engravings(task: TriggerTask, equipment=None):
     return sum(1 for eng in engravings if isinstance(eng, dict) and bool(eng.get("type")))
 
 
+_ENGRAVING_EXEMPT_MYTHIC_NAMES = (
+    "混沌之识",
+    "混沌指控",
+    "乱世之触",
+    "混沌触手",
+)
+
+
+def _is_engraving_exempt_mythic(name_or_equipment):
+    """判断是否为允许在未命中刻印时仍正常装备的特例神话装备。"""
+    if isinstance(name_or_equipment, dict):
+        candidates = (
+            name_or_equipment.get("name", ""),
+            name_or_equipment.get("ocr_name", ""),
+        )
+    else:
+        candidates = (name_or_equipment or "",)
+    for raw_name in candidates:
+        normalized = _normalize_text(str(raw_name or "")).strip()
+        if not normalized:
+            continue
+        if any(
+            mythic_name in normalized
+            or (len(normalized) >= 3 and normalized in mythic_name)
+            for mythic_name in _ENGRAVING_EXEMPT_MYTHIC_NAMES
+        ):
+            return True
+    return False
+
+
 def _should_install_equipment_with_engraving(
     task,
     current_name,
@@ -2628,10 +2658,10 @@ def _should_install_equipment_with_engraving(
 ):
     """开启刻印刷取时：
     - 若新装备带刻印：命中刻印优先级时按刻印优先级（同级再比对装备优先级与品质）；
-      未命中时，若当前槽位已命中、在商店页面或该装备在装备优先级中，则不装；
-      非商店的白嫖非优先级装备在当前槽位尚未命中刻印时，按原装备逻辑决定是否先穿戴过渡。
-    - 若新装备不带刻印：当前尚未命中目标刻印且（在商店页面或该装备在装备优先级中）时不装（直接取消/提炼）；
-      非商店的白嫖非优先级装备或当前已命中目标刻印时，按原装备优先级正常比对替换。
+      未命中时，若当前槽位已命中，或非特例神话装备且（在商店页面或该装备在装备优先级中），则不装；
+      非商店的白嫖非优先级装备及特例神话装备（混沌之识/混沌指控、乱世之触/混沌触手）在当前槽位尚未命中刻印时，按原装备逻辑决定是否穿戴。
+    - 若新装备不带刻印：当前尚未命中目标刻印，且非特例神话装备且（在商店页面或该装备在装备优先级中）时不装（直接取消/提炼）；
+      否则按原装备优先级正常比对替换。
     """
     if _is_engraving_farm_enabled(task):
         eng_priority = _engraving_priority(task)
@@ -2639,7 +2669,10 @@ def _should_install_equipment_with_engraving(
         cur_rank = (current_engraving or {}).get("rank")
         new_type = new_equipment.get("engraving_type", "")
         new_rank = new_equipment.get("engraving_rank")
-        should_reject_unmatched = is_purchase_page or new_equipment.get("rank") is not None
+        is_exempt_mythic = _is_engraving_exempt_mythic(new_equipment)
+        should_reject_unmatched = not is_exempt_mythic and (
+            is_purchase_page or new_equipment.get("rank") is not None
+        )
         if eng_priority:
             if new_type:
                 if new_rank is None:
@@ -2983,6 +3016,7 @@ def handle_equipment(task: TriggerTask):
             if (
                 is_purchase_page
                 and _is_engraving_farm_enabled(task)
+                and not _is_engraving_exempt_mythic(new_equipment)
                 and new_equipment.get("engraving_type")
                 and new_equipment.get("engraving_rank") is None
                 and new_equipment.get("rank") is None
@@ -3017,6 +3051,10 @@ def handle_equipment(task: TriggerTask):
                     }
                     task.log_info(
                         f"刻印刷取: 已记录目标主战员{slot + 1}号位当前刻印={equipment['engravings'][slot]}"
+                    )
+                elif equipment["engravings"][slot].get("type"):
+                    task.log_info(
+                        f"刻印刷取: 新装备无刻印，保留目标主战员{slot + 1}号位原有刻印={equipment['engravings'][slot]}"
                     )
                 else:
                     equipment["engravings"][slot] = {"type": "", "text": "", "rank": None}
@@ -4480,7 +4518,7 @@ def handle_shop(task: TriggerTask):
                         if not matched_name:
                             matched_name = f"{eng_type}刻印"
                     else:
-                        if _count_matched_engravings(task) <= 0:
+                        if _count_matched_engravings(task) <= 0 and not _is_engraving_exempt_mythic(item_name):
                             matched_name = None
             if not matched_name:
                 task.log_info(f"德朗商店: {item_type}「{item_name}」未命中配置，跳过")
