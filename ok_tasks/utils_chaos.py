@@ -3,7 +3,7 @@ from ok import TriggerTask
 from utils import (
     _move_and_click, _simplify_texts, _get_config_value, _get_card_list, _get_route_priority, _get_game_text, _get_region_text, _get_current_hp_percent, _finish_only_first_layer,
     find_box_at_point, find_text, recognize_cards, find_target_card,
-    _card_has_type_below, select_card,
+    _card_has_type_below, select_card, recognize_cards_in_deck, _scroll_to_target_member_for_card_removal,
     log_credit, log_node_status, handle_battle_crash, handle_close_page, handle_refine_equipment_credit,
     handle_center_confirm, handle_settlement, handle_skip,
     handle_destiny_choice, handle_main_member_flash,
@@ -35,6 +35,10 @@ from utils import (
 import re
 import random
 import time
+import os
+
+import cv2
+import numpy as np
 
 
 # ------------------------- 卡厄思模式独有页面处理函数 -------------------------
@@ -80,6 +84,211 @@ def _card_matches_memory_keywords(card, keywords):
         if is_subsequence(kw, combined):
             return kw
     return None
+
+
+_EVENT_CRYSTAL_TEMPLATE = None
+
+
+def _load_event_crystal_template(task: TriggerTask):
+    """加载事件场景晶石图标模板，并按当前分辨率缩放。"""
+    global _EVENT_CRYSTAL_TEMPLATE
+    if _EVENT_CRYSTAL_TEMPLATE is None:
+        template_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "assets",
+            "images",
+            "event_crystal.png",
+        )
+        template = cv2.imdecode(
+            np.fromfile(template_path, dtype=np.uint8), cv2.IMREAD_COLOR
+        )
+        if template is None:
+            task.log_info(f"事件晶石模板读取失败：{template_path}")
+            return None
+        _EVENT_CRYSTAL_TEMPLATE = template
+    template = _EVENT_CRYSTAL_TEMPLATE
+    scale_x = task.width / 1600
+    scale_y = task.height / 900
+    if abs(scale_x - 1.0) > 0.01 or abs(scale_y - 1.0) > 0.01:
+        template = cv2.resize(
+            template,
+            (
+                max(1, int(round(template.shape[1] * scale_x))),
+                max(1, int(round(template.shape[0] * scale_y))),
+            ),
+            interpolation=cv2.INTER_AREA,
+        )
+    return template
+
+
+def handle_event_crystal(task: TriggerTask):
+    """事件场景中的晶石收集物：识别并点击。"""
+    if task.frame is None:
+        return False
+    if time.time() - task.node_status.get("event_crystal_last_click", 0) < 2:
+        return False
+    template = _load_event_crystal_template(task)
+    if template is None:
+        return False
+    frame = task.frame[:, :, :3]
+    height, width = frame.shape[:2]
+    # 事件场景中央区域：覆盖 19 图的中上位置和 20 图的中下位置，避开底部选项
+    x1, y1 = int(width * 0.30), int(height * 0.22)
+    x2, y2 = int(width * 0.80), int(height * 0.72)
+    region = frame[y1:y2, x1:x2]
+    if region.shape[0] < template.shape[0] or region.shape[1] < template.shape[1]:
+        return False
+    result = cv2.matchTemplate(region, template, cv2.TM_CCOEFF_NORMED)
+    _, max_value, _, max_location = cv2.minMaxLoc(result)
+    if max_value < 0.75:
+        task.node_status["event_crystal_clicks"] = 0
+        return False
+    clicks = task.node_status.get("event_crystal_clicks", 0)
+    if clicks >= 3:
+        return False
+    center_x = (x1 + max_location[0] + template.shape[1] / 2) / width
+    center_y = (y1 + max_location[1] + template.shape[0] / 2) / height
+    task.node_status["event_crystal_clicks"] = clicks + 1
+    task.node_status["event_crystal_last_click"] = time.time()
+    task.log_info(
+        f"事件场景：识别到晶石收集物（相似度{max_value:.3f}），"
+        f"第{clicks + 1}次点击 ({center_x:.3f}, {center_y:.3f})"
+    )
+    _move_and_click(task, center_x, center_y)
+    task.sleep(0.8)
+    return True
+
+
+def handle_flash_effect_no_card(task: TriggerTask):
+    """闪光效果页面卡牌未渲染时，等待10秒后点击最左卡牌位置兜底。"""
+    title = _get_region_text(task, (0.300, 0.080, 0.720, 0.230))
+    if _get_game_text(task, "请决定闪光效果") not in title:
+        task.node_status.pop("flash_effect_no_card_since", None)
+        return False
+
+    if recognize_cards(task, page="闪光效果兜底") or []:
+        task.node_status.pop("flash_effect_no_card_since", None)
+        return False
+
+    now = time.time()
+    started = task.node_status.get("flash_effect_no_card_since")
+    if not started:
+        task.node_status["flash_effect_no_card_since"] = now
+        task.log_info("闪光效果页面：只有标题未识别到卡牌，等待10秒后点击最左卡牌位置")
+        return True
+    waited = now - started
+    if waited < 10:
+        return True
+
+    task.node_status.pop("flash_effect_no_card_since", None)
+    task.log_info(f"闪光效果页面：已等待{waited:.0f}秒仍无卡牌，点击最左卡牌位置兜底")
+    _move_and_click(task, 0.245, 0.495)
+    task.sleep(1)
+    return True
+
+
+def handle_meditation_card_select(task: TriggerTask):
+    """冥想选卡页：优先选择目标主战员行内最左侧的钉针卡。"""
+    title = _get_region_text(task, (0.080, 0.015, 0.550, 0.085))
+    if "想要重新闪光" not in title:
+        task.node_status["meditation_card_selected"] = False
+        return False
+
+    if task.node_status.get("meditation_card_selected"):
+        if time.time() - task.node_status.get("meditation_card_click_time", 0) < 4:
+            return True
+        task.node_status["meditation_card_selected"] = False
+
+    # 先滚动到配置的目标主战员
+    _scroll_to_target_member_for_card_removal(task)
+
+    deck_region = (0.274, 0.108, 0.929, 0.874)
+    pins = task.find_feature(
+        feature_name="targetinselectcard",
+        box=task.box_of_screen(*deck_region),
+        threshold=0.75,
+    ) or []
+    if not pins:
+        return False
+
+    cards = recognize_cards_in_deck(task, page="冥想选卡页面")
+    if not cards:
+        task.log_info("冥想选卡页面：识别到钉针但未识别到卡牌，交给通用选卡处理")
+        return False
+
+    candidates = []
+    for pin in pins:
+        pin_x = (pin.x + pin.width / 2) / task.width
+        pin_y = (pin.y + pin.height / 2) / task.height
+        left_cards = [
+            card
+            for card in cards
+            if abs(
+                (card["feature_box"].y + card["feature_box"].height / 2) / task.height
+                - pin_y
+            ) <= 0.15
+            and (
+                card["feature_box"].x + card["feature_box"].width / 2
+            ) / task.width < pin_x
+        ]
+        if not left_cards:
+            continue
+        card = max(
+            left_cards,
+            key=lambda item: item["feature_box"].x + item["feature_box"].width / 2,
+        )
+        candidates.append((pin_x, pin_y, card))
+    if not candidates:
+        return False
+
+    if task.feature_exists("target_member_in_select_card"):
+        target_member = task.find_one(
+            feature_name="target_member_in_select_card",
+            box=task.box_of_screen(0.079, 0.092, 0.209, 0.675),
+            threshold=0.5,
+        )
+        if target_member:
+            row_y = (target_member.y + target_member.height / 2) / task.height
+            row_candidates = [
+                candidate
+                for candidate in candidates
+                if abs(candidate[2]["y"] - row_y) <= 0.15
+            ]
+            if row_candidates:
+                candidates = row_candidates
+            else:
+                task.log_info("冥想选卡页面：目标主战员行内没有钉针卡，按全部钉针选择")
+
+    flash_priority = _get_card_list(task, "闪光优先级")
+
+    def matched_priority(card):
+        combined = f"{card['name']}：:{card['description']}"
+        return next(
+            (
+                keyword.strip()
+                for keyword in flash_priority
+                if isinstance(keyword, str)
+                and keyword.strip()
+                and is_subsequence(keyword.strip(), combined)
+            ),
+            None,
+        )
+
+    unmatched = [
+        candidate for candidate in candidates if not matched_priority(candidate[2])
+    ]
+    pool = unmatched or candidates
+    pool.sort(key=lambda candidate: candidate[2]["feature_box"].x)
+    chosen = pool[0][2]
+    task.log_info(
+        f"冥想选卡页面：选择钉针卡「{chosen['name']}」"
+        f"（{'未命中' if unmatched else '已全部命中'}闪光优先级）"
+    )
+    _move_and_click(task, chosen["x"], chosen["y"])
+    task.sleep(0.5)
+    task.node_status["meditation_card_selected"] = True
+    task.node_status["meditation_card_click_time"] = time.time()
+    return True
 
 
 def handle_memory_process(task: TriggerTask):
@@ -1607,8 +1816,10 @@ PAGE_HANDLERS = [
     # handle_stage_clear,
     log_credit,
     log_node_status,
+    handle_flash_effect_no_card, #闪光效果页面卡牌未渲染，10秒后点最左卡牌兜底
     handle_stuck_log, #画面卡住检测及兜底处理
     handle_close_page, #点击屏幕关闭页面，优先于其他普通页面处理
+    handle_event_crystal, #事件场景晶石收集物
 
     handle_refine_equipment_credit, #提炼装备信用点页面，优先于确认按钮
     handle_center_confirm, #页面中央确认按钮
@@ -1651,6 +1862,7 @@ PAGE_HANDLERS = [
     handle_main_member_flash,
     handle_card_reward,
     handle_memory_card_select,
+    handle_meditation_card_select, #冥想选卡页：钉针优先
     handle_select_card,
     handle_copy_member,
     handle_copy_card_choice,
