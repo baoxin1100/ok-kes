@@ -2684,18 +2684,14 @@ def _should_install_equipment_with_engraving(
                     if cur_rank < new_rank:
                         return False, f"当前刻印词条优先级更高({(current_engraving or {}).get('text', '')[:16]})"
             else:
-                if cur_rank is not None:
-                    return False, "当前槽位已命中刻印优先级，保留现有刻印"
-                if should_reject_unmatched:
+                if cur_rank is None and should_reject_unmatched:
                     return False, "当前与新装备均未命中刻印优先级"
         else:
             if new_type:
                 if not cur_type:
                     return True, f"新装备带有{new_type}刻印"
             else:
-                if cur_type:
-                    return False, "当前槽位已带有刻印，保留现有刻印"
-                if should_reject_unmatched:
+                if not cur_type and should_reject_unmatched:
                     return False, "当前与新装备均不带刻印"
     return _should_install_equipment(task, current_name, current_quality, new_equipment)
 
@@ -3055,6 +3051,10 @@ def handle_equipment(task: TriggerTask):
                     }
                     task.log_info(
                         f"刻印刷取: 已记录目标主战员{slot + 1}号位当前刻印={equipment['engravings'][slot]}"
+                    )
+                elif equipment["engravings"][slot].get("type"):
+                    task.log_info(
+                        f"刻印刷取: 新装备无刻印，保留目标主战员{slot + 1}号位原有刻印={equipment['engravings'][slot]}"
                     )
                 else:
                     equipment["engravings"][slot] = {"type": "", "text": "", "rank": None}
@@ -4518,7 +4518,7 @@ def handle_shop(task: TriggerTask):
                         if not matched_name:
                             matched_name = f"{eng_type}刻印"
                     else:
-                        if not _is_engraving_exempt_mythic(item_name):
+                        if _count_matched_engravings(task) <= 0 and not _is_engraving_exempt_mythic(item_name):
                             matched_name = None
             if not matched_name:
                 task.log_info(f"德朗商店: {item_type}「{item_name}」未命中配置，跳过")
