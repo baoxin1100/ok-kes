@@ -4883,6 +4883,9 @@ def reset_all_status(task: TriggerTask):
     task._engraving_scroll_equip_name = ""
     task._shop_inspected_items = set()
     task._shop_page_sig = None
+    task._in_data_collected_page = False
+    task._force_delete_archive_no_engraving = False
+    task._in_data_collected_page = False
     task._force_delete_archive_no_engraving = False
 
 
@@ -4909,6 +4912,8 @@ def reset_mission_status(task: TriggerTask):
     task._engraving_scroll_equip_name = ""
     task._shop_inspected_items = set()
     task._shop_page_sig = None
+    task._in_data_collected_page = False
+    task._force_delete_archive_no_engraving = False
 
 
 def reset_layer_status(task: TriggerTask):

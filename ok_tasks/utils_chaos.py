@@ -1227,12 +1227,18 @@ def handle_data_collected(task: TriggerTask):
     node_status = getattr(task, 'node_status', None)
     box = find_box_at_point(task, 0.505, 0.111)
     if not (box and _get_game_text(task, '存储数据收集完成') in box.name):
-        # 离开页面时清理点击记录，避免影响下一次
+        # 仅在确实进入过存储数据收集完成页面并离开后，才清理强制删档标记
         if node_status is not None:
             node_status.pop('storage_delete_clicked', None)
-        task._force_delete_archive_no_engraving = False
+        if getattr(task, '_in_data_collected_page', False) and not any(
+            "确认" in text_box.name or "确定" in text_box.name
+            for text_box in task.all_texts
+        ):
+            task._in_data_collected_page = False
+            task._force_delete_archive_no_engraving = False
         return False
 
+    task._in_data_collected_page = True
     force_delete = bool(getattr(task, '_force_delete_archive_no_engraving', False))
     retain_threshold = _get_config_value(
         task, '保留大于多少TB的存档', 62000
@@ -1266,7 +1272,7 @@ def handle_data_collected(task: TriggerTask):
             feature_center_y = (feature.y + feature.height / 2) / task.height
             if force_delete:
                 task.log_info(
-                    f"首层未刷到目标刻印重开，无论TB多少直接强制删除存档({feature_name})"
+                    f"刻印词条未达标重开，无论TB多少直接强制删除存档({feature_name})"
                 )
                 task.click_box(feature)
                 node_status['storage_delete_clicked'] = time.time()
